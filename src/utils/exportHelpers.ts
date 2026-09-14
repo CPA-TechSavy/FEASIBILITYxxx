@@ -101,6 +101,7 @@ export function exportToExcel(
         <tr class="subtotal"><td>Gross Profit</td>${financials.slice(1).map(f => `<td class="num">${Math.round(f.grossProfit).toLocaleString()}</td>`).join('')}</tr>
         <tr><td>Operating Expenses (SG&A + Depr.)</td>${financials.slice(1).map(f => `<td class="num">(${Math.round(f.totalOpex).toLocaleString()})</td>`).join('')}</tr>
         <tr class="subtotal"><td>Operating Income (EBIT)</td>${financials.slice(1).map(f => `<td class="num">${Math.round(f.ebit).toLocaleString()}</td>`).join('')}</tr>
+        <tr><td>Add: Bank Interest Income</td>${financials.slice(1).map(f => `<td class="num">${Math.round(f.interestIncome || 0).toLocaleString()}</td>`).join('')}</tr>
         <tr><td>Less: Financing Cost (Interest Expense)</td>${financials.slice(1).map(f => `<td class="num">(${Math.round(f.interestExpense).toLocaleString()})</td>`).join('')}</tr>
         <tr class="subtotal"><td>Net Income Before Taxes (EBT)</td>${financials.slice(1).map(f => `<td class="num">${Math.round(f.ebt).toLocaleString()}</td>`).join('')}</tr>
         <tr><td>Less: Provision for Income Tax (${project.taxRatePercent}%)</td>${financials.slice(1).map(f => `<td class="num">(${Math.round(f.taxExpense).toLocaleString()})</td>`).join('')}</tr>

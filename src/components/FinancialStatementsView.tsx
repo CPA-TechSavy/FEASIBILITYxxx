@@ -284,6 +284,18 @@ export default function FinancialStatementsView({
                     ))}
                   </tr>
 
+                  {/* Interest Income */}
+                  <tr>
+                    <td className="py-1.5 pl-4 text-emerald-700">
+                      Add: Interest Income ({project.workingCapitalBufferDetails?.bankName || 'Depository Bank'} @ {project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 0}%)
+                    </td>
+                    {years5.map((y) => (
+                      <td key={y.year} className="py-1.5 text-right font-financial text-emerald-700">
+                        {formatCurrency(y.interestIncome ?? 0, c)}
+                      </td>
+                    ))}
+                  </tr>
+
                   {/* Finance Cost */}
                   <tr>
                     <td className="py-1.5 pl-4 text-slate-600">Less: Financing Cost (Bank Interest)</td>

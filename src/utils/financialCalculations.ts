@@ -7,38 +7,75 @@ import {
 } from '../types';
 
 /**
- * Calculates straight-line depreciation schedule for all fixed assets
+ * Calculates depreciation schedule for all fixed assets using the chosen method:
+ * - Straight-Line (Default)
+ * - Double Declining Balance (200% Accelerated)
+ * - 150% Declining Balance
+ * - Sum-of-the-Years'-Digits (SYD)
  */
 export function calculateDepreciation(project: FeasibilityProject): DepreciationRow[] {
   return project.fixedAssets.map((asset) => {
-    const depreciableBase = Math.max(0, asset.cost - asset.salvageValue);
+    const cost = Math.max(0, asset.cost);
+    const salvageValue = Math.max(0, Math.min(asset.salvageValue, cost));
     const usefulLife = Math.max(1, asset.usefulLifeYears);
-    const annualDepreciation = depreciableBase / usefulLife;
+    const depreciableBase = Math.max(0, cost - salvageValue);
+    const method = asset.depreciationMethod || 'Straight-Line';
 
     let accum = 0;
-    const yearValues = [];
+    let currentBookValue = cost;
+    const yearValues: {
+      year: number;
+      depreciation: number;
+      accumulatedDepreciation: number;
+      bookValue: number;
+    }[] = [];
+
+    // Sum of the years digits denominator: n(n+1)/2
+    const sydDenominator = (usefulLife * (usefulLife + 1)) / 2;
 
     for (let yr = 1; yr <= 5; yr++) {
       let dep = 0;
-      if (yr <= usefulLife) {
-        dep = annualDepreciation;
+
+      if (yr <= usefulLife && currentBookValue > salvageValue) {
+        if (method === 'Straight-Line') {
+          const straightLinePerYear = depreciableBase / usefulLife;
+          dep = Math.min(straightLinePerYear, currentBookValue - salvageValue);
+        } else if (method === 'Double Declining Balance') {
+          const ddbRate = 2 / usefulLife;
+          const tentativeDep = currentBookValue * ddbRate;
+          dep = Math.min(tentativeDep, currentBookValue - salvageValue);
+        } else if (method === '150% Declining Balance') {
+          const db150Rate = 1.5 / usefulLife;
+          const tentativeDep = currentBookValue * db150Rate;
+          dep = Math.min(tentativeDep, currentBookValue - salvageValue);
+        } else if (method === 'Sum-of-the-Years-Digits') {
+          const remainingLife = usefulLife - yr + 1;
+          const tentativeDep = depreciableBase * (remainingLife / sydDenominator);
+          dep = Math.min(tentativeDep, currentBookValue - salvageValue);
+        }
       }
+
+      dep = Math.max(0, Math.round(dep * 100) / 100);
       accum += dep;
-      const bookValue = Math.max(asset.salvageValue, asset.cost - accum);
+      currentBookValue = Math.max(salvageValue, cost - accum);
+
       yearValues.push({
         year: yr,
         depreciation: dep,
-        accumulatedDepreciation: accum,
-        bookValue,
+        accumulatedDepreciation: Math.round(accum * 100) / 100,
+        bookValue: Math.round(currentBookValue * 100) / 100,
       });
     }
+
+    const annualDepreciation = yearValues[0]?.depreciation || 0;
 
     return {
       assetId: asset.id,
       assetName: asset.name,
-      cost: asset.cost,
+      cost,
       usefulLife,
-      salvageValue: asset.salvageValue,
+      salvageValue,
+      depreciationMethod: method,
       annualDepreciation,
       yearValues,
     };
@@ -136,6 +173,7 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     opexDepreciation: 0,
     totalOpex: totalPreOperating,
     ebit: -totalPreOperating,
+    interestIncome: 0,
     interestExpense: 0,
     ebt: -totalPreOperating,
     taxExpense: 0,
@@ -246,14 +284,23 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       adminExpenses + sellingExpenses + utilitiesAndRent + otherOpex + opexDepreciation;
     const ebit = grossProfit - totalOpex;
 
-    // 5. Financing & Tax
+    // 5. Financing, Interest Income & Tax
+    const initialBankDeposit =
+      project.workingCapitalBufferDetails?.cashInBank ??
+      (project.initialWorkingCapitalBuffer * 0.8);
+    const bankInterestRate =
+      (project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 0) / 100;
+    // Bank deposit generates interest income based on cash held in bank account
+    const bankDepositBalance = Math.max(0, Math.min(prevCash, initialBankDeposit));
+    const interestIncome = Math.round(bankDepositBalance * bankInterestRate);
+
     const loanRow = loanSchedule[yr - 1] || {
       interestExpense: 0,
       principalRepayment: 0,
       endingBalance: 0,
     };
     const interestExpense = loanRow.interestExpense;
-    const ebt = ebit - interestExpense;
+    const ebt = ebit + interestIncome - interestExpense;
     const taxExpense = ebt > 0 ? ebt * (project.taxRatePercent / 100) : 0;
     const netIncome = ebt - taxExpense;
     const netProfitMargin = netSales > 0 ? (netIncome / netSales) * 100 : 0;
@@ -352,6 +399,7 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       opexDepreciation,
       totalOpex,
       ebit,
+      interestIncome,
       interestExpense,
       ebt,
       taxExpense,

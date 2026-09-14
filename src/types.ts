@@ -1,5 +1,11 @@
 export type CurrencySymbol = '$' | '₱' | '€' | '£' | '¥' | '₹' | 'S$';
 
+export type DepreciationMethod =
+  | 'Straight-Line'
+  | 'Double Declining Balance'
+  | '150% Declining Balance'
+  | 'Sum-of-the-Years-Digits';
+
 export interface PreOperatingExpenseItem {
   id: string;
   name: string;
@@ -10,8 +16,34 @@ export interface FixedAssetItem {
   id: string;
   name: string;
   cost: number;
-  usefulLifeYears: number; // For straight-line depreciation
+  usefulLifeYears: number; // For depreciation calculation
   salvageValue: number;
+  depreciationMethod?: DepreciationMethod; // Defaults to Straight-Line
+}
+
+export type CostComponentCategory =
+  | 'Raw Materials & Ingredients'
+  | 'Packaging & Containers'
+  | 'Direct Consumables & Supplies'
+  | 'Direct Labor Allocation'
+  | 'Direct Overhead & Freight';
+
+export interface ProductCostComponent {
+  id: string;
+  category: CostComponentCategory;
+  name: string;
+  // Calculation mode: 'package_yield' (e.g., 1 box of Oat Milk at 120 PHP produces 10 Espressos -> 12 PHP/unit)
+  // or 'direct_unit' (direct quantity * unit cost per finished unit)
+  costMode?: 'package_yield' | 'direct_unit';
+  purchaseCost?: number; // e.g. 120 PHP per package/box/bag
+  packageUnit?: string; // e.g. 'box', 'carton', 'bag', 'kg', 'bottle', 'pack'
+  packageQuantity?: number; // e.g. 1 (1 box)
+  yieldUnits?: number; // e.g. 10 (produces 10 units of finished product per package)
+  // Standard / direct unit fields (maintained for calculation & compatibility):
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  totalCost: number; // Cost per 1 finished unit of product
 }
 
 export interface ProductItem {
@@ -21,6 +53,7 @@ export interface ProductItem {
   year1Volume: number;
   annualGrowthRate: number; // In percent e.g. 8 for 8%
   unitCost: number; // Direct material/cost per unit
+  costBreakdown?: ProductCostComponent[];
 }
 
 export interface DirectLaborItem {
@@ -46,6 +79,13 @@ export interface FinancingAssumptions {
   loanTermYears: number; // e.g. 3 or 5 years
 }
 
+export interface WorkingCapitalBufferDetails {
+  cashOnHand: number;
+  cashInBank: number;
+  bankName: string;
+  bankInterestRatePercent: number; // Manually encoded by the user (% p.a.)
+}
+
 export interface WorkingCapitalPolicy {
   accountsReceivablePercentOfSales: number; // e.g. 5% of sales
   inventoryPercentOfCOGS: number; // e.g. 8% of COGS
@@ -69,7 +109,8 @@ export interface FeasibilityProject {
   // Year 0 Setup
   preOperatingExpenses: PreOperatingExpenseItem[];
   fixedAssets: FixedAssetItem[];
-  initialWorkingCapitalBuffer: number;
+  initialWorkingCapitalBuffer: number; // Sum of cashOnHand + cashInBank
+  workingCapitalBufferDetails?: WorkingCapitalBufferDetails;
   financing: FinancingAssumptions;
 
   // Operating Projections
@@ -113,6 +154,7 @@ export interface YearFinancials {
 
   // Earnings
   ebit: number; // Operating Income
+  interestIncome?: number; // Interest income from Cash in Bank deposits
   interestExpense: number;
   ebt: number; // Earnings before tax
   taxExpense: number;
@@ -175,6 +217,7 @@ export interface DepreciationRow {
   cost: number;
   usefulLife: number;
   salvageValue: number;
+  depreciationMethod: DepreciationMethod;
   annualDepreciation: number;
   yearValues: {
     year: number;
