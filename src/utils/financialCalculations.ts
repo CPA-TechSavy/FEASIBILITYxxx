@@ -551,8 +551,6 @@ export function calculateFeasibilityMetrics(
   let verdictSummary = '';
   if (isFeasible) {
     verdictSummary = `FINANCIALLY FEASIBLE: The project yields a positive Net Present Value (NPV) of ${npv >= 0 ? '+' : ''}${Math.round(npv).toLocaleString()} at a ${project.discountRatePercent}% hurdle rate, with an Internal Rate of Return (IRR) of ${(irr * 100).toFixed(1)}% substantially exceeding the cost of capital, and an expected Payback Period of ${paybackPeriodYears.toFixed(2)} years.`;
-  } else {
-    verdictSummary = `FURTHER ADJUSTMENT RECOMMENDED: At current assumptions, the projected cash flows do not meet the minimum ${project.discountRatePercent}% hurdle rate (IRR: ${(irr * 100).toFixed(1)}%, NPV: ${Math.round(npv).toLocaleString()}). Consider optimizing pricing, reducing initial fixed assets, or adjusting financing mix.`;
   }
 
   // 5-Year Average Ratios

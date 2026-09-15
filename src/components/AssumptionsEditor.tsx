@@ -35,8 +35,6 @@ import {
   Tag,
   AlertCircle,
   Copy,
-  Lightbulb,
-  Sparkles,
   Box,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/financialCalculations';
@@ -217,53 +215,29 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
         ? {
             id: `cb-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
             category: 'Raw Materials & Ingredients',
-            name: 'Bulk Raw Material / Ingredient',
+            name: '',
             costMode: 'package_yield',
-            purchaseCost: 120,
-            packageUnit: 'box',
+            purchaseCost: 0,
+            packageUnit: 'unit',
             packageQuantity: 1,
-            yieldUnits: 10,
-            quantity: 0.1,
-            unit: 'box',
-            unitCost: 120,
-            totalCost: 12.0, // 120 / 10 = 12 PHP
+            yieldUnits: 1,
+            quantity: 1,
+            unit: 'unit',
+            unitCost: 0,
+            totalCost: 0,
           }
         : {
             id: `cb-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
             category: 'Raw Materials & Ingredients',
-            name: 'Direct Material / Supply',
+            name: '',
             costMode: 'direct_unit',
             quantity: 1,
-            unit: 'pc',
-            unitCost: 10,
-            totalCost: 10,
+            unit: 'unit',
+            unitCost: 0,
+            totalCost: 0,
           };
 
     updateProductCostBreakdown(productId, [...existing, newComponent]);
-  };
-
-  // Specific helper for the user's Oat Milk example
-  const addOatMilkExample = (productId: string) => {
-    const target = project.products.find((p) => p.id === productId);
-    if (!target) return;
-    const existing = target.costBreakdown || [];
-
-    const oatMilkComponent: ProductCostComponent = {
-      id: `cb-oatmilk-${Date.now()}`,
-      category: 'Raw Materials & Ingredients',
-      name: 'Barista Oat Milk (1L Carton / Box)',
-      costMode: 'package_yield',
-      purchaseCost: 120,
-      packageUnit: 'box',
-      packageQuantity: 1,
-      yieldUnits: 10, // 1 box produces 10 Espressos
-      quantity: 0.1,
-      unit: 'box',
-      unitCost: 120,
-      totalCost: 12.0, // 120 ÷ 10 = 12.00 PHP
-    };
-
-    updateProductCostBreakdown(productId, [...existing, oatMilkComponent]);
   };
 
   const duplicateCostComponent = (productId: string, compIndex: number) => {
@@ -352,138 +326,11 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
     updateProductCostBreakdown(productId, existing);
   };
 
-  const loadDefaultBreakdown = (productId: string) => {
-    const target = project.products.find((p) => p.id === productId);
-    if (!target) return;
-    const baseCost = target.unitCost > 0 ? target.unitCost : 48;
-    const isBeverage =
-      target.name.toLowerCase().includes('espresso') ||
-      target.name.toLowerCase().includes('coffee') ||
-      target.name.toLowerCase().includes('tea') ||
-      target.name.toLowerCase().includes('drink') ||
-      target.name.toLowerCase().includes('beverage');
-
-    const defaults: ProductCostComponent[] = isBeverage
-      ? [
-          {
-            id: `cb-${Date.now()}-1`,
-            category: 'Raw Materials & Ingredients',
-            name: 'Arabica Specialty Coffee Beans (1kg Bag)',
-            costMode: 'package_yield',
-            purchaseCost: 850,
-            packageUnit: 'bag',
-            packageQuantity: 1,
-            yieldUnits: 50,
-            quantity: 0.02,
-            unit: 'bag',
-            unitCost: 850,
-            totalCost: 17.0, // 850 / 50 = 17.00
-          },
-          {
-            id: `cb-${Date.now()}-2`,
-            category: 'Raw Materials & Ingredients',
-            name: 'Barista Oat Milk (1L Carton / Box)',
-            costMode: 'package_yield',
-            purchaseCost: 120,
-            packageUnit: 'box',
-            packageQuantity: 1,
-            yieldUnits: 10, // 1 box produces 10 Espresso drinks
-            quantity: 0.1,
-            unit: 'box',
-            unitCost: 120,
-            totalCost: 12.0, // 120 ÷ 10 = 12.00
-          },
-          {
-            id: `cb-${Date.now()}-3`,
-            category: 'Packaging & Containers',
-            name: 'PLA Hot Cup & Sip Lid (Sleeve of 50)',
-            costMode: 'package_yield',
-            purchaseCost: 375,
-            packageUnit: 'sleeve',
-            packageQuantity: 1,
-            yieldUnits: 50,
-            quantity: 0.02,
-            unit: 'sleeve',
-            unitCost: 375,
-            totalCost: 7.5, // 375 / 50 = 7.50
-          },
-          {
-            id: `cb-${Date.now()}-4`,
-            category: 'Direct Consumables & Supplies',
-            name: 'Specialty Flavor Syrup (750ml Bottle)',
-            costMode: 'package_yield',
-            purchaseCost: 325,
-            packageUnit: 'bottle',
-            packageQuantity: 1,
-            yieldUnits: 50,
-            quantity: 0.02,
-            unit: 'bottle',
-            unitCost: 325,
-            totalCost: 6.5, // 325 / 50 = 6.50
-          },
-          {
-            id: `cb-${Date.now()}-5`,
-            category: 'Packaging & Containers',
-            name: 'Biodegradable Straw & Napkin (Pack of 100)',
-            costMode: 'package_yield',
-            purchaseCost: 500,
-            packageUnit: 'pack',
-            packageQuantity: 1,
-            yieldUnits: 100,
-            quantity: 0.01,
-            unit: 'pack',
-            unitCost: 500,
-            totalCost: 5.0, // 500 / 100 = 5.00
-          },
-        ]
-      : [
-          {
-            id: `cb-${Date.now()}-1`,
-            category: 'Raw Materials & Ingredients',
-            name: 'Primary Bulk Raw Material (1 Batch / Pack)',
-            costMode: 'package_yield',
-            purchaseCost: Math.round(baseCost * 0.55 * 10),
-            packageUnit: 'batch',
-            packageQuantity: 1,
-            yieldUnits: 10,
-            quantity: 0.1,
-            unit: 'batch',
-            unitCost: Math.round(baseCost * 0.55 * 10),
-            totalCost: Math.round(baseCost * 0.55 * 100) / 100,
-          },
-          {
-            id: `cb-${Date.now()}-2`,
-            category: 'Packaging & Containers',
-            name: 'Unit Packaging & Carton (Box of 50)',
-            costMode: 'package_yield',
-            purchaseCost: Math.round(baseCost * 0.3 * 50),
-            packageUnit: 'box',
-            packageQuantity: 1,
-            yieldUnits: 50,
-            quantity: 0.02,
-            unit: 'box',
-            unitCost: Math.round(baseCost * 0.3 * 50),
-            totalCost: Math.round(baseCost * 0.3 * 100) / 100,
-          },
-          {
-            id: `cb-${Date.now()}-3`,
-            category: 'Direct Consumables & Supplies',
-            name: 'Direct Processing Supplies & Consumables',
-            costMode: 'direct_unit',
-            quantity: 1,
-            unit: 'serving',
-            unitCost: Math.round(baseCost * 0.15 * 100) / 100,
-            totalCost: Math.round(baseCost * 0.15 * 100) / 100,
-          },
-        ];
-    updateProductCostBreakdown(productId, defaults, true);
-  };
-
   // Working Capital Buffer decomposition (Cash on Hand & Cash in Bank)
   const wcDetails = project.workingCapitalBufferDetails || {
     cashOnHand: Math.round((project.initialWorkingCapitalBuffer || 0) * 0.2),
     cashInBank: Math.round((project.initialWorkingCapitalBuffer || 0) * 0.8),
-    bankName: 'BDO Unibank, Inc.',
+    bankName: '',
     bankInterestRatePercent: 1.0,
   };
 
@@ -685,9 +532,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                         <h3 className="text-sm font-bold text-slate-800">
                           Property, Plant & Equipment (CapEx)
                         </h3>
-                        <p className="text-xs text-slate-500">
-                          Depreciation methods supported: Straight-line (Default), Double Declining Balance, 150% DB, and Sum-of-the-Years&apos;-Digits.
-                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -844,9 +688,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                     <h3 className="text-sm font-bold text-indigo-950 mb-1">
                       Financing Mix & Initial Working Capital Buffer
                     </h3>
-                    <p className="text-xs text-indigo-700/80">
-                      Balance check: Total Project Outlay = Equity Contribution + Bank Loan. Initial cash buffer is broken down into Cash on Hand and Cash in Bank.
-                    </p>
                   </div>
 
                   {/* Breakdown of Initial Working Capital Buffer: Cash on Hand & Cash in Bank */}
@@ -892,9 +733,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                           className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-financial font-bold text-slate-900 focus:outline-indigo-500"
                           placeholder="0"
                         />
-                        <span className="text-[10px] text-slate-500 mt-1 block">
-                          Physical store / counter cash float
-                        </span>
                       </div>
 
                       {/* Cash in Bank */}
@@ -915,9 +753,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                           className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-financial font-bold text-slate-900 focus:outline-indigo-500"
                           placeholder="0"
                         />
-                        <span className="text-[10px] text-slate-500 mt-1 block">
-                          Commercial depository bank balance
-                        </span>
                       </div>
 
                       {/* Depository Local Bank Selector */}
@@ -979,9 +814,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                             className="mt-1.5 w-full bg-white border border-indigo-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-indigo-500"
                           />
                         )}
-                        <span className="text-[10px] text-slate-500 mt-1 block">
-                          Choose from provided local bank list
-                        </span>
                       </div>
 
                       {/* Bank Interest Rate (% p.a.) - Manually Encoded */}
@@ -1062,9 +894,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                         }
                         className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-financial font-semibold text-slate-900 focus:outline-indigo-500"
                       />
-                      <span className="text-[10px] text-slate-500 mt-1 block">
-                        Paid-in capital by partners
-                      </span>
                     </div>
 
                     <div>
@@ -1085,9 +914,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                         }
                         className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-financial font-semibold text-slate-900 focus:outline-indigo-500"
                       />
-                      <span className="text-[10px] text-slate-500 mt-1 block">
-                        Borrowed capital for Year 0
-                      </span>
                     </div>
 
                     <div>
@@ -1134,9 +960,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                           />
                         </div>
                       </div>
-                      <span className="text-[10px] text-slate-500 mt-1 block">
-                        Annual amortization terms
-                      </span>
                     </div>
                   </div>
 
@@ -1497,8 +1320,18 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                   ) : (
                     /* ITEMIZED BREAKDOWN CALCULATOR VIEW */
                     <div className="space-y-4">
-                      {/* Product Selector with Horizontal Scroll & Navigation Controls */}
-                      <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-2.5">
+                      {project.products.length === 0 ? (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                          <Box className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                          <h4 className="text-sm font-semibold text-slate-700">No Products Added Yet</h4>
+                          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                            Add a product in the Sales Volume &amp; Revenue Streams table above to start itemizing raw materials and direct unit costs.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Product Selector with Horizontal Scroll & Navigation Controls */}
+                          <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-200/60">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
@@ -1563,6 +1396,11 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                         {/* Scrollable Product Chips Carousel */}
                         <div
                           ref={productScrollRef}
+                          onWheel={(e) => {
+                            if (e.deltaY !== 0 && productScrollRef.current) {
+                              productScrollRef.current.scrollLeft += e.deltaY;
+                            }
+                          }}
                           className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scroll-smooth scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
                           style={{ scrollbarWidth: 'thin' }}
                         >
@@ -1693,36 +1531,17 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => addOatMilkExample(activeCostProduct.id)}
-                                  className="px-2.5 py-1 text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-medium flex items-center gap-1 transition"
-                                  title="Add 1 Box of Oat Milk @ 120 producing 10 units = 12.00/unit"
-                                >
-                                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                                  + Oat Milk Example (₱120 ÷ 10)
-                                </button>
-                                {comps.length === 0 ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => loadDefaultBreakdown(activeCostProduct.id)}
-                                    className="px-2.5 py-1 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium flex items-center gap-1 transition"
-                                  >
-                                    <PieChart className="w-3.5 h-3.5" /> Load Recipe Template
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => loadDefaultBreakdown(activeCostProduct.id)}
-                                    className="px-2 py-1 text-[11px] text-slate-600 hover:text-slate-900 bg-slate-100 rounded font-medium transition"
-                                  >
-                                    Reset to Default
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
                                   onClick={() => addCostComponent(activeCostProduct.id, 'package_yield')}
                                   className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold flex items-center gap-1 transition shadow-xs"
                                 >
                                   <Plus className="w-3.5 h-3.5" /> Add Raw Material (Yield)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => addCostComponent(activeCostProduct.id, 'direct_unit')}
+                                  className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center gap-1.5 transition"
+                                >
+                                  <Plus className="w-3.5 h-3.5" /> Add Direct Item
                                 </button>
                               </div>
                             </div>
@@ -1791,23 +1610,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                               </div>
                             </div>
 
-                            {/* Educational Callout on Package Yield Direct Costing */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-indigo-50/60 border border-indigo-200/70 rounded-xl text-xs text-indigo-950">
-                              <div className="flex items-start gap-2 max-w-3xl">
-                                <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                                <div>
-                                  <span className="font-bold text-indigo-950">Package Yield & Raw Material Costing:</span>{' '}
-                                  List all raw materials needed to produce each unit. For bulk items (e.g., <strong>1 box of Oat Milk costing ₱120</strong> that produces <strong>10 Espressos</strong>), use <span className="font-semibold text-indigo-700 bg-white px-1 py-0.5 rounded border border-indigo-200">📦 Package Yield</span> mode. The system divides the purchase cost by the yield units to determine the exact direct cost (<strong>₱12.00 / unit</strong>).
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => addOatMilkExample(activeCostProduct.id)}
-                                className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg font-semibold text-[11px] shrink-0 transition"
-                              >
-                                Test Oat Milk (₱120 ÷ 10)
-                              </button>
-                            </div>
 
                             {/* Discrepancy / Sync Alert Banner */}
                             {isDiff && (
@@ -1855,9 +1657,9 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                                       <td colSpan={7} className="p-8 text-center text-slate-400 italic">
                                         <div className="max-w-md mx-auto space-y-2">
                                           <Box className="w-8 h-8 text-slate-300 mx-auto" />
-                                          <p className="text-slate-600 font-medium">No raw materials or components defined for {activeCostProduct.name}.</p>
+                                          <p className="text-slate-600 font-medium">No raw materials or components defined for {activeCostProduct.name || 'this product'}.</p>
                                           <p className="text-[11px] text-slate-400">
-                                            Click &ldquo;Load Recipe Template&rdquo;, &ldquo;Add Raw Material (Yield)&rdquo;, or &ldquo;+ Oat Milk Example&rdquo; to calculate the exact cost per unit.
+                                            Click &ldquo;Add Raw Material (Yield)&rdquo; or &ldquo;Add Direct Item&rdquo; to calculate the exact cost per unit.
                                           </p>
                                         </div>
                                       </td>
@@ -1912,7 +1714,7 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                                                 )
                                               }
                                               className="w-full font-medium text-slate-800 border border-slate-200 hover:border-slate-300 rounded-md px-2 py-1.5 focus:border-indigo-500 focus:outline-none"
-                                              placeholder="e.g. Barista Oat Milk, Arabica Beans, PLA Cups..."
+                                              placeholder="e.g. Raw Material, Packaging, Ingredient, Supplies..."
                                             />
                                           </td>
 
@@ -2217,14 +2019,7 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                                   <Plus className="w-3.5 h-3.5" />
                                   Add Direct Cost Item (Unit Usage)
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => addOatMilkExample(activeCostProduct.id)}
-                                  className="px-3 py-1.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-medium flex items-center gap-1.5 transition"
-                                >
-                                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                                  Add Oat Milk Example (₱120 ÷ 10 = ₱12.00)
-                                </button>
+
                               </div>
 
                               <div className="text-xs text-slate-500 font-medium">
@@ -2259,8 +2054,10 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                           </div>
                         );
                       })()}
-                    </div>
+                    </>
                   )}
+                </div>
+              )}
                 </div>
               </div>
             )}

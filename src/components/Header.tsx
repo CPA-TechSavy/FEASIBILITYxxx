@@ -9,10 +9,10 @@ import {
   Layers,
   Check,
   RefreshCw,
-  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { CurrencySymbol, FeasibilityProject, YearFinancials, FeasibilityMetrics } from '../types';
-import { SAMPLE_PROJECTS } from '../data/sampleProjects';
+import { BLANK_PROJECT } from '../data/sampleProjects';
 import { exportProjectJSON, exportToExcel } from '../utils/exportHelpers';
 
 interface HeaderProps {
@@ -50,7 +50,7 @@ export default function Header({
     reader.onload = (evt) => {
       try {
         const parsed = JSON.parse(evt.target?.result as string);
-        if (parsed.title && parsed.products) {
+        if (parsed.title !== undefined && parsed.products) {
           onUpdateProject(parsed);
         } else {
           alert('Invalid feasibility project JSON format.');
@@ -61,13 +61,6 @@ export default function Header({
     };
     reader.readAsText(file);
     e.target.value = '';
-  };
-
-  const handleLoadTemplate = (templateId: string) => {
-    const found = SAMPLE_PROJECTS.find((p) => p.id === templateId);
-    if (found) {
-      onUpdateProject(JSON.parse(JSON.stringify(found)));
-    }
   };
 
   return (
@@ -84,16 +77,12 @@ export default function Header({
                 <span className="font-bold text-base sm:text-lg tracking-tight text-white">
                   FeasiCalc
                 </span>
-                <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-700/60">
-                  Undergraduate Feasibility
-                </span>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-950/80 text-amber-300 border border-amber-800/40">
-                  Cloudflare-Ready
-                </span>
               </div>
-              <p className="text-xs text-slate-400 truncate max-w-xs sm:max-w-md">
-                {project.title}
-              </p>
+              {project.title && (
+                <p className="text-xs text-slate-400 truncate max-w-xs sm:max-w-md">
+                  {project.title}
+                </p>
+              )}
             </div>
           </div>
 
@@ -118,27 +107,23 @@ export default function Header({
               </select>
             </div>
 
-            {/* Template Selector Dropdown */}
-            <div className="hidden lg:flex items-center bg-slate-800/90 rounded-lg px-2 py-1 border border-slate-700">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 mr-1.5 shrink-0" />
-              <select
-                aria-label="Load Sample Feasibility Project"
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value) handleLoadTemplate(e.target.value);
-                }}
-                className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
-              >
-                <option value="" disabled className="bg-slate-800 text-slate-400">
-                  Sample Project...
-                </option>
-                {SAMPLE_PROJECTS.map((sp) => (
-                  <option key={sp.id} value={sp.id} className="bg-slate-800 text-white">
-                    {sp.title.split(' ')[0]} {sp.title.split(' ')[1]} ({sp.currency})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Clean Slate / Reset Button */}
+            <button
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Reset to a clean slate? This will clear all current entries and set up a fresh, blank feasibility study.'
+                  )
+                ) {
+                  onUpdateProject(JSON.parse(JSON.stringify(BLANK_PROJECT)));
+                }
+              }}
+              title="Start a fresh, blank feasibility study"
+              className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium text-slate-200 flex items-center gap-1.5 transition"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Clean Slate</span>
+            </button>
 
             {/* Hidden JSON file input */}
             <input

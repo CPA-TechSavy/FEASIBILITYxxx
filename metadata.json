@@ -1,6 +1,6 @@
 {
   "name": "Feasibility Study Financial Statements Builder",
-  "description": "Comprehensive 5-year financial statement generator and feasibility metrics analyzer (Income Statement, Balance Sheet, Cash Flow, NPV, IRR, Payback Period, Break-even, and Ratios) for undergraduate thesis and business feasibility studies, ready for Cloudflare Pages deployment.",
+  "description": "Comprehensive financial statement generator and feasibility metrics analyzer (Income Statement, Balance Sheet, Cash Flow, NPV, IRR, Payback Period, Break-even, and Ratios) for business feasibility studies.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

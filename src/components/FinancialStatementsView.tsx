@@ -36,7 +36,7 @@ export default function FinancialStatementsView({
         <div className="flex items-center space-x-2">
           <FileText className="w-4 h-4 text-emerald-400" />
           <h2 className="text-sm font-semibold text-white tracking-wide uppercase">
-            Projected Financial Statements (5-Year Horizon)
+            Projected Financial Statements
           </h2>
         </div>
 

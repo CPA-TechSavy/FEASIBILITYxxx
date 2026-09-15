@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { FeasibilityProject } from './types';
-import { SAMPLE_PROJECTS } from './data/sampleProjects';
+import { BLANK_PROJECT, SAMPLE_PROJECTS } from './data/sampleProjects';
 import {
   calculate5YearFinancials,
   calculateFeasibilityMetrics,
@@ -23,19 +23,25 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-const STORAGE_KEY = 'undergrad_feasibility_project_v1';
+const STORAGE_KEY = 'undergrad_feasibility_cleanslate_v1';
 
 export default function App() {
   const [project, setProject] = useState<FeasibilityProject>(() => {
     try {
+      // Clear out legacy sample pre-existing data
+      localStorage.removeItem('undergrad_feasibility_project_v1');
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed.id === 'cafe-artisan' || parsed.id === 'eco-packaging') {
+          return BLANK_PROJECT;
+        }
+        return parsed;
       }
     } catch (e) {
       console.error('Failed to load project from localStorage', e);
     }
-    return SAMPLE_PROJECTS[0];
+    return BLANK_PROJECT;
   });
 
   const [activeMainView, setActiveMainView] = useState<
@@ -205,7 +211,7 @@ export default function App() {
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>
-              Undergraduate Feasibility Study Financial Modeler & Statements Generator
+              Financial Statements Generator
             </span>
           </div>
 

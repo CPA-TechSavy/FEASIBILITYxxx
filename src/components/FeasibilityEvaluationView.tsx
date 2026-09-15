@@ -85,7 +85,7 @@ export default function FeasibilityEvaluationView({
             </div>
             <div>
               <span className="text-xs font-semibold tracking-wider text-indigo-300 uppercase">
-                Undergraduate Feasibility Study Verdict
+                Feasibility Study Verdict
               </span>
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
                 {metrics.isFeasible ? (
@@ -101,18 +101,13 @@ export default function FeasibilityEvaluationView({
               </h2>
             </div>
           </div>
-
-          <div className="text-right self-start md:self-center">
-            <span className="text-xs text-slate-400 block">Required Hurdle Rate (WACC)</span>
-            <span className="text-lg font-bold font-financial text-indigo-300">
-              {project.discountRatePercent}% per annum
-            </span>
-          </div>
         </div>
 
-        <p className="mt-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
-          {metrics.verdictSummary}
-        </p>
+        {metrics.verdictSummary ? (
+          <p className="mt-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+            {metrics.verdictSummary}
+          </p>
+        ) : null}
       </section>
 
       {/* 2. CAPITAL BUDGETING CORE METRICS (NPV, IRR, PAYBACK, ARR, PI) */}
@@ -216,9 +211,6 @@ export default function FeasibilityEvaluationView({
                 Sensitivity & Scenario Stress Testing (Oral Defense Preparation)
               </h3>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Simulate economic conditions and evaluate project resilience during panel questioning.
-            </p>
           </div>
 
           <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
