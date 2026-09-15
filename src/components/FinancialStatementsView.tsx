@@ -180,8 +180,18 @@ export default function FinancialStatementsView({
                       </td>
                     ))}
                   </tr>
+                  {project.includeLaborBenefitsInCOGS !== false && years5.some((y) => (y.factoryLaborBenefits || 0) > 0) && (
+                    <tr>
+                      <td className="py-1 pl-4 text-slate-600">Production Labor Benefits (Direct & Indirect)</td>
+                      {years5.map((y) => (
+                        <td key={y.year} className="py-1 text-right font-financial text-slate-600">
+                          {formatCurrency(y.factoryLaborBenefits || 0, c)}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
                   <tr>
-                    <td className="py-1 pl-4 text-slate-600">Factory / Service Overhead</td>
+                    <td className="py-1 pl-4 text-slate-600">Factory Overhead (Supplies & Utilities)</td>
                     {years5.map((y) => (
                       <td key={y.year} className="py-1 text-right font-financial text-slate-600">
                         {formatCurrency(y.factoryOverhead, c)}

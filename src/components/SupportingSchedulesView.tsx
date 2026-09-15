@@ -4,7 +4,7 @@ import {
   calculateDepreciation,
   formatCurrency,
 } from '../utils/financialCalculations';
-import { Table, Calendar, Layers, Receipt, Calculator, Tag, Landmark, PiggyBank } from 'lucide-react';
+import { Table, Calendar, Layers, Receipt, Calculator, Tag, Landmark, PiggyBank, Factory, ShieldCheck, Package } from 'lucide-react';
 
 interface SupportingSchedulesViewProps {
   project: FeasibilityProject;
@@ -405,6 +405,277 @@ export default function SupportingSchedulesView({
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* SCHEDULE 5: FACTORY OVERHEAD & PRODUCTION LABOR BENEFITS SCHEDULE */}
+      <section className="print-break-inside-avoid">
+        {(() => {
+          const directHeadcount = (project.directLabor || []).reduce((s, l) => s + (l.headcount || 0), 0);
+          const directBasicAnnual12M = (project.directLabor || []).reduce(
+            (s, l) => s + (l.headcount || 0) * (l.monthlyWage || 0) * 12,
+            0
+          );
+          const indirectHeadcount = (project.indirectLabor || []).reduce((s, l) => s + (l.headcount || 0), 0);
+          const indirectLaborAnnual = (project.indirectLabor || []).reduce(
+            (s, l) => s + (l.headcount || 0) * (l.monthlyWage || 0) * (l.monthsPerYear || 12),
+            0
+          );
+          const indirectBasicAnnual12M = (project.indirectLabor || []).reduce(
+            (s, l) => s + (l.headcount || 0) * (l.monthlyWage || 0) * 12,
+            0
+          );
+
+          const utilitiesAnnual = (project.productionUtilities || []).reduce(
+            (s, u) => s + (u.annualAmountYear1 || 0),
+            0
+          );
+          const suppliesAnnual = project.factoryOverheadAnnual ?? 0;
+
+          // Depreciation attribution
+          let factoryDeprYr1 = 0;
+          let factoryDeprMethodLabel = '';
+          if (project.factoryDepreciationMethod === 'specific_assets') {
+            const selectedSet = new Set(project.factoryAssetIds || []);
+            const yr1FactoryAssets = depreciationSchedule.filter((d) => selectedSet.has(d.assetId));
+            factoryDeprYr1 = yr1FactoryAssets.reduce(
+              (s, d) => s + (d.yearValues.find((y) => y.year === 1)?.depreciation || d.annualDepreciation),
+              0
+            );
+            factoryDeprMethodLabel = `Specific Factory Assets (${yr1FactoryAssets.length} of ${project.fixedAssets.length} assets)`;
+          } else {
+            const totalYr1Depr = depreciationSchedule.reduce(
+              (s, d) => s + (d.yearValues.find((y) => y.year === 1)?.depreciation || d.annualDepreciation),
+              0
+            );
+            const pct = project.factoryDepreciationPercent ?? 100;
+            factoryDeprYr1 = totalYr1Depr * (pct / 100);
+            factoryDeprMethodLabel = `Global Allocation (${pct}% of total depreciation)`;
+          }
+
+          // Benefits
+          const benefits = project.productionLaborBenefits || [];
+          let directBenefitsTotal = 0;
+          let indirectBenefitsTotal = 0;
+
+          benefits.forEach((b) => {
+            const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
+            const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+
+            if (b.type === 'percentage') {
+              const rate = (b.rateOrAmount || 0) / 100;
+              if (appliesDirect) directBenefitsTotal += directBasicAnnual12M * rate;
+              if (appliesIndirect) indirectBenefitsTotal += indirectBasicAnnual12M * rate;
+            } else if (b.type === 'fixed_monthly_per_head') {
+              const monthly = b.rateOrAmount || 0;
+              if (appliesDirect) directBenefitsTotal += monthly * 12 * directHeadcount;
+              if (appliesIndirect) indirectBenefitsTotal += monthly * 12 * indirectHeadcount;
+            } else if (b.type === 'fixed_annual') {
+              const amt = b.rateOrAmount || 0;
+              const totalHead = (appliesDirect ? directHeadcount : 0) + (appliesIndirect ? indirectHeadcount : 0);
+              if (totalHead > 0) {
+                if (appliesDirect && appliesIndirect) {
+                  directBenefitsTotal += amt * (directHeadcount / totalHead);
+                  indirectBenefitsTotal += amt * (indirectHeadcount / totalHead);
+                } else if (appliesDirect) {
+                  directBenefitsTotal += amt;
+                } else if (appliesIndirect) {
+                  indirectBenefitsTotal += amt;
+                }
+              }
+            }
+          });
+
+          const totalLaborBenefitsYr1 = directBenefitsTotal + indirectBenefitsTotal;
+          const includeBenefits = project.includeLaborBenefitsInCOGS !== false;
+
+          const totalFOHCapitalizedYr1 =
+            indirectLaborAnnual +
+            utilitiesAnnual +
+            suppliesAnnual +
+            factoryDeprYr1 +
+            (includeBenefits ? totalLaborBenefitsYr1 : 0);
+
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Factory className="w-4 h-4 text-indigo-600" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Schedule 5: Factory Overhead & Production Labor Benefits Schedule
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Comprehensive audit schedule of all indirect manufacturing costs capitalized into Cost of Goods Sold.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl mb-4">
+                <table className="w-full text-xs sm:text-sm border-collapse">
+                  <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3 text-left">Overhead Component</th>
+                      <th className="py-2.5 px-3 text-left">Basis / Method</th>
+                      <th className="py-2.5 px-3 text-right">Headcount / Qty</th>
+                      <th className="py-2.5 px-3 text-right">Year 1 Amount ({c})</th>
+                      <th className="py-2.5 px-3 text-right">Accounting Classification</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-normal">
+                    {/* Indirect Labor */}
+                    <tr className="hover:bg-slate-50/50">
+                      <td className="py-2 px-3 font-medium text-slate-800">
+                        Indirect Labor (Supervisors, QC, Maintenance)
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">
+                        {project.indirectLabor?.length || 0} production support role(s)
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial text-slate-700">
+                        {indirectHeadcount} worker{indirectHeadcount !== 1 ? 's' : ''}
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
+                        {formatCurrency(indirectLaborAnnual, c)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
+                        Capitalized in FOH (COGS)
+                      </td>
+                    </tr>
+
+                    {/* Production Utilities */}
+                    <tr className="hover:bg-slate-50/50">
+                      <td className="py-2 px-3 font-medium text-slate-800">
+                        Utilities Attributed to Production (Power, Water, Gas)
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">Factory electricity & processing water</td>
+                      <td className="py-2 px-3 text-right font-financial text-slate-700">12 mos</td>
+                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
+                        {formatCurrency(utilitiesAnnual, c)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
+                        Capitalized in FOH (COGS)
+                      </td>
+                    </tr>
+
+                    {/* Indirect Supplies */}
+                    <tr className="hover:bg-slate-50/50">
+                      <td className="py-2 px-3 font-medium text-slate-800">
+                        Indirect Factory Supplies & Consumables
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">
+                        {(project.factorySupplies || []).length > 0
+                          ? `${(project.factorySupplies || []).length} itemized supplies & cleaning items`
+                          : 'Factory lubricants, sanitation, small tools'}
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial text-slate-700">
+                        {(project.factorySupplies || []).length > 0 ? `${(project.factorySupplies || []).length} lines` : 'Annual'}
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
+                        {formatCurrency(suppliesAnnual, c)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
+                        Capitalized in FOH (COGS)
+                      </td>
+                    </tr>
+
+                    {/* Factory Depreciation */}
+                    <tr className="hover:bg-slate-50/50">
+                      <td className="py-2 px-3 font-medium text-slate-800">
+                        Depreciation Attributed to Production
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">{factoryDeprMethodLabel}</td>
+                      <td className="py-2 px-3 text-right font-financial text-slate-700">-</td>
+                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
+                        {formatCurrency(factoryDeprYr1, c)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
+                        Capitalized in FOH (COGS)
+                      </td>
+                    </tr>
+
+                    {/* Production Labor Benefits */}
+                    <tr className="hover:bg-slate-50/50">
+                      <td className="py-2 px-3 font-medium text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>Production Labor Benefits (SSS, PhilHealth, Pag-IBIG, 13th Mo.)</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">
+                        {benefits.length} benefit schedule(s) for {directHeadcount + indirectHeadcount} plant staff
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial text-slate-700">
+                        {directHeadcount + indirectHeadcount} staff
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
+                        {formatCurrency(totalLaborBenefitsYr1, c)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-xs">
+                        {includeBenefits ? (
+                          <span className="text-emerald-700 font-medium">Capitalized in FOH (COGS)</span>
+                        ) : (
+                          <span className="text-amber-700 font-medium">Classified under SG&A (OPEX)</span>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* Subtotal Factory Overhead */}
+                    <tr className="acc-subtotal font-bold bg-slate-50/70 border-t-2 border-slate-200">
+                      <td className="py-2.5 px-3 font-bold text-slate-900">
+                        Total Factory Overhead Capitalized in COGS (Year 1)
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-500 text-xs italic">
+                        Combined Indirect Manufacturing Cost
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-financial text-slate-700">
+                        {indirectHeadcount} indirect staff
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-financial font-bold text-indigo-950 text-sm">
+                        {formatCurrency(totalFOHCapitalizedYr1, c)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-xs font-bold text-indigo-950">
+                        COGS Inclusion: Active
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Itemized Employee Benefits Breakdown if configured */}
+              {benefits.length > 0 && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                  <div className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Production Employee Benefits Breakdown Detail:</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                    {benefits.map((b) => (
+                      <div key={b.id} className="bg-white p-2 rounded-lg border border-slate-200">
+                        <span className="font-semibold text-slate-800 block truncate">{b.name}</span>
+                        <span className="text-[11px] text-slate-500 block">
+                          Mode:{' '}
+                          {b.type === 'percentage'
+                            ? `${b.rateOrAmount}% of basic`
+                            : b.type === 'fixed_monthly_per_head'
+                            ? `${formatCurrency(b.rateOrAmount, c)}/head/mo`
+                            : `${formatCurrency(b.rateOrAmount, c)} lump sum`}
+                        </span>
+                        <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">
+                          Applies to:{' '}
+                          {b.appliesTo === 'both'
+                            ? 'Direct & Indirect Staff'
+                            : b.appliesTo === 'direct_only'
+                            ? 'Direct Labor Only'
+                            : 'Indirect Labor Only'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </section>
     </div>
   );

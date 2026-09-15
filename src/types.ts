@@ -56,6 +56,9 @@ export interface ProductItem {
   directLaborCostPerUnit?: number; // Direct Labor component added per unit
   rawMaterialsCostPerUnit?: number; // Base Direct Materials/Supplies component per unit
   costBreakdown?: ProductCostComponent[];
+  laborMinutesPerUnit?: number;
+  laborHourlyRate?: number;
+  dlCostMode?: 'volume_share' | 'custom' | 'hourly_time';
 }
 
 export interface DirectLaborItem {
@@ -72,6 +75,44 @@ export interface IndirectLaborItem {
   headcount: number;
   monthlyWage: number;
   monthsPerYear: number; // Factory supervisory, QA, maintenance, plant support
+}
+
+export interface ProductionUtilityItem {
+  id: string;
+  name: string;
+  annualAmountYear1: number;
+  annualGrowthRate: number;
+}
+
+export interface FactorySupplyItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  annualAmount: number;
+  notes?: string;
+}
+
+export type BenefitCalculationType = 'percentage' | 'fixed_monthly_per_head' | 'fixed_annual';
+export type BenefitAppliesTo = 'both' | 'direct_only' | 'indirect_only';
+
+export interface LaborBenefitItem {
+  id: string;
+  name: string;
+  type: BenefitCalculationType;
+  rateOrAmount: number; // % rate e.g. 9.5 for SSS, or fixed monthly 200 for Pag-IBIG, or lump sum
+  appliesTo: BenefitAppliesTo;
+  notes?: string;
+}
+
+export interface NonManufacturingLaborItem {
+  id: string;
+  role: string;
+  category: 'Administrative' | 'Selling & Marketing';
+  headcount: number;
+  monthlyWage: number;
+  monthsPerYear: number;
 }
 
 export interface OperatingExpenseItem {
@@ -170,8 +211,16 @@ export interface FeasibilityProject {
   products: ProductItem[];
   directLabor: DirectLaborItem[];
   indirectLabor?: IndirectLaborItem[];
+  productionUtilities?: ProductionUtilityItem[];
+  factoryDepreciationPercent?: number; // % of total fixed asset depreciation attributable to factory/production (default 50%)
+  factoryDepreciationMethod?: 'percentage' | 'specific_assets'; // Mode: percentage or specific asset selection
+  factoryAssetIds?: string[]; // Asset IDs fully attributed (100%) to factory/production
+  factorySupplies?: FactorySupplyItem[]; // Itemized indirect supplies and consumables
+  productionLaborBenefits?: LaborBenefitItem[]; // SSS, PhilHealth, Pag-IBIG, 13th month, other benefits
+  includeLaborBenefitsInCOGS?: boolean; // Whether labor benefits flow into Factory Overhead / COGS (default true)
   factoryOverheadAnnual: number;
   factoryOverheadGrowthRate: number;
+  nonManufacturingLabor?: NonManufacturingLaborItem[];
   operatingExpenses: OperatingExpenseItem[];
   salesDiscountsPercent: number; // % of gross sales
 
@@ -193,6 +242,7 @@ export interface YearFinancials {
   directMaterials: number;
   directLabor: number;
   factoryOverhead: number;
+  factoryLaborBenefits?: number;
   factoryDepreciation: number;
   totalCOGS: number;
   grossProfit: number;
