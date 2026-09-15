@@ -4,34 +4,51 @@ import {
   calculateDepreciation,
   formatCurrency,
 } from '../utils/financialCalculations';
-import { Table, Calendar, Layers, Receipt, Calculator, Tag } from 'lucide-react';
+import { Table, Calendar, Layers, Receipt, Calculator, Tag, Landmark, PiggyBank } from 'lucide-react';
 
 interface SupportingSchedulesViewProps {
   project: FeasibilityProject;
+  onOpenBankModal?: () => void;
 }
 
-export default function SupportingSchedulesView({ project }: SupportingSchedulesViewProps) {
+export default function SupportingSchedulesView({
+  project,
+  onOpenBankModal,
+}: SupportingSchedulesViewProps) {
   const c = project.currency;
   const loanSchedule = calculateLoanAmortization(project);
   const depreciationSchedule = calculateDepreciation(project);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-6 p-5 sm:p-6 space-y-8">
-      <div>
-        <div className="flex items-center gap-2">
-          <Table className="w-4 h-4 text-indigo-600" />
-          <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-            Feasibility Supporting Schedules (Notes & Audit Schedules)
-          </h2>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Table className="w-4 h-4 text-indigo-600" />
+            <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">
+              Feasibility Supporting Schedules (Notes & Audit Schedules)
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Detailed working papers for bank debt service amortization and straight-line depreciation of fixed assets.
+          </p>
         </div>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Detailed working papers for bank debt service amortization and straight-line depreciation of fixed assets.
-        </p>
+
+        {onOpenBankModal && (
+          <button
+            onClick={onOpenBankModal}
+            title="Open comprehensive interactive breakdown for bank savings interest and loan payments"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-50 to-emerald-50 hover:from-indigo-100 hover:to-emerald-100 text-indigo-950 border border-indigo-200 flex items-center gap-2 transition shadow-2xs cursor-pointer"
+          >
+            <Landmark className="w-4 h-4 text-indigo-600" />
+            <span>Bank Savings Interest & Loan Debt Breakdown</span>
+          </button>
+        )}
       </div>
 
       {/* SCHEDULE 1: LOAN AMORTIZATION SCHEDULE */}
       <section className="print-break-inside-avoid">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
               Schedule 1: Bank Debt Amortization Schedule
@@ -40,6 +57,16 @@ export default function SupportingSchedulesView({ project }: SupportingSchedules
               Principal: {formatCurrency(project.financing.bankLoanAmount, c)} at {project.financing.annualInterestRate}% for {project.financing.loanTermYears} years.
             </p>
           </div>
+
+          {onOpenBankModal && (
+            <button
+              onClick={onOpenBankModal}
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Capital & Interest Breakdown</span>
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -185,7 +212,7 @@ export default function SupportingSchedulesView({ project }: SupportingSchedules
 
       {/* SCHEDULE 3: WORKING CAPITAL BUFFER & DEPOSITORY BANKING SCHEDULE */}
       <section className="print-break-inside-avoid">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
               Schedule 3: Working Capital Buffer & Depository Cash Schedule
@@ -194,6 +221,16 @@ export default function SupportingSchedulesView({ project }: SupportingSchedules
               Breakdown of Day 1 initial liquidity into Cash on Hand and interest-bearing Cash in Bank.
             </p>
           </div>
+
+          {onOpenBankModal && (
+            <button
+              onClick={onOpenBankModal}
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <PiggyBank className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Savings Interest Breakdown</span>
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto border border-slate-200 rounded-xl">

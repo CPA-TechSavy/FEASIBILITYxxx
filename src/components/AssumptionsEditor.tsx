@@ -1,14 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import {
   FeasibilityProject,
   PreOperatingExpenseItem,
   FixedAssetItem,
   ProductItem,
   DirectLaborItem,
+  IndirectLaborItem,
   OperatingExpenseItem,
   DepreciationMethod,
-  ProductCostComponent,
-  CostComponentCategory,
 } from '../types';
 import {
   Plus,
@@ -19,10 +18,7 @@ import {
   Briefcase,
   Sliders,
   DollarSign,
-  Layers,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Landmark,
   Wallet,
   Building,
@@ -34,70 +30,217 @@ import {
   PieChart,
   Tag,
   AlertCircle,
-  Copy,
+  Layers,
   Box,
+  Sparkles,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/financialCalculations';
 import { LOCAL_BANKS, DEPRECIATION_METHODS } from '../data/bankList';
 
-const COST_CATEGORIES: CostComponentCategory[] = [
-  'Raw Materials & Ingredients',
-  'Packaging & Containers',
-  'Direct Consumables & Supplies',
-  'Direct Labor Allocation',
-  'Direct Overhead & Freight',
-];
-
-const COMMON_UNITS = [
-  'pcs',
-  'kg',
-  'g',
-  'L',
-  'ml',
-  'unit',
-  'set',
-  'pack',
-  'dose',
-  'serving',
-  'portion',
-  'lot',
-  'roll',
-  'box',
-  'hrs',
-];
-
-const COMMON_PACKAGE_UNITS = [
-  'box',
-  'carton',
-  'bag',
-  'kg',
-  'g',
-  'L',
-  'ml',
-  'bottle',
-  'can',
-  'pack',
-  'sleeve',
-  'batch',
-  'sack',
-  'roll',
-  'drum',
-  'crate',
-  'case',
-  'tin',
-  'jar',
-  'tray',
-  'pc',
-];
+// Sample Bill of Materials & Packaging Presets for instant reference
+const SAMPLE_BOM_PRESETS: Record<
+  string,
+  { label: string; description: string; components: ProductCostComponent[] }
+> = {
+  cafe: {
+    label: 'Beverage / Coffee (Beans, Milk & Eco Packaging)',
+    description: 'Arabica coffee beans, fresh milk, cups, sip lids, sleeves & labels with yield formulas',
+    components: [
+      {
+        id: 'c1',
+        category: 'Raw Materials & Ingredients',
+        name: 'Arabica Coffee Beans (1kg Bag)',
+        costMode: 'package_yield',
+        purchaseCost: 650,
+        packageUnit: '1kg bag',
+        packageQuantity: 1,
+        yieldUnits: 50,
+        quantity: 0.02,
+        unit: 'kg',
+        unitCost: 650,
+        totalCost: 13.0,
+      },
+      {
+        id: 'c2',
+        category: 'Raw Materials & Ingredients',
+        name: 'Fresh Dairy Milk (1L Carton)',
+        costMode: 'package_yield',
+        purchaseCost: 95,
+        packageUnit: '1L carton',
+        packageQuantity: 1,
+        yieldUnits: 5,
+        quantity: 0.2,
+        unit: 'L',
+        unitCost: 95,
+        totalCost: 19.0,
+      },
+      {
+        id: 'c3',
+        category: 'Packaging & Containers',
+        name: 'Eco Paper Cup 16oz (Pack of 100)',
+        costMode: 'package_yield',
+        purchaseCost: 350,
+        packageUnit: 'pack of 100',
+        packageQuantity: 1,
+        yieldUnits: 100,
+        quantity: 1,
+        unit: 'pc',
+        unitCost: 3.5,
+        totalCost: 3.5,
+      },
+      {
+        id: 'c4',
+        category: 'Packaging & Containers',
+        name: 'Sip-through Lid & Thermal Sleeve',
+        costMode: 'package_yield',
+        purchaseCost: 180,
+        packageUnit: 'pack of 100',
+        packageQuantity: 1,
+        yieldUnits: 100,
+        quantity: 1,
+        unit: 'set',
+        unitCost: 1.8,
+        totalCost: 1.8,
+      },
+      {
+        id: 'c5',
+        category: 'Packaging & Containers',
+        name: 'Branded Label Sticker (Roll of 1,000)',
+        costMode: 'package_yield',
+        purchaseCost: 500,
+        packageUnit: 'roll of 1000',
+        packageQuantity: 1,
+        yieldUnits: 1000,
+        quantity: 1,
+        unit: 'pc',
+        unitCost: 0.5,
+        totalCost: 0.5,
+      },
+      {
+        id: 'c6',
+        category: 'Direct Consumables & Supplies',
+        name: 'Biodegradable Straw & Napkin',
+        costMode: 'direct_unit',
+        quantity: 1,
+        unit: 'set',
+        unitCost: 0.7,
+        totalCost: 0.7,
+      },
+    ],
+  },
+  food: {
+    label: 'Packaged Food / Bakery (Ingredients & Packaging)',
+    description: 'Flour, butter, sugar mix, filling, window kraft boxes & parchment wrapping',
+    components: [
+      {
+        id: 'f1',
+        category: 'Raw Materials & Ingredients',
+        name: 'Premium Flour, Butter & Sugar Mix (5kg)',
+        costMode: 'package_yield',
+        purchaseCost: 550,
+        packageUnit: '5kg batch',
+        packageQuantity: 1,
+        yieldUnits: 40,
+        quantity: 0.125,
+        unit: 'kg',
+        unitCost: 110,
+        totalCost: 13.75,
+      },
+      {
+        id: 'f2',
+        category: 'Raw Materials & Ingredients',
+        name: 'Specialty Filling / Chocolate Glaze (1kg)',
+        costMode: 'package_yield',
+        purchaseCost: 380,
+        packageUnit: '1kg tub',
+        packageQuantity: 1,
+        yieldUnits: 40,
+        quantity: 0.025,
+        unit: 'kg',
+        unitCost: 380,
+        totalCost: 9.5,
+      },
+      {
+        id: 'f3',
+        category: 'Packaging & Containers',
+        name: 'Windowed Kraft Pastry Box (Bundle of 50)',
+        costMode: 'package_yield',
+        purchaseCost: 375,
+        packageUnit: 'bundle of 50',
+        packageQuantity: 1,
+        yieldUnits: 50,
+        quantity: 1,
+        unit: 'box',
+        unitCost: 7.5,
+        totalCost: 7.5,
+      },
+      {
+        id: 'f4',
+        category: 'Packaging & Containers',
+        name: 'Greaseproof Liner & Tamper-Evident Sticker',
+        costMode: 'direct_unit',
+        quantity: 1,
+        unit: 'set',
+        unitCost: 1.5,
+        totalCost: 1.5,
+      },
+    ],
+  },
+  retail: {
+    label: 'Manufactured / Retail Good',
+    description: 'Core fabricated material, corrugated shipping box & barcode labeling',
+    components: [
+      {
+        id: 'r1',
+        category: 'Raw Materials & Ingredients',
+        name: 'Primary Fabric / Raw Material Stock',
+        costMode: 'direct_unit',
+        quantity: 1,
+        unit: 'meter/unit',
+        unitCost: 48.0,
+        totalCost: 48.0,
+      },
+      {
+        id: 'r2',
+        category: 'Packaging & Containers',
+        name: 'Custom Corrugated Product Box (Pack of 100)',
+        costMode: 'package_yield',
+        purchaseCost: 850,
+        packageUnit: 'bundle of 100',
+        packageQuantity: 1,
+        yieldUnits: 100,
+        quantity: 1,
+        unit: 'box',
+        unitCost: 8.5,
+        totalCost: 8.5,
+      },
+      {
+        id: 'r3',
+        category: 'Packaging & Containers',
+        name: 'Protective Polybag & Barcode Hangtag',
+        costMode: 'direct_unit',
+        quantity: 1,
+        unit: 'set',
+        unitCost: 2.2,
+        totalCost: 2.2,
+      },
+    ],
+  },
+};
 
 interface AssumptionsEditorProps {
   project: FeasibilityProject;
   onUpdateProject: (p: FeasibilityProject) => void;
+  onOpenBankModal?: () => void;
 }
 
 type TabKey = 'capital' | 'sales' | 'directCosts' | 'opex' | 'workingCapital';
 
-export default function AssumptionsEditor({ project, onUpdateProject }: AssumptionsEditorProps) {
+export default function AssumptionsEditor({
+  project,
+  onUpdateProject,
+  onOpenBankModal,
+}: AssumptionsEditorProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('capital');
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -120,210 +263,239 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
     onUpdateProject({ ...project, directLabor: newItems });
   };
 
+  const updateIndirectLabor = (newItems: IndirectLaborItem[]) => {
+    onUpdateProject({ ...project, indirectLabor: newItems });
+  };
+
   const updateOpex = (newItems: OperatingExpenseItem[]) => {
     onUpdateProject({ ...project, operatingExpenses: newItems });
   };
 
-  // --- Product Cost Per Unit (BOM Breakdown) State & Helpers ---
+  // --- Product Cost Per Unit (Raw Materials & Packaging) State & Helpers ---
   const [selectedCostProductId, setSelectedCostProductId] = useState<string>('');
   const [autoSyncCost, setAutoSyncCost] = useState<boolean>(true);
-  const [costViewMode, setCostViewMode] = useState<'detail' | 'matrix'>('detail');
+  const [costFeedback, setCostFeedback] = useState<string | null>(null);
 
-  // Horizontal Product Selection Carousel Scroll State & Ref
-  const productScrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkProductScroll = () => {
-    if (productScrollRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = productScrollRef.current;
-      setCanScrollLeft(scrollLeft > 2);
-      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 2);
-    }
-  };
-
-  useEffect(() => {
-    checkProductScroll();
-    const el = productScrollRef.current;
-    if (!el) return;
-    const handleScroll = () => checkProductScroll();
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll);
-    return () => {
-      el.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
-    };
-  }, [project.products]);
-
-  const scrollProducts = (direction: 'left' | 'right') => {
-    if (productScrollRef.current) {
-      const amount = direction === 'left' ? -260 : 260;
-      productScrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-      setTimeout(checkProductScroll, 250);
-    }
-  };
-
+  // Active product for materials & packaging breakdown
   const activeCostProduct =
     project.products.find((p) => p.id === selectedCostProductId) ||
-    project.products[0];
+    project.products[0] ||
+    null;
 
-  // Helper to compute unit cost from component settings
-  const computeItemTotalCost = (c: Partial<ProductCostComponent>): number => {
-    if (c.costMode === 'package_yield') {
-      const pCost = Math.max(0, Number(c.purchaseCost) || 0);
-      const pQty = Math.max(0.0001, Number(c.packageQuantity) || 1);
-      const yUnits = Math.max(0.0001, Number(c.yieldUnits) || 1);
+  // Helper to compute individual material cost
+  const computeItemTotalCost = (item: Partial<ProductCostComponent>): number => {
+    if (item.costMode === 'package_yield') {
+      const pCost = Math.max(0, Number(item.purchaseCost) || 0);
+      const pQty = Math.max(0.0001, Number(item.packageQuantity) || 1);
+      const yUnits = Math.max(0.0001, Number(item.yieldUnits) || 1);
       return Math.round(((pCost * pQty) / yUnits) * 100) / 100;
     } else {
-      const q = Math.max(0, Number(c.quantity) || 0);
-      const u = Math.max(0, Number(c.unitCost) || 0);
+      const q = Math.max(0, Number(item.quantity) || 0);
+      const u = Math.max(0, Number(item.unitCost) || 0);
       return Math.round(q * u * 100) / 100;
     }
   };
 
+  // Update components for a product and optionally sync to unitCost
   const updateProductCostBreakdown = (
     productId: string,
-    newComponents: ProductCostComponent[],
-    forceSync: boolean = false
+    components: ProductCostComponent[],
+    shouldSync: boolean = autoSyncCost
   ) => {
-    const updatedProducts = project.products.map((prod) => {
-      if (prod.id !== productId) return prod;
-      const sumCost = newComponents.reduce(
-        (acc, c) => acc + (c.totalCost !== undefined ? Number(c.totalCost) : computeItemTotalCost(c)),
-        0
-      );
-      const roundedCost = Math.round(sumCost * 100) / 100;
+    const normalizedComps = components.map((c) => ({
+      ...c,
+      totalCost: computeItemTotalCost(c),
+    }));
+
+    const materialsAndPackagingTotal = Math.round(
+      normalizedComps.reduce((s, c) => s + (c.totalCost || 0), 0) * 100
+    ) / 100;
+
+    const updatedProducts = project.products.map((p) => {
+      if (p.id !== productId) return p;
+
+      if (shouldSync) {
+        const dl = p.directLaborCostPerUnit || 0;
+        const combinedUnitCost = Math.round((materialsAndPackagingTotal + dl) * 100) / 100;
+        return {
+          ...p,
+          costBreakdown: normalizedComps,
+          rawMaterialsCostPerUnit: materialsAndPackagingTotal,
+          unitCost: combinedUnitCost,
+        };
+      }
+
       return {
-        ...prod,
-        costBreakdown: newComponents,
-        unitCost: autoSyncCost || forceSync ? roundedCost : prod.unitCost,
+        ...p,
+        costBreakdown: normalizedComps,
+        rawMaterialsCostPerUnit: materialsAndPackagingTotal,
       };
     });
+
     updateProducts(updatedProducts);
   };
 
-  const addCostComponent = (
-    productId: string,
-    mode: 'package_yield' | 'direct_unit' = 'package_yield'
-  ) => {
-    const target = project.products.find((p) => p.id === productId);
-    if (!target) return;
-    const existing = target.costBreakdown || [];
+  // Apply Direct Materials & Packaging to product unit cost
+  const applyMaterialsAndPackagingToUnitCost = (productId: string) => {
+    const prod = project.products.find((p) => p.id === productId);
+    if (!prod) return;
+    const comps = prod.costBreakdown || [];
+    const matTotal = Math.round(comps.reduce((s, c) => s + (c.totalCost || 0), 0) * 100) / 100;
+    const dl = prod.directLaborCostPerUnit || 0;
+    const combined = Math.round((matTotal + dl) * 100) / 100;
 
-    const newComponent: ProductCostComponent =
-      mode === 'package_yield'
-        ? {
-            id: `cb-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-            category: 'Raw Materials & Ingredients',
-            name: '',
-            costMode: 'package_yield',
-            purchaseCost: 0,
-            packageUnit: 'unit',
-            packageQuantity: 1,
-            yieldUnits: 1,
-            quantity: 1,
-            unit: 'unit',
-            unitCost: 0,
-            totalCost: 0,
-          }
-        : {
-            id: `cb-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-            category: 'Raw Materials & Ingredients',
-            name: '',
-            costMode: 'direct_unit',
-            quantity: 1,
-            unit: 'unit',
-            unitCost: 0,
-            totalCost: 0,
-          };
-
-    updateProductCostBreakdown(productId, [...existing, newComponent]);
+    const updatedProducts = project.products.map((p) => {
+      if (p.id !== productId) return p;
+      return {
+        ...p,
+        rawMaterialsCostPerUnit: matTotal,
+        unitCost: combined,
+      };
+    });
+    updateProducts(updatedProducts);
+    setCostFeedback(
+      `Updated ${prod.name || 'product'} cost to ${formatCurrency(combined, c)} (Materials & Pkg: ${formatCurrency(matTotal, c)}${dl > 0 ? ` + DL: ${formatCurrency(dl, c)}` : ''})`
+    );
+    setTimeout(() => setCostFeedback(null), 3500);
   };
 
-  const duplicateCostComponent = (productId: string, compIndex: number) => {
-    const target = project.products.find((p) => p.id === productId);
-    if (!target) return;
-    const existing = [...(target.costBreakdown || [])];
-    if (!existing[compIndex]) return;
-    const orig = existing[compIndex];
-    const dup: ProductCostComponent = {
-      ...orig,
-      id: `cb-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-      name: `${orig.name} (Copy)`,
-    };
-    existing.splice(compIndex + 1, 0, dup);
-    updateProductCostBreakdown(productId, existing);
+  // Load a preset template into active product
+  const loadPresetForProduct = (productId: string, presetKey: 'cafe' | 'food' | 'retail') => {
+    const preset = SAMPLE_BOM_PRESETS[presetKey];
+    if (!preset) return;
+    updateProductCostBreakdown(productId, preset.components, true);
+    setCostFeedback(`Loaded ${preset.label} preset!`);
+    setTimeout(() => setCostFeedback(null), 3500);
   };
 
-  const editCostComponent = (
-    productId: string,
-    compIndex: number,
-    field: keyof ProductCostComponent,
-    value: any
-  ) => {
-    const target = project.products.find((p) => p.id === productId);
-    if (!target) return;
-    const existing = [...(target.costBreakdown || [])];
-    if (!existing[compIndex]) return;
+  // --- Direct Labor Cost per Unit Allocation & Helpers ---
+  const [dlAllocationMode, setDlAllocationMode] = useState<'volume_share' | 'custom'>('volume_share');
+  const [customDlPerUnit, setCustomDlPerUnit] = useState<Record<string, number>>({});
+  const [appliedDlFeedback, setAppliedDlFeedback] = useState<string | null>(null);
 
-    const item = { ...existing[compIndex] };
+  // Total Direct Labor Headcount & Annual Cost
+  const totalDirectLaborAnnual = project.directLabor.reduce(
+    (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.monthsPerYear || 12) * (lab.headcount || 1),
+    0
+  );
+  const totalDirectLaborHeadcount = project.directLabor.reduce(
+    (sum, lab) => sum + (lab.headcount || 0),
+    0
+  );
 
-    if (field === 'costMode') {
-      const mode = value as 'package_yield' | 'direct_unit';
-      item.costMode = mode;
-      if (mode === 'package_yield') {
-        if (!item.purchaseCost) item.purchaseCost = item.unitCost || 120;
-        if (!item.yieldUnits) item.yieldUnits = 10;
-        if (!item.packageQuantity) item.packageQuantity = 1;
-        if (!item.packageUnit) item.packageUnit = item.unit || 'box';
-        item.totalCost = computeItemTotalCost(item);
-        item.quantity = Math.round(((item.packageQuantity || 1) / (item.yieldUnits || 1)) * 1000) / 1000;
-        item.unitCost = item.purchaseCost;
-      } else {
-        item.quantity = item.quantity || 1;
-        item.unit = item.unit || 'pc';
-        item.unitCost = item.totalCost || item.purchaseCost || 10;
-        item.totalCost = computeItemTotalCost(item);
-      }
-    } else {
-      (item as any)[field] = value;
-      if (
-        field === 'purchaseCost' ||
-        field === 'packageQuantity' ||
-        field === 'yieldUnits' ||
-        field === 'quantity' ||
-        field === 'unitCost'
-      ) {
-        if (item.costMode === 'package_yield') {
-          const pCost = Math.max(0, parseFloat(item.purchaseCost as any) || 0);
-          const pQty = Math.max(0.0001, parseFloat(item.packageQuantity as any) || 1);
-          const yUnits = Math.max(0.0001, parseFloat(item.yieldUnits as any) || 1);
-          const computed = Math.round(((pCost * pQty) / yUnits) * 100) / 100;
-          item.purchaseCost = pCost;
-          item.packageQuantity = pQty;
-          item.yieldUnits = yUnits;
-          item.totalCost = computed;
-          item.quantity = Math.round((pQty / yUnits) * 10000) / 10000;
-          item.unitCost = pCost;
-        } else {
-          const q = Math.max(0, parseFloat(item.quantity as any) || 0);
-          const u = Math.max(0, parseFloat(item.unitCost as any) || 0);
-          item.quantity = q;
-          item.unitCost = u;
-          item.totalCost = Math.round(q * u * 100) / 100;
-        }
-      }
+  // Total Indirect Labor Headcount & Annual Cost
+  const totalIndirectLaborAnnual = (project.indirectLabor || []).reduce(
+    (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.monthsPerYear || 12) * (lab.headcount || 1),
+    0
+  );
+  const totalIndirectLaborHeadcount = (project.indirectLabor || []).reduce(
+    (sum, lab) => sum + (lab.headcount || 0),
+    0
+  );
+
+  // Total Year 1 Production Volume
+  const totalYear1Volume = project.products.reduce((sum, p) => sum + (p.year1Volume || 0), 0);
+
+  // Function to compute DL cost per unit for a given product
+  const computeDLCostPerUnit = (prod: ProductItem): number => {
+    if (dlAllocationMode === 'custom' && customDlPerUnit[prod.id] !== undefined) {
+      return customDlPerUnit[prod.id];
     }
-
-    existing[compIndex] = item;
-    updateProductCostBreakdown(productId, existing);
+    if (totalYear1Volume <= 0 || totalDirectLaborAnnual <= 0) return 0;
+    return Math.round((totalDirectLaborAnnual / totalYear1Volume) * 100) / 100;
   };
 
-  const deleteCostComponent = (productId: string, compIndex: number) => {
-    const target = project.products.find((p) => p.id === productId);
+  // Add Direct Labor cost to a specific product's cost in Product & Sales Volume
+  const addDlToProductCost = (prodId: string) => {
+    const target = project.products.find((p) => p.id === prodId);
     if (!target) return;
-    const existing = (target.costBreakdown || []).filter((_, i) => i !== compIndex);
-    updateProductCostBreakdown(productId, existing);
+    const dlUnit = computeDLCostPerUnit(target);
+    const baseRaw = target.rawMaterialsCostPerUnit !== undefined
+      ? target.rawMaterialsCostPerUnit
+      : target.directLaborCostPerUnit !== undefined
+        ? Math.max(0, target.unitCost - target.directLaborCostPerUnit)
+        : target.unitCost;
+
+    const newUnitCost = Math.round((baseRaw + dlUnit) * 100) / 100;
+
+    const updated = project.products.map((p) => {
+      if (p.id !== prodId) return p;
+      return {
+        ...p,
+        rawMaterialsCostPerUnit: baseRaw,
+        directLaborCostPerUnit: dlUnit,
+        unitCost: newUnitCost,
+      };
+    });
+    updateProducts(updated);
+    setAppliedDlFeedback(`Added ${formatCurrency(dlUnit, c)} DL per unit to ${target.name || 'product'}!`);
+    setTimeout(() => setAppliedDlFeedback(null), 3500);
+  };
+
+  // Remove / Reset DL cost from a specific product
+  const removeDlFromProductCost = (prodId: string) => {
+    const target = project.products.find((p) => p.id === prodId);
+    if (!target) return;
+    const baseRaw = target.rawMaterialsCostPerUnit !== undefined
+      ? target.rawMaterialsCostPerUnit
+      : target.directLaborCostPerUnit !== undefined
+        ? Math.max(0, target.unitCost - target.directLaborCostPerUnit)
+        : target.unitCost;
+
+    const updated = project.products.map((p) => {
+      if (p.id !== prodId) return p;
+      return {
+        ...p,
+        rawMaterialsCostPerUnit: baseRaw,
+        directLaborCostPerUnit: 0,
+        unitCost: baseRaw,
+      };
+    });
+    updateProducts(updated);
+    setAppliedDlFeedback(`Reset ${target.name || 'product'} to base materials (${formatCurrency(baseRaw, c)})`);
+    setTimeout(() => setAppliedDlFeedback(null), 3500);
+  };
+
+  // Apply Direct Labor to ALL products in one click
+  const applyDlToAllProducts = () => {
+    if (project.products.length === 0) return;
+    const updated = project.products.map((p) => {
+      const dlUnit = computeDLCostPerUnit(p);
+      const baseRaw = p.rawMaterialsCostPerUnit !== undefined
+        ? p.rawMaterialsCostPerUnit
+        : p.directLaborCostPerUnit !== undefined
+          ? Math.max(0, p.unitCost - p.directLaborCostPerUnit)
+          : p.unitCost;
+      return {
+        ...p,
+        rawMaterialsCostPerUnit: baseRaw,
+        directLaborCostPerUnit: dlUnit,
+        unitCost: Math.round((baseRaw + dlUnit) * 100) / 100,
+      };
+    });
+    updateProducts(updated);
+    setAppliedDlFeedback('Successfully applied Direct Labor Cost per unit to all products in Product & Sales Volume!');
+    setTimeout(() => setAppliedDlFeedback(null), 3500);
+  };
+
+  // Reset ALL products to base raw materials
+  const resetAllProductsDl = () => {
+    const updated = project.products.map((p) => {
+      const baseRaw = p.rawMaterialsCostPerUnit !== undefined
+        ? p.rawMaterialsCostPerUnit
+        : p.directLaborCostPerUnit !== undefined
+          ? Math.max(0, p.unitCost - p.directLaborCostPerUnit)
+          : p.unitCost;
+      return {
+        ...p,
+        rawMaterialsCostPerUnit: baseRaw,
+        directLaborCostPerUnit: 0,
+        unitCost: baseRaw,
+      };
+    });
+    updateProducts(updated);
+    setAppliedDlFeedback('Reset all products to base raw materials costs.');
+    setTimeout(() => setAppliedDlFeedback(null), 3500);
   };
 
   // Working Capital Buffer decomposition (Cash on Hand & Cash in Bank)
@@ -555,30 +727,6 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                       </div>
                     </div>
 
-                    {/* Batch Method Selector */}
-                    {project.fixedAssets.length > 1 && (
-                      <div className="mb-2.5 px-3 py-1.5 bg-slate-100/80 rounded-lg flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
-                        <span className="font-medium">Quick set all assets method:</span>
-                        <div className="flex flex-wrap items-center gap-1">
-                          {DEPRECIATION_METHODS.map((m) => (
-                            <button
-                              key={m.id}
-                              onClick={() => {
-                                const copy = project.fixedAssets.map((a) => ({
-                                  ...a,
-                                  depreciationMethod: m.id as DepreciationMethod,
-                                }));
-                                updateFixedAssets(copy);
-                              }}
-                              className="px-2 py-0.5 rounded bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-700 transition"
-                            >
-                              {m.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                       {project.fixedAssets.map((asset, idx) => (
                         <div
@@ -684,10 +832,26 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
 
                 {/* Capital Financing Mix & Working Capital Buffer */}
                 <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-indigo-950 mb-1">
-                      Financing Mix & Initial Working Capital Buffer
-                    </h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-indigo-950 mb-0.5">
+                        Financing Mix & Initial Working Capital Buffer
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Equity, bank debt financing, and liquidity buffer allocation between cash in vault and depository bank.
+                      </p>
+                    </div>
+
+                    {onOpenBankModal && (
+                      <button
+                        onClick={onOpenBankModal}
+                        type="button"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-200 flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                      >
+                        <Landmark className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Bank Interest & Loan Breakdown</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Breakdown of Initial Working Capital Buffer: Cash on Hand & Cash in Bank */}
@@ -997,24 +1161,34 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                       Selling prices, unit direct costs, Year 1 expected sales volume, and annual growth %.
                     </p>
                   </div>
-                  <button
-                    onClick={() =>
-                      updateProducts([
-                        ...project.products,
-                        {
-                          id: `p-${Date.now()}`,
-                          name: 'New Product / Service',
-                          unitPrice: 100,
-                          year1Volume: 5000,
-                          annualGrowthRate: 8,
-                          unitCost: 35,
-                        },
-                      ])
-                    }
-                    className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium flex items-center gap-1 transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Product / Service
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('directCosts')}
+                      className="px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded-lg font-medium flex items-center gap-1 transition border border-slate-200"
+                      title="Navigate to Tab 3 to compute and allocate Direct Labor per unit"
+                    >
+                      <Users className="w-3.5 h-3.5 text-indigo-600" /> Allocate Direct Labor
+                    </button>
+                    <button
+                      onClick={() =>
+                        updateProducts([
+                          ...project.products,
+                          {
+                            id: `p-${Date.now()}`,
+                            name: 'New Product / Service',
+                            unitPrice: 100,
+                            year1Volume: 5000,
+                            annualGrowthRate: 8,
+                            unitCost: 35,
+                          },
+                        ])
+                      }
+                      className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium flex items-center gap-1 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Product / Service
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -1069,11 +1243,24 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                                 value={prod.unitCost}
                                 onChange={(e) => {
                                   const copy = [...project.products];
-                                  copy[idx].unitCost = parseFloat(e.target.value) || 0;
+                                  const val = parseFloat(e.target.value) || 0;
+                                  copy[idx].unitCost = val;
+                                  copy[idx].rawMaterialsCostPerUnit = Math.max(
+                                    0,
+                                    val - (copy[idx].directLaborCostPerUnit || 0)
+                                  );
                                   updateProducts(copy);
                                 }}
                                 className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
                               />
+                              {prod.directLaborCostPerUnit !== undefined && prod.directLaborCostPerUnit > 0 && (
+                                <div
+                                  className="text-[10px] text-indigo-600 font-semibold mt-0.5 whitespace-nowrap"
+                                  title={`Raw Materials: ${formatCurrency(prod.rawMaterialsCostPerUnit ?? (prod.unitCost - prod.directLaborCostPerUnit), c)} | Direct Labor: ${formatCurrency(prod.directLaborCostPerUnit, c)}`}
+                                >
+                                  +{formatCurrency(prod.directLaborCostPerUnit, c)} DL
+                                </div>
+                              )}
                             </td>
                             <td className="p-2.5 text-right font-financial text-slate-600">
                               {formatCurrency(unitMargin, c)} ({marginPct.toFixed(0)}%)
@@ -1125,954 +1312,31 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                     </tbody>
                   </table>
                 </div>
-
-                {/* -------------------------------------------------------------------------------- */}
-                {/* PORTION: PRODUCT UNIT COST BREAKDOWN & BILL OF MATERIALS (BOM) CALCULATOR         */}
-                {/* -------------------------------------------------------------------------------- */}
-                <div className="mt-8 pt-6 border-t border-slate-200/90 space-y-4">
-                  {/* Portion Header & Controls */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/80 p-4 rounded-xl border border-slate-200">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
-                          <Calculator className="w-4 h-4" />
-                        </span>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Cost Per Unit Analysis & Breakdown (Products Sold)
-                        </h3>
-                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          Unit COGS
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Deconstruct and determine the exact Cost per Unit of different products sold from raw materials, packaging, direct supplies, and direct overhead.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* View Mode Toggle: Itemized Breakdown vs Comparison Matrix */}
-                      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs shadow-2xs">
-                        <button
-                          onClick={() => setCostViewMode('detail')}
-                          className={`px-3 py-1 font-medium rounded-md transition ${
-                            costViewMode === 'detail'
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          Itemized Calculator
-                        </button>
-                        <button
-                          onClick={() => setCostViewMode('matrix')}
-                          className={`px-3 py-1 font-medium rounded-md transition ${
-                            costViewMode === 'matrix'
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          All Products Matrix
-                        </button>
-                      </div>
-
-                      {/* Auto-sync Toggle */}
-                      <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer bg-white border border-slate-200 px-2.5 py-1 rounded-lg hover:border-indigo-300 transition">
-                        <input
-                          type="checkbox"
-                          checked={autoSyncCost}
-                          onChange={(e) => setAutoSyncCost(e.target.checked)}
-                          className="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-                        />
-                        <span className="text-[11px] font-medium">Auto-sync with Table</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {project.products.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      Please add at least one product above to calculate its cost per unit.
-                    </div>
-                  ) : costViewMode === 'matrix' ? (
-                    /* ALL PRODUCTS COST MATRIX VIEW */
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                          Unit Cost Structure & Margin Summary Matrix
-                        </h4>
-                        <span className="text-xs text-slate-500">
-                          {project.products.length} Products Defined
-                        </span>
-                      </div>
-
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                            <tr>
-                              <th className="p-3">Product Name</th>
-                              <th className="p-3 text-right">Selling Price ({c})</th>
-                              <th className="p-3 text-right">Raw Materials</th>
-                              <th className="p-3 text-right">Packaging</th>
-                              <th className="p-3 text-right">Supplies & Other</th>
-                              <th className="p-3 text-right font-bold text-slate-900">Total Unit Cost ({c})</th>
-                              <th className="p-3 text-right">Unit Margin ({c})</th>
-                              <th className="p-3 text-right">Gross Margin %</th>
-                              <th className="p-3 text-right">Markup %</th>
-                              <th className="p-3 text-right">Year 1 Volume</th>
-                              <th className="p-3 text-right">Yr 1 Direct Cost</th>
-                              <th className="p-3 text-center">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {project.products.map((p) => {
-                              const comps = p.costBreakdown || [];
-                              const getCompVal = (item: ProductCostComponent) =>
-                                item.totalCost !== undefined ? Number(item.totalCost) || 0 : computeItemTotalCost(item);
-
-                              const rmCost = comps
-                                .filter((item) => item.category === 'Raw Materials & Ingredients')
-                                .reduce((s, item) => s + getCompVal(item), 0);
-                              const packCost = comps
-                                .filter((item) => item.category === 'Packaging & Containers')
-                                .reduce((s, item) => s + getCompVal(item), 0);
-                              const otherCost = comps
-                                .filter(
-                                  (item) =>
-                                    item.category !== 'Raw Materials & Ingredients' &&
-                                    item.category !== 'Packaging & Containers'
-                                )
-                                .reduce((s, item) => s + getCompVal(item), 0);
-
-                              const computedCost =
-                                comps.length > 0
-                                  ? Math.round((rmCost + packCost + otherCost) * 100) / 100
-                                  : p.unitCost;
-                              const effectiveCost = p.unitCost > 0 ? p.unitCost : computedCost;
-                              const unitMargin = p.unitPrice - effectiveCost;
-                              const marginPct = p.unitPrice > 0 ? (unitMargin / p.unitPrice) * 100 : 0;
-                              const markupPct = effectiveCost > 0 ? (unitMargin / effectiveCost) * 100 : 0;
-                              const yr1TotalDirectCost = effectiveCost * p.year1Volume;
-
-                              return (
-                                <tr key={p.id} className="hover:bg-slate-50/50">
-                                  <td className="p-3 font-semibold text-slate-800">
-                                    <div className="flex items-center gap-1.5">
-                                      <Tag className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                      <span>{p.name}</span>
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-right font-financial font-medium text-slate-900">
-                                    {formatCurrency(p.unitPrice, c)}
-                                  </td>
-                                  <td className="p-3 text-right font-financial text-slate-600">
-                                    {comps.length > 0 ? formatCurrency(rmCost, c) : '-'}
-                                  </td>
-                                  <td className="p-3 text-right font-financial text-slate-600">
-                                    {comps.length > 0 ? formatCurrency(packCost, c) : '-'}
-                                  </td>
-                                  <td className="p-3 text-right font-financial text-slate-600">
-                                    {comps.length > 0 ? formatCurrency(otherCost, c) : '-'}
-                                  </td>
-                                  <td className="p-3 text-right font-financial font-bold text-indigo-950">
-                                    {formatCurrency(effectiveCost, c)}
-                                  </td>
-                                  <td className="p-3 text-right font-financial text-emerald-700 font-semibold">
-                                    {formatCurrency(unitMargin, c)}
-                                  </td>
-                                  <td className="p-3 text-right font-financial font-medium">
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                                        marginPct >= 50
-                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                          : marginPct >= 25
-                                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                      }`}
-                                    >
-                                      {marginPct.toFixed(1)}%
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-right font-financial text-slate-600">
-                                    {markupPct.toFixed(1)}%
-                                  </td>
-                                  <td className="p-3 text-right font-financial text-slate-700">
-                                    {p.year1Volume.toLocaleString()}
-                                  </td>
-                                  <td className="p-3 text-right font-financial font-bold text-slate-900">
-                                    {formatCurrency(yr1TotalDirectCost, c)}
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <button
-                                      onClick={() => {
-                                        setSelectedCostProductId(p.id);
-                                        setCostViewMode('detail');
-                                      }}
-                                      className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-medium transition inline-flex items-center gap-1"
-                                    >
-                                      Edit Cost <ArrowRight className="w-3 h-3" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    /* ITEMIZED BREAKDOWN CALCULATOR VIEW */
-                    <div className="space-y-4">
-                      {project.products.length === 0 ? (
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
-                          <Box className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                          <h4 className="text-sm font-semibold text-slate-700">No Products Added Yet</h4>
-                          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                            Add a product in the Sales Volume &amp; Revenue Streams table above to start itemizing raw materials and direct unit costs.
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Product Selector with Horizontal Scroll & Navigation Controls */}
-                          <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-200/60">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                              <Box className="w-3.5 h-3.5 text-indigo-600" />
-                              Select Product to Cost ({project.products.length})
-                            </span>
-                            <span className="text-[11px] text-slate-400">
-                              • Scroll horizontally or use arrows
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {/* Quick Jump Dropdown */}
-                            <select
-                              value={activeCostProduct?.id || ''}
-                              onChange={(e) => {
-                                setSelectedCostProductId(e.target.value);
-                                const targetBtn = document.getElementById(`prod-chip-${e.target.value}`);
-                                targetBtn?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                              }}
-                              className="text-xs bg-white border border-slate-200 rounded-md px-2 py-1 text-slate-700 font-medium focus:outline-indigo-500"
-                            >
-                              {project.products.map((p, idx) => (
-                                <option key={p.id} value={p.id}>
-                                  #{idx + 1}: {p.name} ({formatCurrency(p.unitPrice, c)})
-                                </option>
-                              ))}
-                            </select>
-
-                            {/* Scroll Navigation Buttons */}
-                            <div className="flex items-center gap-1 border border-slate-200 rounded-md bg-white p-0.5">
-                              <button
-                                type="button"
-                                onClick={() => scrollProducts('left')}
-                                disabled={!canScrollLeft}
-                                title="Scroll products left"
-                                className={`p-1 rounded transition ${
-                                  canScrollLeft
-                                    ? 'text-slate-700 hover:bg-slate-100'
-                                    : 'text-slate-300 cursor-not-allowed'
-                                }`}
-                              >
-                                <ChevronLeft className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => scrollProducts('right')}
-                                disabled={!canScrollRight}
-                                title="Scroll products right"
-                                className={`p-1 rounded transition ${
-                                  canScrollRight
-                                    ? 'text-slate-700 hover:bg-slate-100'
-                                    : 'text-slate-300 cursor-not-allowed'
-                                }`}
-                              >
-                                <ChevronRight className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Scrollable Product Chips Carousel */}
-                        <div
-                          ref={productScrollRef}
-                          onWheel={(e) => {
-                            if (e.deltaY !== 0 && productScrollRef.current) {
-                              productScrollRef.current.scrollLeft += e.deltaY;
-                            }
-                          }}
-                          className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scroll-smooth scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
-                          style={{ scrollbarWidth: 'thin' }}
-                        >
-                          {project.products.map((prod) => {
-                            const isSelected = prod.id === (activeCostProduct?.id || project.products[0]?.id);
-                            const comps = prod.costBreakdown || [];
-                            const calcTotal = comps.reduce(
-                              (s, item) =>
-                                s +
-                                (item.totalCost !== undefined
-                                  ? Number(item.totalCost) || 0
-                                  : computeItemTotalCost(item)),
-                              0
-                            );
-                            const effectiveCost = Math.round(calcTotal * 100) / 100;
-                            const isDiff = comps.length > 0 && Math.abs(prod.unitCost - effectiveCost) > 0.01;
-
-                            return (
-                              <button
-                                key={prod.id}
-                                id={`prod-chip-${prod.id}`}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedCostProductId(prod.id);
-                                  const targetBtn = document.getElementById(`prod-chip-${prod.id}`);
-                                  targetBtn?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                                }}
-                                className={`group px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-2 transition border shrink-0 ${
-                                  isSelected
-                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                                }`}
-                              >
-                                <Tag className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-200' : 'text-slate-400 group-hover:text-indigo-600'}`} />
-                                <span className="font-bold">{prod.name}</span>
-                                <div className="flex items-center gap-1 text-[10px]">
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded font-financial ${
-                                      isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 text-slate-600'
-                                    }`}
-                                  >
-                                    Price: {formatCurrency(prod.unitPrice, c)}
-                                  </span>
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded font-financial font-bold ${
-                                      isSelected
-                                        ? 'bg-indigo-800 text-white'
-                                        : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                                    }`}
-                                  >
-                                    Cost: {formatCurrency(effectiveCost > 0 ? effectiveCost : prod.unitCost, c)}
-                                  </span>
-                                </div>
-                                {isDiff && (
-                                  <span
-                                    className="w-2 h-2 rounded-full bg-amber-400"
-                                    title="Calculated breakdown differs from table cost"
-                                  />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {activeCostProduct && (() => {
-                        const comps = activeCostProduct.costBreakdown || [];
-                        const calcTotal = comps.reduce(
-                          (s, item) =>
-                            s +
-                            (item.totalCost !== undefined
-                              ? Number(item.totalCost) || 0
-                              : computeItemTotalCost(item)),
-                          0
-                        );
-                        const effectiveCalcCost = Math.round(calcTotal * 100) / 100;
-                        const isDiff = comps.length > 0 && Math.abs(activeCostProduct.unitCost - effectiveCalcCost) > 0.01;
-                        const unitMargin = activeCostProduct.unitPrice - (comps.length > 0 ? effectiveCalcCost : activeCostProduct.unitCost);
-                        const marginPct =
-                          activeCostProduct.unitPrice > 0
-                            ? (unitMargin / activeCostProduct.unitPrice) * 100
-                            : 0;
-                        const activeCostBase = comps.length > 0 ? effectiveCalcCost : activeCostProduct.unitCost;
-                        const costToPrice =
-                          activeCostProduct.unitPrice > 0
-                            ? (activeCostBase / activeCostProduct.unitPrice) * 100
-                            : 0;
-                        const markupPct =
-                          activeCostBase > 0 ? (unitMargin / activeCostBase) * 100 : 0;
-
-                        // Category subtotals
-                        const catSubtotals = COST_CATEGORIES.map((cat) => {
-                          const total = comps
-                            .filter((item) => item.category === cat)
-                            .reduce(
-                              (s, item) =>
-                                s +
-                                (item.totalCost !== undefined
-                                  ? Number(item.totalCost) || 0
-                                  : computeItemTotalCost(item)),
-                              0
-                            );
-                          return {
-                            category: cat,
-                            total: Math.round(total * 100) / 100,
-                            pct: effectiveCalcCost > 0 ? (total / effectiveCalcCost) * 100 : 0,
-                          };
-                        }).filter((cat) => cat.total > 0);
-
-                        return (
-                          <div className="bg-white border border-indigo-200/80 rounded-xl p-4 shadow-2xs space-y-4">
-                            {/* Selected Product Title Bar */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-50 pb-3">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h4 className="text-sm font-bold text-slate-900">
-                                    {activeCostProduct.name}
-                                  </h4>
-                                  <span className="text-[11px] font-medium text-slate-500">
-                                    (Expected Volume: {activeCostProduct.year1Volume.toLocaleString()} units/yr)
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-500">
-                                  Raw materials, package yield, containers, packaging, and direct supplies required per unit of finished product sold.
-                                </p>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => addCostComponent(activeCostProduct.id, 'package_yield')}
-                                  className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold flex items-center gap-1 transition shadow-xs"
-                                >
-                                  <Plus className="w-3.5 h-3.5" /> Add Raw Material (Yield)
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => addCostComponent(activeCostProduct.id, 'direct_unit')}
-                                  className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center gap-1.5 transition"
-                                >
-                                  <Plus className="w-3.5 h-3.5" /> Add Direct Item
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* 4 Key Metric Cards for Unit Cost Analysis */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                              {/* Card 1: Selling Price */}
-                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                                <span className="text-[11px] font-semibold text-slate-500 block uppercase">
-                                  Selling Price / Unit
-                                </span>
-                                <div className="text-lg font-bold font-financial text-slate-900 mt-0.5">
-                                  {formatCurrency(activeCostProduct.unitPrice, c)}
-                                </div>
-                                <span className="text-[10px] text-slate-500 block mt-0.5">
-                                  From Revenue Table
-                                </span>
-                              </div>
-
-                              {/* Card 2: Derived Total Cost Per Unit */}
-                              <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3">
-                                <span className="text-[11px] font-semibold text-indigo-900 block uppercase flex items-center justify-between">
-                                  <span>Calculated Cost / Unit</span>
-                                  {comps.length > 0 && !isDiff && (
-                                    <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
-                                      <CheckCircle2 className="w-2.5 h-2.5" /> Synced
-                                    </span>
-                                  )}
-                                </span>
-                                <div className="text-lg font-bold font-financial text-indigo-950 mt-0.5">
-                                  {comps.length > 0
-                                    ? formatCurrency(effectiveCalcCost, c)
-                                    : formatCurrency(activeCostProduct.unitCost, c)}
-                                </div>
-                                <span className="text-[10px] text-indigo-700/80 block mt-0.5 font-medium">
-                                  {comps.length > 0
-                                    ? `${comps.length} raw materials & items`
-                                    : 'Single lumped estimate'}
-                                </span>
-                              </div>
-
-                              {/* Card 3: Unit Gross Profit (Margin) */}
-                              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3">
-                                <span className="text-[11px] font-semibold text-emerald-900 block uppercase">
-                                  Unit Gross Profit (Margin)
-                                </span>
-                                <div className="text-lg font-bold font-financial text-emerald-800 mt-0.5">
-                                  {formatCurrency(unitMargin, c)}
-                                </div>
-                                <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">
-                                  {marginPct.toFixed(1)}% Gross Margin
-                                </span>
-                              </div>
-
-                              {/* Card 4: Markup & Cost Ratio */}
-                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                                <span className="text-[11px] font-semibold text-slate-500 block uppercase">
-                                  Cost Ratio & Markup
-                                </span>
-                                <div className="text-lg font-bold font-financial text-slate-800 mt-0.5">
-                                  {costToPrice.toFixed(1)}% <span className="text-xs font-normal text-slate-500 font-sans">of price</span>
-                                </div>
-                                <span className="text-[10px] text-slate-600 block mt-0.5 font-medium">
-                                  Markup: {markupPct.toFixed(1)}% on cost
-                                </span>
-                              </div>
-                            </div>
-
-
-                            {/* Discrepancy / Sync Alert Banner */}
-                            {isDiff && (
-                              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                  <span>
-                                    The Revenue Streams table currently uses{' '}
-                                    <strong>{formatCurrency(activeCostProduct.unitCost, c)}</strong>, while
-                                    this itemized breakdown totals{' '}
-                                    <strong>{formatCurrency(effectiveCalcCost, c)}</strong>.
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    updateProductCostBreakdown(activeCostProduct.id, comps, true)
-                                  }
-                                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 transition shadow-2xs"
-                                >
-                                  <RefreshCw className="w-3 h-3" /> Sync {formatCurrency(effectiveCalcCost, c)} to Product Direct Cost
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Itemized Raw Materials & Cost Components Table */}
-                            <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                              <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                                  <tr>
-                                    <th className="p-2.5 w-44">Category</th>
-                                    <th className="p-2.5 min-w-[180px]">Raw Material / Component Description</th>
-                                    <th className="p-2.5 w-36 text-center">Costing Method</th>
-                                    <th className="p-2.5 min-w-[280px]">Purchase Cost, Yield & Formula</th>
-                                    <th className="p-2.5 text-right font-bold text-slate-900 w-36">
-                                      Cost / Unit Sold ({c})
-                                    </th>
-                                    <th className="p-2.5 text-right w-24">Share %</th>
-                                    <th className="p-2.5 text-center w-20">Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {comps.length === 0 ? (
-                                    <tr>
-                                      <td colSpan={7} className="p-8 text-center text-slate-400 italic">
-                                        <div className="max-w-md mx-auto space-y-2">
-                                          <Box className="w-8 h-8 text-slate-300 mx-auto" />
-                                          <p className="text-slate-600 font-medium">No raw materials or components defined for {activeCostProduct.name || 'this product'}.</p>
-                                          <p className="text-[11px] text-slate-400">
-                                            Click &ldquo;Add Raw Material (Yield)&rdquo; or &ldquo;Add Direct Item&rdquo; to calculate the exact cost per unit.
-                                          </p>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ) : (
-                                    comps.map((comp, cIdx) => {
-                                      const isYieldMode = comp.costMode === 'package_yield';
-                                      const totalItemCost =
-                                        comp.totalCost !== undefined
-                                          ? Number(comp.totalCost) || 0
-                                          : computeItemTotalCost(comp);
-                                      const sharePct =
-                                        effectiveCalcCost > 0
-                                          ? (totalItemCost / effectiveCalcCost) * 100
-                                          : 0;
-
-                                      return (
-                                        <tr key={comp.id || cIdx} className="hover:bg-slate-50/70 transition">
-                                          {/* Category Selection */}
-                                          <td className="p-2.5 align-top">
-                                            <select
-                                              value={comp.category}
-                                              onChange={(e) =>
-                                                editCostComponent(
-                                                  activeCostProduct.id,
-                                                  cIdx,
-                                                  'category',
-                                                  e.target.value as CostComponentCategory
-                                                )
-                                              }
-                                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 text-xs font-medium text-slate-800 focus:outline-indigo-500"
-                                            >
-                                              {COST_CATEGORIES.map((cat) => (
-                                                <option key={cat} value={cat}>
-                                                  {cat}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </td>
-
-                                          {/* Name / Description */}
-                                          <td className="p-2.5 align-top">
-                                            <input
-                                              type="text"
-                                              value={comp.name}
-                                              onChange={(e) =>
-                                                editCostComponent(
-                                                  activeCostProduct.id,
-                                                  cIdx,
-                                                  'name',
-                                                  e.target.value
-                                                )
-                                              }
-                                              className="w-full font-medium text-slate-800 border border-slate-200 hover:border-slate-300 rounded-md px-2 py-1.5 focus:border-indigo-500 focus:outline-none"
-                                              placeholder="e.g. Raw Material, Packaging, Ingredient, Supplies..."
-                                            />
-                                          </td>
-
-                                          {/* Costing Method Toggle */}
-                                          <td className="p-2.5 align-top text-center">
-                                            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[11px]">
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  editCostComponent(
-                                                    activeCostProduct.id,
-                                                    cIdx,
-                                                    'costMode',
-                                                    'package_yield'
-                                                  )
-                                                }
-                                                className={`px-2 py-1 font-semibold rounded-md transition ${
-                                                  isYieldMode
-                                                    ? 'bg-indigo-600 text-white shadow-2xs'
-                                                    : 'text-slate-600 hover:text-slate-900'
-                                                }`}
-                                                title="Package / Bulk purchase divided by units produced (e.g. 1 box yields 10 units)"
-                                              >
-                                                📦 Package Yield
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  editCostComponent(
-                                                    activeCostProduct.id,
-                                                    cIdx,
-                                                    'costMode',
-                                                    'direct_unit'
-                                                  )
-                                                }
-                                                className={`px-2 py-1 font-semibold rounded-md transition ${
-                                                  !isYieldMode
-                                                    ? 'bg-indigo-600 text-white shadow-2xs'
-                                                    : 'text-slate-600 hover:text-slate-900'
-                                                }`}
-                                                title="Direct cost per single unit consumed"
-                                              >
-                                                📏 Direct Unit
-                                              </button>
-                                            </div>
-                                          </td>
-
-                                          {/* Pricing & Yield Inputs */}
-                                          <td className="p-2.5 align-top">
-                                            {isYieldMode ? (
-                                              <div className="space-y-1.5">
-                                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-700">
-                                                  {/* Package Purchase Cost */}
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-[11px] text-slate-500 font-medium">Cost:</span>
-                                                    <div className="relative">
-                                                      <span className="absolute left-1.5 top-1.5 text-[11px] text-slate-400 font-financial">
-                                                        {c}
-                                                      </span>
-                                                      <input
-                                                        type="number"
-                                                        step="any"
-                                                        min="0"
-                                                        value={comp.purchaseCost ?? comp.unitCost ?? 120}
-                                                        onChange={(e) =>
-                                                          editCostComponent(
-                                                            activeCostProduct.id,
-                                                            cIdx,
-                                                            'purchaseCost',
-                                                            e.target.value
-                                                          )
-                                                        }
-                                                        className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-1 pl-4 text-xs font-semibold text-slate-900 focus:outline-indigo-500"
-                                                        placeholder="120"
-                                                        title="Purchase cost of the bulk container/package"
-                                                      />
-                                                    </div>
-                                                  </div>
-
-                                                  {/* Package Unit */}
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-[11px] text-slate-500">per</span>
-                                                    <input
-                                                      type="text"
-                                                      list={`pkg-units-${activeCostProduct.id}`}
-                                                      value={comp.packageUnit || comp.unit || 'box'}
-                                                      onChange={(e) =>
-                                                        editCostComponent(
-                                                          activeCostProduct.id,
-                                                          cIdx,
-                                                          'packageUnit',
-                                                          e.target.value
-                                                        )
-                                                      }
-                                                      className="w-16 text-center border border-slate-200 rounded px-1 py-1 text-xs text-slate-700 font-medium"
-                                                      placeholder="box"
-                                                      title="Packaging unit (e.g. box, bag, carton, bottle, kg)"
-                                                    />
-                                                    <datalist id={`pkg-units-${activeCostProduct.id}`}>
-                                                      {COMMON_PACKAGE_UNITS.map((u) => (
-                                                        <option key={u} value={u} />
-                                                      ))}
-                                                    </datalist>
-                                                  </div>
-
-                                                  {/* Yield in Finished Units */}
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-[11px] text-slate-500">produces</span>
-                                                    <input
-                                                      type="number"
-                                                      step="any"
-                                                      min="0.0001"
-                                                      value={comp.yieldUnits || 10}
-                                                      onChange={(e) =>
-                                                        editCostComponent(
-                                                          activeCostProduct.id,
-                                                          cIdx,
-                                                          'yieldUnits',
-                                                          e.target.value
-                                                        )
-                                                      }
-                                                      className="w-16 font-financial text-center border border-slate-200 rounded px-1 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50/50 focus:outline-indigo-500"
-                                                      placeholder="10"
-                                                      title="How many units of the finished product 1 package produces"
-                                                    />
-                                                    <span className="text-[11px] text-slate-600 font-medium">units</span>
-                                                  </div>
-                                                </div>
-
-                                                {/* Live Formula Display Pill */}
-                                                <div className="flex items-center gap-1.5 text-[11px] text-indigo-900 bg-indigo-50/70 border border-indigo-100 rounded px-2 py-0.5 w-fit font-mono">
-                                                  <span>
-                                                    {formatCurrency(comp.purchaseCost ?? comp.unitCost ?? 120, c)} ÷ {comp.yieldUnits || 10} =
-                                                  </span>
-                                                  <span className="font-bold text-indigo-950">
-                                                    {formatCurrency(totalItemCost, c)} / unit
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            ) : (
-                                              /* Direct Unit Input Mode */
-                                              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                                                <div className="flex items-center gap-1">
-                                                  <span className="text-[11px] text-slate-500">Qty:</span>
-                                                  <input
-                                                    type="number"
-                                                    step="any"
-                                                    min="0"
-                                                    value={comp.quantity}
-                                                    onChange={(e) =>
-                                                      editCostComponent(
-                                                        activeCostProduct.id,
-                                                        cIdx,
-                                                        'quantity',
-                                                        e.target.value
-                                                      )
-                                                    }
-                                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-1 text-xs"
-                                                  />
-                                                </div>
-
-                                                <div className="flex items-center gap-1">
-                                                  <input
-                                                    type="text"
-                                                    list={`units-list-${activeCostProduct.id}`}
-                                                    value={comp.unit}
-                                                    onChange={(e) =>
-                                                      editCostComponent(
-                                                        activeCostProduct.id,
-                                                        cIdx,
-                                                        'unit',
-                                                        e.target.value
-                                                      )
-                                                    }
-                                                    className="w-14 text-center border border-slate-200 rounded px-1 py-1 text-xs text-slate-700"
-                                                    placeholder="pc"
-                                                  />
-                                                  <datalist id={`units-list-${activeCostProduct.id}`}>
-                                                    {COMMON_UNITS.map((u) => (
-                                                      <option key={u} value={u} />
-                                                    ))}
-                                                  </datalist>
-                                                </div>
-
-                                                <div className="flex items-center gap-1">
-                                                  <span className="text-[11px] text-slate-500">@</span>
-                                                  <div className="relative">
-                                                    <span className="absolute left-1.5 top-1.5 text-[11px] text-slate-400 font-financial">
-                                                      {c}
-                                                    </span>
-                                                    <input
-                                                      type="number"
-                                                      step="any"
-                                                      min="0"
-                                                      value={comp.unitCost}
-                                                      onChange={(e) =>
-                                                        editCostComponent(
-                                                          activeCostProduct.id,
-                                                          cIdx,
-                                                          'unitCost',
-                                                          e.target.value
-                                                        )
-                                                      }
-                                                      className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-1 pl-4 text-xs"
-                                                    />
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            )}
-                                          </td>
-
-                                          {/* Calculated Total Cost per Finished Unit */}
-                                          <td className="p-2.5 text-right font-financial font-bold text-slate-900 text-sm align-top">
-                                            <div className="bg-slate-50 border border-slate-200/80 rounded px-2 py-1 text-right inline-block">
-                                              {formatCurrency(totalItemCost, c)}
-                                            </div>
-                                          </td>
-
-                                          {/* Share % */}
-                                          <td className="p-2.5 text-right font-financial text-slate-500 align-top">
-                                            <div className="flex items-center justify-end gap-1.5 pt-1">
-                                              <div className="w-10 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                <div
-                                                  className="bg-indigo-600 h-1.5 rounded-full"
-                                                  style={{ width: `${Math.min(100, Math.max(0, sharePct))}%` }}
-                                                />
-                                              </div>
-                                              <span className="w-9 text-right text-[11px] font-medium">
-                                                {sharePct.toFixed(0)}%
-                                              </span>
-                                            </div>
-                                          </td>
-
-                                          {/* Actions */}
-                                          <td className="p-2.5 text-center align-top">
-                                            <div className="flex items-center justify-center gap-1 pt-0.5">
-                                              <button
-                                                type="button"
-                                                onClick={() => duplicateCostComponent(activeCostProduct.id, cIdx)}
-                                                className="text-slate-400 hover:text-indigo-600 p-1 rounded hover:bg-slate-100 transition"
-                                                title="Duplicate raw material"
-                                              >
-                                                <Copy className="w-3.5 h-3.5" />
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => deleteCostComponent(activeCostProduct.id, cIdx)}
-                                                className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition"
-                                                title="Delete raw material"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })
-                                  )}
-                                </tbody>
-
-                                {/* Subtotals & Category Summary Footer */}
-                                {comps.length > 0 && (
-                                  <tfoot className="bg-slate-50/90 font-semibold border-t border-slate-200">
-                                    <tr className="acc-subtotal">
-                                      <td colSpan={4} className="p-3 font-bold text-slate-900">
-                                        <div className="flex items-center justify-between">
-                                          <span>Total Direct Cost per Unit Sold ({activeCostProduct.name})</span>
-                                          <span className="text-xs font-normal text-slate-500">
-                                            Sum of all raw materials, packaging & direct supplies
-                                          </span>
-                                        </div>
-                                      </td>
-                                      <td className="p-3 text-right font-financial font-bold text-indigo-950 text-base">
-                                        {formatCurrency(effectiveCalcCost, c)}
-                                      </td>
-                                      <td className="p-3 text-right font-financial font-bold text-indigo-950">
-                                        100%
-                                      </td>
-                                      <td className="p-3"></td>
-                                    </tr>
-                                  </tfoot>
-                                )}
-                              </table>
-                            </div>
-
-                            {/* Action Bar Below Table */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => addCostComponent(activeCostProduct.id, 'package_yield')}
-                                  className="px-3 py-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg font-semibold flex items-center gap-1.5 transition"
-                                >
-                                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                                  Add Raw Material (Package Yield)
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => addCostComponent(activeCostProduct.id, 'direct_unit')}
-                                  className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center gap-1.5 transition"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Add Direct Cost Item (Unit Usage)
-                                </button>
-
-                              </div>
-
-                              <div className="text-xs text-slate-500 font-medium">
-                                Direct Margin:{' '}
-                                <strong className="text-emerald-700 font-financial">
-                                  {formatCurrency(unitMargin, c)}
-                                </strong>{' '}
-                                ({marginPct.toFixed(1)}%)
-                              </div>
-                            </div>
-
-                            {/* Category Distribution Pills Footer */}
-                            {catSubtotals.length > 0 && (
-                              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600">
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <span className="font-semibold text-slate-700">Cost Breakdown by Category:</span>
-                                  {catSubtotals.map((cat) => (
-                                    <span key={cat.category} className="inline-flex items-center gap-1 text-[11px]">
-                                      <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block" />
-                                      <strong>{cat.category}:</strong> {formatCurrency(cat.total, c)} ({cat.pct.toFixed(0)}%)
-                                    </span>
-                                  ))}
-                                </div>
-                                <div className="text-[11px] font-bold text-indigo-900">
-                                  Annual Yr 1 Direct Cost:{' '}
-                                  <span className="font-financial">
-                                    {formatCurrency(effectiveCalcCost * activeCostProduct.year1Volume, c)}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </>
-                  )}
-                </div>
-              )}
-                </div>
               </div>
             )}
 
             {/* TAB 3: DIRECT LABOR & PRODUCTION OVERHEAD */}
             {activeTab === 'directCosts' && (
               <div className="space-y-6">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
+                {/* ---------------------------------------------------- */}
+                {/* 1. DIRECT LABOR TABLE                                */}
+                {/* ---------------------------------------------------- */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">
-                        Direct Labor Headcount & Compensation
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Production or service staff directly involved in delivering the goods/services.
+                      <div className="flex items-center gap-2">
+                        <span className="p-1 bg-indigo-100 text-indigo-700 rounded-lg">
+                          <Users className="w-4 h-4" />
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900">
+                          Direct Labor Headcount & Compensation
+                        </h3>
+                        <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          Direct Labor
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Production technicians, assembly staff, baristas, or service crew directly fabricating products or delivering services.
                       </p>
                     </div>
                     <button
@@ -2081,16 +1345,16 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                           ...project.directLabor,
                           {
                             id: `dl-${Date.now()}`,
-                            role: 'Technician / Crew',
+                            role: 'Production Technician',
                             headcount: 1,
                             monthlyWage: 18000,
                             monthsPerYear: 13,
                           },
                         ])
                       }
-                      className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium flex items-center gap-1 transition"
+                      className="px-3 py-1.5 text-xs bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium flex items-center gap-1.5 transition shadow-2xs shrink-0"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Add Staff Role
+                      <Plus className="w-3.5 h-3.5" /> Add Direct Labor Role
                     </button>
                   </div>
 
@@ -2103,87 +1367,522 @@ export default function AssumptionsEditor({ project, onUpdateProject }: Assumpti
                           <th className="p-3 text-right">Monthly Basic Wage ({c})</th>
                           <th className="p-3 text-right">Months / Year</th>
                           <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
-                          <th className="p-3 text-center">Action</th>
+                          <th className="p-3 text-center w-16">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {project.directLabor.map((lab, idx) => {
-                          const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
-                          return (
-                            <tr key={lab.id} className="hover:bg-slate-50/50">
-                              <td className="p-2.5">
-                                <input
-                                  type="text"
-                                  value={lab.role}
-                                  onChange={(e) => {
-                                    const copy = [...project.directLabor];
-                                    copy[idx].role = e.target.value;
-                                    updateDirectLabor(copy);
-                                  }}
-                                  className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
-                                />
-                              </td>
-                              <td className="p-2.5 text-right">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={lab.headcount}
-                                  onChange={(e) => {
-                                    const copy = [...project.directLabor];
-                                    copy[idx].headcount = parseInt(e.target.value) || 1;
-                                    updateDirectLabor(copy);
-                                  }}
-                                  className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                />
-                              </td>
-                              <td className="p-2.5 text-right">
-                                <input
-                                  type="number"
-                                  value={lab.monthlyWage}
-                                  onChange={(e) => {
-                                    const copy = [...project.directLabor];
-                                    copy[idx].monthlyWage = parseFloat(e.target.value) || 0;
-                                    updateDirectLabor(copy);
-                                  }}
-                                  className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                />
-                              </td>
-                              <td className="p-2.5 text-right">
-                                <input
-                                  type="number"
-                                  min="12"
-                                  max="14"
-                                  value={lab.monthsPerYear}
-                                  onChange={(e) => {
-                                    const copy = [...project.directLabor];
-                                    copy[idx].monthsPerYear = parseInt(e.target.value) || 12;
-                                    updateDirectLabor(copy);
-                                  }}
-                                  className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                />
-                              </td>
-                              <td className="p-2.5 text-right font-financial font-bold text-slate-900">
-                                {formatCurrency(annual, c)}
-                              </td>
-                              <td className="p-2.5 text-center">
-                                <button
-                                  onClick={() => {
-                                    updateDirectLabor(project.directLabor.filter((_, i) => i !== idx));
-                                  }}
-                                  className="text-slate-400 hover:text-red-600 p-1 transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {project.directLabor.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-6 text-slate-400">
+                              No direct labor positions added yet. Click "Add Direct Labor Role" above.
+                            </td>
+                          </tr>
+                        ) : (
+                          project.directLabor.map((lab, idx) => {
+                            const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
+                            return (
+                              <tr key={lab.id} className="hover:bg-slate-50/50">
+                                <td className="p-2.5">
+                                  <input
+                                    type="text"
+                                    value={lab.role}
+                                    placeholder="e.g. Machine Operator, Assembly Crew"
+                                    onChange={(e) => {
+                                      const copy = [...project.directLabor];
+                                      copy[idx].role = e.target.value;
+                                      updateDirectLabor(copy);
+                                    }}
+                                    className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={lab.headcount}
+                                    onChange={(e) => {
+                                      const copy = [...project.directLabor];
+                                      copy[idx].headcount = parseInt(e.target.value) || 1;
+                                      updateDirectLabor(copy);
+                                    }}
+                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    value={lab.monthlyWage}
+                                    onChange={(e) => {
+                                      const copy = [...project.directLabor];
+                                      copy[idx].monthlyWage = parseFloat(e.target.value) || 0;
+                                      updateDirectLabor(copy);
+                                    }}
+                                    className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    min="12"
+                                    max="14"
+                                    value={lab.monthsPerYear}
+                                    onChange={(e) => {
+                                      const copy = [...project.directLabor];
+                                      copy[idx].monthsPerYear = parseInt(e.target.value) || 12;
+                                      updateDirectLabor(copy);
+                                    }}
+                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right font-financial font-bold text-slate-900">
+                                  {formatCurrency(annual, c)}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    onClick={() => {
+                                      updateDirectLabor(project.directLabor.filter((_, i) => i !== idx));
+                                    }}
+                                    className="text-slate-400 hover:text-red-600 p-1 transition"
+                                    title="Delete role"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
+                      {project.directLabor.length > 0 && (
+                        <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold text-slate-800">
+                          <tr>
+                            <td className="p-2.5">Total Direct Labor</td>
+                            <td className="p-2.5 text-right font-financial font-bold text-indigo-700">
+                              {totalDirectLaborHeadcount} pax
+                            </td>
+                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                              Annual Total:
+                            </td>
+                            <td className="p-2.5 text-right font-financial font-bold text-indigo-700 text-sm">
+                              {formatCurrency(totalDirectLaborAnnual, c)}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </div>
 
-                {/* Factory Overhead */}
+                {/* ---------------------------------------------------------------------- */}
+                {/* 2. DIRECT LABOR COST PER UNIT COMPUTATION & ALLOCATION TO PRODUCTS    */}
+                {/* ---------------------------------------------------------------------- */}
+                <div className="bg-gradient-to-br from-indigo-50/40 via-white to-slate-50/60 border border-indigo-200/80 rounded-xl p-4 shadow-2xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-2xs">
+                          <Calculator className="w-4 h-4" />
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900">
+                          Direct Labor Cost Per Unit Computation & Allocation
+                        </h3>
+                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          Sync with Products
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Compute the Direct Labor Cost per unit of product and add it to the product cost in Product & Sales Volume.
+                      </p>
+                    </div>
+
+                    {/* Mode Switch: Volume-Weighted vs Custom */}
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setDlAllocationMode('volume_share')}
+                        className={`px-3 py-1 font-medium rounded-md transition ${
+                          dlAllocationMode === 'volume_share'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Average per Unit (Volume Weighted)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDlAllocationMode('custom')}
+                        className={`px-3 py-1 font-medium rounded-md transition ${
+                          dlAllocationMode === 'custom'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Custom Rate per Product
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* High Level Key Metric Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
+                        Total Direct Labor (Year 1)
+                      </span>
+                      <span className="text-sm font-bold font-financial text-indigo-700">
+                        {formatCurrency(totalDirectLaborAnnual, c)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        {totalDirectLaborHeadcount} staff across {project.directLabor.length} positions
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
+                        Total Year 1 Production Volume
+                      </span>
+                      <span className="text-sm font-bold font-financial text-slate-900">
+                        {totalYear1Volume.toLocaleString()} units
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        Across {project.products.length} products defined
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
+                        Average DL Cost / Unit
+                      </span>
+                      <span className="text-sm font-bold font-financial text-emerald-700">
+                        {formatCurrency(totalYear1Volume > 0 ? totalDirectLaborAnnual / totalYear1Volume : 0, c)}
+                        <span className="text-xs font-normal text-slate-500"> / unit</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        = Total Direct Labor ÷ Total Volume
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Feedback Banner if an action was executed */}
+                  {appliedDlFeedback && (
+                    <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-medium animate-fadeIn">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{appliedDlFeedback}</span>
+                    </div>
+                  )}
+
+                  {/* Product Allocation Table */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Product Direct Labor Allocation Matrix
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={applyDlToAllProducts}
+                          className="px-2.5 py-1 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-2xs flex items-center gap-1"
+                          title="Add calculated direct labor to all products in Product & Sales Volume"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Apply DL to All Products
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetAllProductsDl}
+                          className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-lg transition shadow-2xs"
+                          title="Reset all products to base raw materials cost"
+                        >
+                          Reset All
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                          <tr>
+                            <th className="p-2.5">Product Name</th>
+                            <th className="p-2.5 text-right">Yr 1 Volume</th>
+                            <th className="p-2.5 text-right">Volume Share</th>
+                            <th className="p-2.5 text-right">Direct Labor Cost / Unit ({c})</th>
+                            <th className="p-2.5 text-right">Base Materials ({c})</th>
+                            <th className="p-2.5 text-right font-bold text-slate-900">Total Unit Cost ({c})</th>
+                            <th className="p-2.5 text-center">Status in Table</th>
+                            <th className="p-2.5 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {project.products.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="text-center py-6 text-slate-400">
+                                Please add products in "Product & Sales Volume" first.
+                              </td>
+                            </tr>
+                          ) : (
+                            project.products.map((prod) => {
+                              const computedDl = computeDLCostPerUnit(prod);
+                              const volShare = totalYear1Volume > 0 ? (prod.year1Volume / totalYear1Volume) * 100 : 0;
+                              const baseRaw =
+                                prod.rawMaterialsCostPerUnit !== undefined
+                                  ? prod.rawMaterialsCostPerUnit
+                                  : prod.directLaborCostPerUnit !== undefined
+                                    ? Math.max(0, prod.unitCost - prod.directLaborCostPerUnit)
+                                    : prod.unitCost;
+                              const hasDlAdded =
+                                prod.directLaborCostPerUnit !== undefined && prod.directLaborCostPerUnit > 0;
+                              const currentDlValue = prod.directLaborCostPerUnit || 0;
+                              const targetCombinedCost = Math.round((baseRaw + computedDl) * 100) / 100;
+
+                              return (
+                                <tr key={prod.id} className="hover:bg-slate-50/50">
+                                  <td className="p-2.5 font-semibold text-slate-800">
+                                    {prod.name || 'Unnamed Product'}
+                                  </td>
+                                  <td className="p-2.5 text-right font-financial">
+                                    {prod.year1Volume.toLocaleString()}
+                                  </td>
+                                  <td className="p-2.5 text-right font-financial text-slate-500">
+                                    {volShare.toFixed(1)}%
+                                  </td>
+                                  <td className="p-2.5 text-right">
+                                    {dlAllocationMode === 'custom' ? (
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={customDlPerUnit[prod.id] ?? computedDl}
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          setCustomDlPerUnit((prev) => ({
+                                            ...prev,
+                                            [prod.id]: val,
+                                          }));
+                                        }}
+                                        className="w-20 font-financial text-right border border-indigo-300 rounded px-1.5 py-0.5 bg-indigo-50/40 text-indigo-900 font-bold"
+                                      />
+                                    ) : (
+                                      <span className="font-financial font-bold text-indigo-700">
+                                        {formatCurrency(computedDl, c)}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-right font-financial text-slate-600">
+                                    {formatCurrency(baseRaw, c)}
+                                  </td>
+                                  <td className="p-2.5 text-right font-financial font-bold text-slate-900">
+                                    {formatCurrency(prod.unitCost, c)}
+                                    {hasDlAdded && (
+                                      <span className="block text-[9px] text-emerald-600 font-normal">
+                                        includes {formatCurrency(currentDlValue, c)} DL
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    {hasDlAdded ? (
+                                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                        DL Added
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                        Materials Only
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => addDlToProductCost(prod.id)}
+                                        className="px-2 py-1 text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded transition"
+                                        title={`Update unit cost in table to ${formatCurrency(targetCombinedCost, c)}`}
+                                      >
+                                        {hasDlAdded ? 'Re-add / Update' : '+ Add to Cost'}
+                                      </button>
+                                      {hasDlAdded && (
+                                        <button
+                                          type="button"
+                                          onClick={() => removeDlFromProductCost(prod.id)}
+                                          className="px-1.5 py-1 text-[11px] text-slate-400 hover:text-red-600 rounded transition"
+                                          title="Reset to base raw materials only"
+                                        >
+                                          Reset
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ---------------------------------------------------- */}
+                {/* 3. SEPARATE TABLE: INDIRECT LABOR                    */}
+                {/* ---------------------------------------------------- */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1 bg-amber-100 text-amber-700 rounded-lg">
+                          <Briefcase className="w-4 h-4" />
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900">
+                          Indirect Labor Headcount & Compensation (Production Support)
+                        </h3>
+                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          Factory Support
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Supervisors, quality control / assurance (QA/QC), plant maintenance, warehouse crew, and factory hygiene staff.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateIndirectLabor([
+                          ...(project.indirectLabor || []),
+                          {
+                            id: `idl-${Date.now()}`,
+                            role: 'Production Supervisor / QA',
+                            headcount: 1,
+                            monthlyWage: 22000,
+                            monthsPerYear: 13,
+                          },
+                        ])
+                      }
+                      className="px-3 py-1.5 text-xs bg-amber-700 text-white hover:bg-amber-800 rounded-lg font-medium flex items-center gap-1.5 transition shadow-2xs shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Indirect Labor Role
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                        <tr>
+                          <th className="p-3">Position / Role</th>
+                          <th className="p-3 text-right">Headcount</th>
+                          <th className="p-3 text-right">Monthly Basic Wage ({c})</th>
+                          <th className="p-3 text-right">Months / Year</th>
+                          <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
+                          <th className="p-3 text-center w-16">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(!project.indirectLabor || project.indirectLabor.length === 0) ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-6 text-slate-400">
+                              No indirect labor positions added yet. Click "Add Indirect Labor Role" above.
+                            </td>
+                          </tr>
+                        ) : (
+                          project.indirectLabor.map((lab, idx) => {
+                            const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
+                            return (
+                              <tr key={lab.id} className="hover:bg-slate-50/50">
+                                <td className="p-2.5">
+                                  <input
+                                    type="text"
+                                    value={lab.role}
+                                    placeholder="e.g. Quality Control Inspector, Plant Custodian"
+                                    onChange={(e) => {
+                                      const copy = [...(project.indirectLabor || [])];
+                                      copy[idx].role = e.target.value;
+                                      updateIndirectLabor(copy);
+                                    }}
+                                    className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-amber-500 focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={lab.headcount}
+                                    onChange={(e) => {
+                                      const copy = [...(project.indirectLabor || [])];
+                                      copy[idx].headcount = parseInt(e.target.value) || 1;
+                                      updateIndirectLabor(copy);
+                                    }}
+                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    value={lab.monthlyWage}
+                                    onChange={(e) => {
+                                      const copy = [...(project.indirectLabor || [])];
+                                      copy[idx].monthlyWage = parseFloat(e.target.value) || 0;
+                                      updateIndirectLabor(copy);
+                                    }}
+                                    className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    min="12"
+                                    max="14"
+                                    value={lab.monthsPerYear}
+                                    onChange={(e) => {
+                                      const copy = [...(project.indirectLabor || [])];
+                                      copy[idx].monthsPerYear = parseInt(e.target.value) || 12;
+                                      updateIndirectLabor(copy);
+                                    }}
+                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-right font-financial font-bold text-slate-900">
+                                  {formatCurrency(annual, c)}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    onClick={() => {
+                                      updateIndirectLabor((project.indirectLabor || []).filter((_, i) => i !== idx));
+                                    }}
+                                    className="text-slate-400 hover:text-red-600 p-1 transition"
+                                    title="Delete role"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                      {(project.indirectLabor && project.indirectLabor.length > 0) && (
+                        <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold text-slate-800">
+                          <tr>
+                            <td className="p-2.5">Total Indirect Labor</td>
+                            <td className="p-2.5 text-right font-financial font-bold text-amber-700">
+                              {totalIndirectLaborHeadcount} pax
+                            </td>
+                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                              Annual Total:
+                            </td>
+                            <td className="p-2.5 text-right font-financial font-bold text-amber-700 text-sm">
+                              {formatCurrency(totalIndirectLaborAnnual, c)}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 italic">
+                    * Accounting note: Indirect Labor is categorized as part of Factory Overhead and flows into Cost of Goods Sold (COGS).
+                  </p>
+                </div>
+
+                {/* ---------------------------------------------------- */}
+                {/* 4. FACTORY OVERHEAD (FOH) (General Plant Expenses)   */}
+                {/* ---------------------------------------------------- */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                   <h3 className="text-sm font-bold text-slate-800 mb-1">
                     Factory / Production Overhead (FOH)

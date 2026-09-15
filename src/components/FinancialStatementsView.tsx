@@ -10,11 +10,13 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  Landmark,
 } from 'lucide-react';
 
 interface FinancialStatementsViewProps {
   project: FeasibilityProject;
   financials: YearFinancials[];
+  onOpenBankModal?: () => void;
 }
 
 type StatementViewType = 'all' | 'income' | 'cashflow' | 'balance' | 'equity';
@@ -22,6 +24,7 @@ type StatementViewType = 'all' | 'income' | 'cashflow' | 'balance' | 'equity';
 export default function FinancialStatementsView({
   project,
   financials,
+  onOpenBankModal,
 }: FinancialStatementsViewProps) {
   const [selectedView, setSelectedView] = useState<StatementViewType>('all');
   const c = project.currency;
@@ -40,8 +43,9 @@ export default function FinancialStatementsView({
           </h2>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View Switcher Tabs */}
+          <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
           <button
             onClick={() => setSelectedView('all')}
             className={`px-2.5 py-1 rounded-md font-medium transition ${
@@ -92,6 +96,7 @@ export default function FinancialStatementsView({
           >
             Changes in Equity
           </button>
+        </div>
         </div>
       </div>
 
@@ -287,7 +292,18 @@ export default function FinancialStatementsView({
                   {/* Interest Income */}
                   <tr>
                     <td className="py-1.5 pl-4 text-emerald-700">
-                      Add: Interest Income ({project.workingCapitalBufferDetails?.bankName || 'Depository Bank'} @ {project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 0}%)
+                      <span>
+                        Add: Other Income – Interest Received from Bank Account ({project.workingCapitalBufferDetails?.bankName || 'Depository Bank'} @ {project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 0}%)
+                      </span>
+                      {onOpenBankModal && (
+                        <button
+                          onClick={onOpenBankModal}
+                          className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition cursor-pointer"
+                          title="Click to view bank savings interest calculation breakdown"
+                        >
+                          Breakdown
+                        </button>
+                      )}
                     </td>
                     {years5.map((y) => (
                       <td key={y.year} className="py-1.5 text-right font-financial text-emerald-700">
@@ -298,7 +314,20 @@ export default function FinancialStatementsView({
 
                   {/* Finance Cost */}
                   <tr>
-                    <td className="py-1.5 pl-4 text-slate-600">Less: Financing Cost (Bank Interest)</td>
+                    <td className="py-1.5 pl-4 text-slate-600">
+                      <span>
+                        Less: Finance Costs – Interest Expense on Bank Borrowings ({project.financing.annualInterestRate}%)
+                      </span>
+                      {onOpenBankModal && (
+                        <button
+                          onClick={onOpenBankModal}
+                          className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 hover:bg-indigo-200 text-indigo-800 transition cursor-pointer"
+                          title="Click to view bank loan capital and interest breakdown"
+                        >
+                          Breakdown
+                        </button>
+                      )}
+                    </td>
                     {years5.map((y) => (
                       <td key={y.year} className="py-1.5 text-right font-financial text-slate-600">
                         {formatCurrency(-y.interestExpense, c)}
@@ -564,6 +593,76 @@ export default function FinancialStatementsView({
                   </tr>
                 </tbody>
               </table>
+
+              {/* Supplemental Cash Flow Information & Bank Disclosures (PAS 7 / IAS 7) */}
+              <div className="mt-5 pt-3.5 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Supplemental Cash Flow Disclosures & Bank Activity
+                  </h5>
+                  <span className="text-[11px] text-slate-500 italic">
+                    PAS 7 Cash & Financing Disclosures
+                  </span>
+                </div>
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-300 text-slate-600 font-semibold bg-slate-50/70">
+                      <th className="py-1.5 pl-2 text-left w-1/3">Disclosure Item</th>
+                      <th className="py-1.5 text-right font-financial">Pre-Op (Yr 0)</th>
+                      <th className="py-1.5 text-right font-financial">Year 1</th>
+                      <th className="py-1.5 text-right font-financial">Year 2</th>
+                      <th className="py-1.5 text-right font-financial">Year 3</th>
+                      <th className="py-1.5 text-right font-financial">Year 4</th>
+                      <th className="py-1.5 text-right font-financial">Year 5</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 font-normal">
+                    <tr>
+                      <td className="py-1 pl-2 text-emerald-700 font-medium">
+                        Interest Received from Bank Depository Account
+                      </td>
+                      {allYears.map((y) => (
+                        <td key={y.year} className="py-1 text-right font-financial text-emerald-700 font-medium">
+                          {formatCurrency(y.interestIncome ?? 0, c)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="py-1 pl-2 text-slate-700 font-medium">
+                        Interest Paid on Bank Borrowings
+                      </td>
+                      {allYears.map((y) => (
+                        <td key={y.year} className="py-1 text-right font-financial text-slate-700 font-medium">
+                          {formatCurrency(y.interestExpense ?? 0, c)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="py-1 pl-2 text-slate-600">
+                        Income Taxes Paid to Bureau of Internal Revenue (BIR)
+                      </td>
+                      {allYears.map((y) => (
+                        <td key={y.year} className="py-1 text-right font-financial text-slate-600">
+                          {formatCurrency(y.taxExpense ?? 0, c)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="bg-indigo-50/40 font-semibold">
+                      <td className="py-1.5 pl-2 text-indigo-950 font-bold">
+                        Total Cash Paid to Bank for Debt Service (Principal + Interest)
+                      </td>
+                      {allYears.map((y) => (
+                        <td key={y.year} className="py-1.5 text-right font-financial text-indigo-950 font-bold">
+                          {formatCurrency(
+                            y.year === 0 ? 0 : y.currentPortionOfDebt + (y.interestExpense || 0),
+                            c
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -819,13 +918,20 @@ export default function FinancialStatementsView({
           <div className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
             <div className="text-center mb-4">
               <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
-                {project.title}
+                {project.companyAccount?.entityName || project.title}
               </h3>
               <h4 className="text-sm font-semibold uppercase text-slate-700">
-                Projected Statement of Changes in Equity
+                {project.companyAccount?.classification === 'Sole Proprietorship'
+                  ? "Projected Statement of Changes in Owner's Equity"
+                  : project.companyAccount?.classification === 'Partnership'
+                  ? "Projected Statement of Changes in Partners' Equity"
+                  : project.companyAccount?.classification === 'Corporation'
+                  ? "Projected Statement of Changes in Stockholders' Equity"
+                  : "Projected Statement of Changes in Equity"}
               </h4>
               <p className="text-xs text-slate-500 italic">
                 From Inception through Year 5 (Amounts in {c})
+                {project.companyAccount && ` • ${project.companyAccount.classification}`}
               </p>
             </div>
 
@@ -844,7 +950,15 @@ export default function FinancialStatementsView({
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
                   <tr>
-                    <td className="py-1.5 pl-1">Beginning Equity Balance</td>
+                    <td className="py-1.5 pl-1">
+                      {project.companyAccount?.classification === 'Sole Proprietorship'
+                        ? `Beginning Owner's Capital (${project.companyAccount.soleProprietorship?.ownerName || 'Proprietor'})`
+                        : project.companyAccount?.classification === 'Partnership'
+                        ? "Beginning Partners' Total Equity"
+                        : project.companyAccount?.classification === 'Corporation'
+                        ? "Beginning Stockholders' Equity"
+                        : "Beginning Equity Balance"}
+                    </td>
                     {allYears.map((y) => {
                       const prevEquity = y.year === 0 ? 0 : allYears[y.year - 1].totalEquity;
                       return (
@@ -855,7 +969,15 @@ export default function FinancialStatementsView({
                     })}
                   </tr>
                   <tr>
-                    <td className="py-1.5 pl-1">Add: Owner / Partner Capital Contribution</td>
+                    <td className="py-1.5 pl-1">
+                      {project.companyAccount?.classification === 'Sole Proprietorship'
+                        ? `Add: Proprietor Capital Contribution (${project.companyAccount.soleProprietorship?.ownerName || 'Proprietor'})`
+                        : project.companyAccount?.classification === 'Partnership'
+                        ? "Add: Partners' Initial / Additional Capital Contribution"
+                        : project.companyAccount?.classification === 'Corporation'
+                        ? `Add: Common Stock / Paid-up Capital Stock (${project.companyAccount.corporation?.paidUpShares?.toLocaleString() || '–'} shares @ ${c}${project.companyAccount.corporation?.parValuePerShare || 100} par)`
+                        : "Add: Owner / Partner Capital Contribution"}
+                    </td>
                     {allYears.map((y) => (
                       <td key={y.year} className="py-1.5 text-right font-financial text-slate-600">
                         {formatCurrency(y.year === 0 ? project.financing.equityContribution : 0, c)}
@@ -863,7 +985,9 @@ export default function FinancialStatementsView({
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-1.5 pl-1">Add / (Deduct): Net Income / (Pre-Operating Expenses)</td>
+                    <td className="py-1.5 pl-1">
+                      Add / (Deduct): Net Income After Tax / (Pre-Operating Outlays)
+                    </td>
                     {allYears.map((y) => (
                       <td key={y.year} className="py-1.5 text-right font-financial">
                         {formatCurrency(y.netIncome, c)}
@@ -871,7 +995,13 @@ export default function FinancialStatementsView({
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-1.5 pl-1 text-slate-600">Less: Owner Drawings / Dividends Declared</td>
+                    <td className="py-1.5 pl-1 text-slate-600">
+                      {project.companyAccount?.classification === 'Sole Proprietorship'
+                        ? "Less: Proprietor's Personal Drawings"
+                        : project.companyAccount?.classification === 'Partnership'
+                        ? "Less: Partners' Profit Drawings / Withdrawals"
+                        : "Less: Cash Dividends Declared to Stockholders"}
+                    </td>
                     {allYears.map((y) => {
                       const div =
                         y.year > 0 && y.netIncome > 0
@@ -886,7 +1016,13 @@ export default function FinancialStatementsView({
                   </tr>
                   <tr className="acc-total font-bold bg-emerald-50/40 text-slate-900">
                     <td className="py-2.5 pl-1 uppercase font-bold tracking-wide">
-                      ENDING EQUITY BALANCE
+                      {project.companyAccount?.classification === 'Sole Proprietorship'
+                        ? "ENDING OWNER'S CAPITAL"
+                        : project.companyAccount?.classification === 'Partnership'
+                        ? "ENDING PARTNERS' TOTAL EQUITY"
+                        : project.companyAccount?.classification === 'Corporation'
+                        ? "TOTAL STOCKHOLDERS' EQUITY, END OF YEAR"
+                        : "ENDING EQUITY BALANCE"}
                     </td>
                     {allYears.map((y) => (
                       <td key={y.year} className="py-2.5 text-right font-financial font-bold text-emerald-950">
@@ -896,6 +1032,108 @@ export default function FinancialStatementsView({
                   </tr>
                 </tbody>
               </table>
+
+              {/* Partnership Individual Capital Accounts Breakdown */}
+              {project.companyAccount?.classification === 'Partnership' &&
+                project.companyAccount.partnership &&
+                project.companyAccount.partnership.partners.length > 0 && (
+                  <div className="mt-5 pt-3.5 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Partners' Individual Capital Accounts Breakdown (Profit Sharing Ratio)
+                      </h5>
+                      <span className="text-[11px] text-slate-500 italic">
+                        Per agreed partnership profit/loss ratio
+                      </span>
+                    </div>
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-300 text-slate-600 font-semibold bg-emerald-50/50">
+                          <th className="py-1.5 pl-2 text-left">Partner Name</th>
+                          <th className="py-1.5 text-right font-financial">Profit Ratio</th>
+                          <th className="py-1.5 text-right font-financial">Initial Capital (Yr 0)</th>
+                          <th className="py-1.5 text-right font-financial">Share in 5-Yr Net Profit</th>
+                          <th className="py-1.5 text-right font-financial">Est. Ending Capital (Yr 5)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {(() => {
+                          const total5YrNetIncome = allYears
+                            .filter((y) => y.year > 0)
+                            .reduce((sum, y) => sum + y.netIncome, 0);
+                          const totalDivs = allYears
+                            .filter((y) => y.year > 0)
+                            .reduce(
+                              (sum, y) =>
+                                sum +
+                                (y.netIncome > 0 ? y.netIncome * (project.dividendPayoutPercent / 100) : 0),
+                              0
+                            );
+                          const retainedNet = total5YrNetIncome - totalDivs;
+
+                          return project.companyAccount.partnership.partners.map((partner) => {
+                            const ratio = (partner.profitSharePercent || 0) / 100;
+                            const partnerShare = retainedNet * ratio;
+                            const estEnding = (partner.capitalContribution || 0) + partnerShare;
+                            return (
+                              <tr key={partner.id} className="hover:bg-slate-50">
+                                <td className="py-1.5 pl-2 font-medium text-slate-900">{partner.name}</td>
+                                <td className="py-1.5 text-right font-financial font-semibold text-emerald-800">
+                                  {partner.profitSharePercent}%
+                                </td>
+                                <td className="py-1.5 text-right font-financial">
+                                  {formatCurrency(partner.capitalContribution, c)}
+                                </td>
+                                <td className="py-1.5 text-right font-financial text-slate-800">
+                                  {formatCurrency(partnerShare, c)}
+                                </td>
+                                <td className="py-1.5 text-right font-financial font-bold text-slate-950">
+                                  {formatCurrency(estEnding, c)}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+              {/* Corporation Capital Structure Disclosure */}
+              {project.companyAccount?.classification === 'Corporation' &&
+                project.companyAccount.corporation && (
+                  <div className="mt-5 p-3.5 bg-purple-50/60 rounded-xl border border-purple-200 text-xs text-purple-950 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <span className="font-bold block">Corporation Capital Stock Note:</span>
+                      <span className="text-[11px] text-purple-800">
+                        Authorized Capital Stock: {formatCurrency(project.companyAccount.corporation.authorizedCapital, c)} (
+                        {(
+                          project.companyAccount.corporation.authorizedShares ||
+                          Math.floor(
+                            project.companyAccount.corporation.authorizedCapital /
+                              (project.companyAccount.corporation.parValuePerShare || 100)
+                          )
+                        ).toLocaleString()}{' '}
+                        shares @ {formatCurrency(project.companyAccount.corporation.parValuePerShare || 100, c)} par value)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold block text-sm">
+                        Paid-up Capital: {formatCurrency(project.companyAccount.corporation.paidUpCapital, c)}
+                      </span>
+                      <span className="text-[11px] text-purple-700">
+                        {(
+                          project.companyAccount.corporation.paidUpShares ||
+                          Math.floor(
+                            project.companyAccount.corporation.paidUpCapital /
+                              (project.companyAccount.corporation.parValuePerShare || 100)
+                          )
+                        ).toLocaleString()}{' '}
+                        common shares fully subscribed & paid
+                      </span>
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         )}

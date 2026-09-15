@@ -33,6 +33,7 @@ export const BLANK_PROJECT: FeasibilityProject = {
 
   products: [],
   directLabor: [],
+  indirectLabor: [],
   factoryOverheadAnnual: 0,
   factoryOverheadGrowthRate: 0,
   operatingExpenses: [],

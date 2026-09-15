@@ -1,19 +1,12 @@
-import { useState, useRef, ChangeEvent } from 'react';
 import {
   Calculator,
   Download,
-  Upload,
-  FileSpreadsheet,
-  Printer,
   Cloud,
-  Layers,
-  Check,
-  RefreshCw,
-  RotateCcw,
+  Building2,
+  PlusCircle,
 } from 'lucide-react';
 import { CurrencySymbol, FeasibilityProject, YearFinancials, FeasibilityMetrics } from '../types';
-import { BLANK_PROJECT } from '../data/sampleProjects';
-import { exportProjectJSON, exportToExcel } from '../utils/exportHelpers';
+import { exportProjectJSON } from '../utils/exportHelpers';
 
 interface HeaderProps {
   project: FeasibilityProject;
@@ -21,6 +14,8 @@ interface HeaderProps {
   financials: YearFinancials[];
   metrics: FeasibilityMetrics;
   onOpenCloudflareModal: () => void;
+  onOpenBankModal?: () => void;
+  onOpenCompanyModal: () => void;
 }
 
 const CURRENCIES: { symbol: CurrencySymbol; label: string }[] = [
@@ -39,30 +34,9 @@ export default function Header({
   financials,
   metrics,
   onOpenCloudflareModal,
+  onOpenBankModal,
+  onOpenCompanyModal,
 }: HeaderProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleImportFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const parsed = JSON.parse(evt.target?.result as string);
-        if (parsed.title !== undefined && parsed.products) {
-          onUpdateProject(parsed);
-        } else {
-          alert('Invalid feasibility project JSON format.');
-        }
-      } catch (err) {
-        alert('Failed to parse JSON file.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
   return (
     <header className="no-print sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -77,6 +51,41 @@ export default function Header({
                 <span className="font-bold text-base sm:text-lg tracking-tight text-white">
                   FeasiCalc
                 </span>
+                <button
+                  type="button"
+                  onClick={onOpenCompanyModal}
+                  title={
+                    project.companyAccount
+                      ? `Edit Company Account: ${project.companyAccount.entityName} (${project.companyAccount.classification})`
+                      : 'Add Company Account (Entity Name, Classification, Nature, Purpose & Capital)'
+                  }
+                  className={`px-2.5 py-1 text-xs rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer border ${
+                    project.companyAccount
+                      ? 'bg-indigo-950/80 hover:bg-indigo-900 border-indigo-500/60 text-indigo-100 shadow-xs'
+                      : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 text-white shadow-sm'
+                  }`}
+                >
+                  {project.companyAccount ? (
+                    <>
+                      <Building2 className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+                      <span className="max-w-[120px] sm:max-w-[170px] truncate font-medium">
+                        {project.companyAccount.entityName || 'Company Account'}
+                      </span>
+                      <span className="hidden sm:inline px-1.5 py-0.2 rounded text-[10px] bg-indigo-900/90 text-indigo-200 border border-indigo-700/50">
+                        {project.companyAccount.classification === 'Sole Proprietorship'
+                          ? 'Sole Pro'
+                          : project.companyAccount.classification === 'Partnership'
+                          ? 'Partnership'
+                          : 'Corporation'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
+                      <span>Add Company Account</span>
+                    </>
+                  )}
+                </button>
               </div>
               {project.title && (
                 <p className="text-xs text-slate-400 truncate max-w-xs sm:max-w-md">
@@ -107,78 +116,21 @@ export default function Header({
               </select>
             </div>
 
-            {/* Clean Slate / Reset Button */}
-            <button
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Reset to a clean slate? This will clear all current entries and set up a fresh, blank feasibility study.'
-                  )
-                ) {
-                  onUpdateProject(JSON.parse(JSON.stringify(BLANK_PROJECT)));
-                }
-              }}
-              title="Start a fresh, blank feasibility study"
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium text-slate-200 flex items-center gap-1.5 transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Clean Slate</span>
-            </button>
-
-            {/* Hidden JSON file input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportFile}
-              accept=".json"
-              className="hidden"
-            />
-
             {/* Save / Export JSON */}
             <button
               onClick={() => exportProjectJSON(project)}
               title="Save project model to .json file"
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium text-slate-200 flex items-center gap-1.5 transition"
+              className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium text-slate-200 flex items-center gap-1.5 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-emerald-400" />
               <span className="hidden md:inline">Save</span>
-            </button>
-
-            {/* Import JSON */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              title="Open / Import saved feasibility .json file"
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium text-slate-200 flex items-center gap-1.5 transition"
-            >
-              <Upload className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden md:inline">Open</span>
-            </button>
-
-            {/* Export Excel */}
-            <button
-              onClick={() => exportToExcel(project, financials, metrics)}
-              title="Export all financial statements to Excel (.xls)"
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium text-emerald-300 flex items-center gap-1.5 transition"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Excel</span>
-            </button>
-
-            {/* Print / Thesis PDF */}
-            <button
-              onClick={() => window.print()}
-              title="Print CPA-standard financial statements or Save as PDF"
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 font-medium text-white shadow flex items-center gap-1.5 transition"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Print / PDF</span>
             </button>
 
             {/* Cloudflare Pages Guide Button */}
             <button
               onClick={onOpenCloudflareModal}
               title="How to publish this app to Cloudflare Pages for free"
-              className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-semibold shadow flex items-center gap-1.5 transition"
+              className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-semibold shadow flex items-center gap-1.5 transition cursor-pointer"
             >
               <Cloud className="w-3.5 h-3.5" />
               <span>Publish</span>

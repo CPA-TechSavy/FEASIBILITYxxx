@@ -53,6 +53,8 @@ export interface ProductItem {
   year1Volume: number;
   annualGrowthRate: number; // In percent e.g. 8 for 8%
   unitCost: number; // Direct material/cost per unit
+  directLaborCostPerUnit?: number; // Direct Labor component added per unit
+  rawMaterialsCostPerUnit?: number; // Base Direct Materials/Supplies component per unit
   costBreakdown?: ProductCostComponent[];
 }
 
@@ -62,6 +64,14 @@ export interface DirectLaborItem {
   headcount: number;
   monthlyWage: number;
   monthsPerYear: number; // 13 for 13th month pay standard in many academic jurisdictions
+}
+
+export interface IndirectLaborItem {
+  id: string;
+  role: string;
+  headcount: number;
+  monthlyWage: number;
+  monthsPerYear: number; // Factory supervisory, QA, maintenance, plant support
 }
 
 export interface OperatingExpenseItem {
@@ -93,9 +103,52 @@ export interface WorkingCapitalPolicy {
   minimumCashBalance: number; // Buffer
 }
 
+export type EntityClassification = 'Sole Proprietorship' | 'Partnership' | 'Corporation';
+
+export interface PartnerContribution {
+  id: string;
+  name: string;
+  capitalContribution: number;
+  profitSharePercent: number; // e.g. 50 for 50%
+}
+
+export interface SoleProprietorshipDetails {
+  ownerName: string;
+  ownerCapital: number;
+  drawingsAnnual?: number;
+}
+
+export interface PartnershipDetails {
+  partners: PartnerContribution[];
+  totalPartnersCapital: number;
+  partnershipAgreementSummary?: string;
+}
+
+export interface CorporationDetails {
+  authorizedCapital: number; // Authorized Capital Stock
+  paidUpCapital: number; // Paid-up Capital
+  parValuePerShare: number; // Par Value per Share (e.g. 100)
+  authorizedShares?: number; // Authorized shares count
+  subscribedCapital?: number; // Subscribed Capital
+  subscribedShares?: number;
+  paidUpShares?: number; // Paid-up shares count
+}
+
+export interface CompanyAccount {
+  entityName: string; // Name of the Entity
+  classification: EntityClassification; // Sole Proprietorship | Partnership | Corporation
+  natureOfCompany: string; // Nature of the Company (e.g. Manufacturing, Merchandising, Service, Food & Beverage)
+  purposeOfEntity: string; // Purpose of the Entity
+  soleProprietorship?: SoleProprietorshipDetails;
+  partnership?: PartnershipDetails;
+  corporation?: CorporationDetails;
+  dateEstablished?: string;
+}
+
 export interface FeasibilityProject {
   id: string;
   title: string;
+  companyAccount?: CompanyAccount;
   proponents: string;
   academicProgram: string; // e.g. "BS in Accountancy" or "BS Business Administration"
   institution: string;
@@ -116,6 +169,7 @@ export interface FeasibilityProject {
   // Operating Projections
   products: ProductItem[];
   directLabor: DirectLaborItem[];
+  indirectLabor?: IndirectLaborItem[];
   factoryOverheadAnnual: number;
   factoryOverheadGrowthRate: number;
   operatingExpenses: OperatingExpenseItem[];

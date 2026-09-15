@@ -230,7 +230,12 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       const growthFactor = Math.pow(1 + prod.annualGrowthRate / 100, yr - 1);
       const volume = prod.year1Volume * growthFactor;
       const sales = volume * prod.unitPrice;
-      const dm = volume * prod.unitCost;
+      const rawCost = prod.rawMaterialsCostPerUnit !== undefined
+        ? prod.rawMaterialsCostPerUnit
+        : prod.directLaborCostPerUnit !== undefined
+          ? Math.max(0, prod.unitCost - prod.directLaborCostPerUnit)
+          : prod.unitCost;
+      const dm = volume * rawCost;
 
       grossSales += sales;
       directMaterials += dm;
@@ -247,9 +252,19 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       directLabor += annualWage;
     });
 
-    // 3. Factory Overhead & Depreciation
-    const factoryOverhead =
+    // 3. Factory Overhead (Indirect Labor + Other Factory Overhead) & Depreciation
+    let indirectLaborTotal = 0;
+    if (project.indirectLabor && project.indirectLabor.length > 0) {
+      project.indirectLabor.forEach((lab) => {
+        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
+        const annualWage = lab.monthlyWage * lab.monthsPerYear * lab.headcount * inflationFactor;
+        indirectLaborTotal += annualWage;
+      });
+    }
+
+    const otherFactoryOverhead =
       project.factoryOverheadAnnual * Math.pow(1 + project.factoryOverheadGrowthRate / 100, yr - 1);
+    const factoryOverhead = indirectLaborTotal + otherFactoryOverhead;
 
     // Total annual depreciation
     const totalYearDepreciation = depreciationSchedule.reduce((sum, d) => {

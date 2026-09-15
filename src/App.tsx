@@ -13,6 +13,8 @@ import FeasibilityEvaluationView from './components/FeasibilityEvaluationView';
 import SupportingSchedulesView from './components/SupportingSchedulesView';
 import NotesAndDefenseNotes from './components/NotesAndDefenseNotes';
 import CloudflareDeployModal from './components/CloudflareDeployModal';
+import BankInterestAndLoanModal from './components/BankInterestAndLoanModal';
+import CompanyAccountModal from './components/CompanyAccountModal';
 import {
   FileText,
   BarChart3,
@@ -21,6 +23,7 @@ import {
   BookOpen,
   Cloud,
   CheckCircle2,
+  Landmark,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'undergrad_feasibility_cleanslate_v1';
@@ -49,6 +52,8 @@ export default function App() {
   >('statements');
 
   const [isCloudflareModalOpen, setIsCloudflareModalOpen] = useState(false);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
   // Auto-save to localStorage
   useEffect(() => {
@@ -77,6 +82,8 @@ export default function App() {
         financials={financials}
         metrics={metrics}
         onOpenCloudflareModal={() => setIsCloudflareModalOpen(true)}
+        onOpenBankModal={() => setIsBankModalOpen(true)}
+        onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -87,6 +94,8 @@ export default function App() {
           onUpdateProject={setProject}
           metrics={metrics}
           financials={financials}
+          onOpenBankModal={() => setIsBankModalOpen(true)}
+          onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
         />
 
         {/* Navigation Section Tabs (Hidden on Print) */}
@@ -150,6 +159,16 @@ export default function App() {
             <BookOpen className="w-4 h-4" />
             <span>Notes & Defense Talking Points</span>
           </button>
+
+          {/* Dedicated Quick-Access Button for Bank Savings Interest & Loan Debt Breakdown */}
+          <button
+            onClick={() => setIsBankModalOpen(true)}
+            title="Breakdown of interest received for bank savings and loan capital/interest to pay"
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap shadow-2xs bg-gradient-to-r from-emerald-50 via-indigo-50 to-indigo-100 hover:from-emerald-100 hover:to-indigo-200 text-indigo-950 border border-indigo-200/90 cursor-pointer ml-auto"
+          >
+            <Landmark className="w-4 h-4 text-indigo-700 shrink-0" />
+            <span>Bank Interest & Loan Breakdown</span>
+          </button>
         </div>
 
         {/* Print Only Thesis Document Header */}
@@ -162,7 +181,11 @@ export default function App() {
 
         {/* Primary Views */}
         {activeMainView === 'statements' && (
-          <FinancialStatementsView project={project} financials={financials} />
+          <FinancialStatementsView
+            project={project}
+            financials={financials}
+            onOpenBankModal={() => setIsBankModalOpen(true)}
+          />
         )}
 
         {activeMainView === 'evaluation' && (
@@ -174,11 +197,18 @@ export default function App() {
         )}
 
         {activeMainView === 'assumptions' && (
-          <AssumptionsEditor project={project} onUpdateProject={setProject} />
+          <AssumptionsEditor
+            project={project}
+            onUpdateProject={setProject}
+            onOpenBankModal={() => setIsBankModalOpen(true)}
+          />
         )}
 
         {activeMainView === 'schedules' && (
-          <SupportingSchedulesView project={project} />
+          <SupportingSchedulesView
+            project={project}
+            onOpenBankModal={() => setIsBankModalOpen(true)}
+          />
         )}
 
         {activeMainView === 'notes' && (
@@ -229,10 +259,33 @@ export default function App() {
       </footer>
 
       {/* Cloudflare Deploy Modal */}
-      <CloudflareDeployModal
-        isOpen={isCloudflareModalOpen}
-        onClose={() => setIsCloudflareModalOpen(false)}
-      />
+      {isCloudflareModalOpen && (
+        <CloudflareDeployModal
+          isOpen={isCloudflareModalOpen}
+          onClose={() => setIsCloudflareModalOpen(false)}
+        />
+      )}
+
+      {/* Bank Savings Interest & Loan Debt Breakdown Modal */}
+      {isBankModalOpen && (
+        <BankInterestAndLoanModal
+          isOpen={isBankModalOpen}
+          onClose={() => setIsBankModalOpen(false)}
+          project={project}
+          onUpdateProject={setProject}
+          financials={financials}
+        />
+      )}
+
+      {/* Company Account Setup Modal */}
+      {isCompanyModalOpen && (
+        <CompanyAccountModal
+          isOpen={isCompanyModalOpen}
+          onClose={() => setIsCompanyModalOpen(false)}
+          project={project}
+          onUpdateProject={setProject}
+        />
+      )}
     </div>
   );
 }
