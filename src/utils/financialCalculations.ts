@@ -5,6 +5,7 @@ import {
   DepreciationRow,
   FeasibilityMetrics,
 } from '../types';
+import { compileProductionEmployeeBenefits } from './philippineBenefits';
 
 /**
  * Calculates depreciation schedule for all fixed assets using the chosen method:
@@ -80,6 +81,37 @@ export function calculateDepreciation(project: FeasibilityProject): Depreciation
       yearValues,
     };
   });
+}
+
+/**
+ * Computes the monthly wage for a labor position in year `yr` (1 to 5)
+ * taking into account either custom annual salary increase (% or fixed amount)
+ * or falling back to the project general inflation rate.
+ */
+export function calculateLaborMonthlyWageForYear(
+  baseMonthlyWage: number,
+  yr: number, // 1, 2, 3, 4, 5
+  increaseType?: 'percentage' | 'amount',
+  increaseValue?: number,
+  fallbackInflationRatePercent: number = 0
+): number {
+  if (yr <= 1) return baseMonthlyWage;
+  const yearsPassed = yr - 1;
+
+  if (increaseValue !== undefined && increaseValue !== 0 && !isNaN(increaseValue)) {
+    if (increaseType === 'amount') {
+      // Fixed monthly amount added each year (e.g. +₱500 per month each year)
+      return Math.max(0, baseMonthlyWage + increaseValue * yearsPassed);
+    } else {
+      // Annual percentage increase compounded (e.g. 5% per year)
+      const rate = increaseValue / 100;
+      return Math.max(0, baseMonthlyWage * Math.pow(1 + rate, yearsPassed));
+    }
+  }
+
+  // Fallback to project-wide inflation escalation
+  const inflationFactor = Math.pow(1 + fallbackInflationRatePercent / 100, yearsPassed);
+  return Math.max(0, baseMonthlyWage * inflationFactor);
 }
 
 /**
@@ -250,8 +282,14 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     // 2. Direct Labor
     let directLabor = 0;
     project.directLabor.forEach((lab) => {
-      const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
-      const annualWage = lab.monthlyWage * lab.monthsPerYear * lab.headcount * inflationFactor;
+      const wageYr = calculateLaborMonthlyWageForYear(
+        lab.monthlyWage,
+        yr,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      );
+      const annualWage = wageYr * (lab.monthsPerYear || 12) * (lab.headcount || 1);
       directLabor += annualWage;
     });
 
@@ -259,8 +297,14 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     let indirectLaborTotal = 0;
     if (project.indirectLabor && project.indirectLabor.length > 0) {
       project.indirectLabor.forEach((lab) => {
-        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
-        const annualWage = lab.monthlyWage * lab.monthsPerYear * lab.headcount * inflationFactor;
+        const wageYr = calculateLaborMonthlyWageForYear(
+          lab.monthlyWage,
+          yr,
+          lab.annualSalaryIncreaseType,
+          lab.annualSalaryIncreaseValue,
+          project.inflationRatePercent
+        );
+        const annualWage = wageYr * (lab.monthsPerYear || 12) * (lab.headcount || 1);
         indirectLaborTotal += annualWage;
       });
     }
@@ -275,43 +319,84 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
 
     // Production Labor Benefits (Direct & Indirect)
     let factoryLaborBenefits = 0;
-    if (project.productionLaborBenefits && project.productionLaborBenefits.length > 0) {
-      const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
+    const includeBenefitsInCOGS = project.includeLaborBenefitsInCOGS !== false;
+    if (includeBenefitsInCOGS) {
+      // Project direct and indirect labor wages for year yr taking into account custom annual salary increase
+      const projectedDl = (project.directLabor || []).map((lab) => ({
+        ...lab,
+        monthlyWage: calculateLaborMonthlyWageForYear(
+          lab.monthlyWage || 0,
+          yr,
+          lab.annualSalaryIncreaseType,
+          lab.annualSalaryIncreaseValue,
+          project.inflationRatePercent
+        ),
+      }));
 
-      // Direct labor base for year yr
-      const dlMonthlyBasic = project.directLabor.reduce((sum, lab) => {
-        return sum + (lab.monthlyWage || 0) * (lab.headcount || 0) * inflationFactor;
-      }, 0);
-      const dlAnnualBasic = dlMonthlyBasic * 12;
-      const dlHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+      const projectedIdl = (project.indirectLabor || []).map((lab) => ({
+        ...lab,
+        monthlyWage: calculateLaborMonthlyWageForYear(
+          lab.monthlyWage || 0,
+          yr,
+          lab.annualSalaryIncreaseType,
+          lab.annualSalaryIncreaseValue,
+          project.inflationRatePercent
+        ),
+      }));
 
-      // Indirect labor base for year yr
-      const idlMonthlyBasic = (project.indirectLabor || []).reduce((sum, lab) => {
-        return sum + (lab.monthlyWage || 0) * (lab.headcount || 0) * inflationFactor;
-      }, 0);
-      const idlAnnualBasic = idlMonthlyBasic * 12;
-      const idlHeadcount = (project.indirectLabor || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+      const { summary: statSummary } = compileProductionEmployeeBenefits(
+        projectedDl,
+        projectedIdl
+      );
+      factoryLaborBenefits += statSummary.totalStatutoryAnnual;
 
-      project.productionLaborBenefits.forEach((b) => {
-        const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-        const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+      // Add any additional non-statutory benefits (e.g. 13th Month Pay, Uniforms, Allowances)
+      if (project.productionLaborBenefits && project.productionLaborBenefits.length > 0) {
+        const customBenefits = project.productionLaborBenefits.filter((b) => {
+          const n = (b.name || '').toLowerCase();
+          return (
+            !n.includes('sss') &&
+            !n.includes('social security') &&
+            !n.includes('philhealth') &&
+            !n.includes('pag-ibig') &&
+            !n.includes('hdmf')
+          );
+        });
 
-        if (b.type === 'percentage') {
-          const rate = (b.rateOrAmount || 0) / 100;
-          if (appliesDirect) factoryLaborBenefits += dlAnnualBasic * rate;
-          if (appliesIndirect) factoryLaborBenefits += idlAnnualBasic * rate;
-        } else if (b.type === 'fixed_monthly_per_head') {
-          const monthly = (b.rateOrAmount || 0) * inflationFactor;
-          if (appliesDirect) factoryLaborBenefits += monthly * 12 * dlHeadcount;
-          if (appliesIndirect) factoryLaborBenefits += monthly * 12 * idlHeadcount;
-        } else if (b.type === 'fixed_annual') {
-          const annualAmt = (b.rateOrAmount || 0) * inflationFactor;
-          const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
-          if (totalHead > 0) {
-            factoryLaborBenefits += annualAmt;
+        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
+        const dlMonthlyBasic = projectedDl.reduce((sum, lab) => {
+          return sum + (lab.monthlyWage || 0) * (lab.headcount || 0);
+        }, 0);
+        const dlAnnualBasic = dlMonthlyBasic * 12;
+        const dlHeadcount = projectedDl.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+        const idlMonthlyBasic = projectedIdl.reduce((sum, lab) => {
+          return sum + (lab.monthlyWage || 0) * (lab.headcount || 0);
+        }, 0);
+        const idlAnnualBasic = idlMonthlyBasic * 12;
+        const idlHeadcount = projectedIdl.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+        customBenefits.forEach((b) => {
+          const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
+          const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+
+          if (b.type === 'percentage') {
+            const rate = (b.rateOrAmount || 0) / 100;
+            if (appliesDirect) factoryLaborBenefits += dlAnnualBasic * rate;
+            if (appliesIndirect) factoryLaborBenefits += idlAnnualBasic * rate;
+          } else if (b.type === 'fixed_monthly_per_head') {
+            const monthly = (b.rateOrAmount || 0) * inflationFactor;
+            if (appliesDirect) factoryLaborBenefits += monthly * 12 * dlHeadcount;
+            if (appliesIndirect) factoryLaborBenefits += monthly * 12 * idlHeadcount;
+          } else if (b.type === 'fixed_annual') {
+            const annualAmt = (b.rateOrAmount || 0) * inflationFactor;
+            const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
+            if (totalHead > 0) {
+              factoryLaborBenefits += annualAmt;
+            }
           }
-        }
-      });
+        });
+      }
     }
 
     let factorySuppliesTotal = 0;
@@ -326,7 +411,6 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     const otherFactoryOverhead =
       (project.factoryOverheadAnnual || 0) * Math.pow(1 + (project.factoryOverheadGrowthRate || 0) / 100, yr - 1);
 
-    const includeBenefitsInCOGS = project.includeLaborBenefitsInCOGS !== false;
     const factoryOverhead =
       indirectLaborTotal +
       productionUtilitiesTotal +
@@ -373,8 +457,14 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     // Non-Manufacturing personnel (Administrative & Selling Staff)
     if (project.nonManufacturingLabor && project.nonManufacturingLabor.length > 0) {
       project.nonManufacturingLabor.forEach((emp) => {
-        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
-        const annualWage = emp.monthlyWage * emp.monthsPerYear * emp.headcount * inflationFactor;
+        const wageYr = calculateLaborMonthlyWageForYear(
+          emp.monthlyWage,
+          yr,
+          emp.annualSalaryIncreaseType,
+          emp.annualSalaryIncreaseValue,
+          project.inflationRatePercent
+        );
+        const annualWage = wageYr * (emp.monthsPerYear || 12) * (emp.headcount || 1);
         if (emp.category === 'Selling & Marketing') {
           sellingExpenses += annualWage;
         } else {
@@ -776,45 +866,63 @@ export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year
 
   // 5. Factory Labor Benefits (if includeLaborBenefitsInCOGS !== false)
   let factoryLaborBenefitsAnnual = 0;
-  if (
-    project.includeLaborBenefitsInCOGS !== false &&
-    project.productionLaborBenefits &&
-    project.productionLaborBenefits.length > 0
-  ) {
-    const dlMonthlyBasic = project.directLabor.reduce(
-      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
-      0
+  if (project.includeLaborBenefitsInCOGS !== false) {
+    const { summary: statSummary } = compileProductionEmployeeBenefits(
+      project.directLabor || [],
+      project.indirectLabor || []
     );
-    const dlAnnualBasic = dlMonthlyBasic * 12;
-    const dlHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+    factoryLaborBenefitsAnnual += statSummary.totalStatutoryAnnual;
 
-    const idlMonthlyBasic = (project.indirectLabor || []).reduce(
-      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
-      0
-    );
-    const idlAnnualBasic = idlMonthlyBasic * 12;
-    const idlHeadcount = (project.indirectLabor || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+    if (
+      project.productionLaborBenefits &&
+      project.productionLaborBenefits.length > 0
+    ) {
+      const customBenefits = project.productionLaborBenefits.filter((b) => {
+        const n = (b.name || '').toLowerCase();
+        return (
+          !n.includes('sss') &&
+          !n.includes('social security') &&
+          !n.includes('philhealth') &&
+          !n.includes('pag-ibig') &&
+          !n.includes('hdmf')
+        );
+      });
 
-    project.productionLaborBenefits.forEach((b) => {
-      const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-      const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+      const dlMonthlyBasic = project.directLabor.reduce(
+        (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
+        0
+      );
+      const dlAnnualBasic = dlMonthlyBasic * 12;
+      const dlHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
 
-      if (b.type === 'percentage') {
-        const rate = (b.rateOrAmount || 0) / 100;
-        if (appliesDirect) factoryLaborBenefitsAnnual += dlAnnualBasic * rate;
-        if (appliesIndirect) factoryLaborBenefitsAnnual += idlAnnualBasic * rate;
-      } else if (b.type === 'fixed_monthly_per_head') {
-        const monthly = b.rateOrAmount || 0;
-        if (appliesDirect) factoryLaborBenefitsAnnual += monthly * 12 * dlHeadcount;
-        if (appliesIndirect) factoryLaborBenefitsAnnual += monthly * 12 * idlHeadcount;
-      } else if (b.type === 'fixed_annual') {
-        const annualAmt = b.rateOrAmount || 0;
-        const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
-        if (totalHead > 0) {
-          factoryLaborBenefitsAnnual += annualAmt;
+      const idlMonthlyBasic = (project.indirectLabor || []).reduce(
+        (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
+        0
+      );
+      const idlAnnualBasic = idlMonthlyBasic * 12;
+      const idlHeadcount = (project.indirectLabor || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+      customBenefits.forEach((b) => {
+        const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
+        const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+
+        if (b.type === 'percentage') {
+          const rate = (b.rateOrAmount || 0) / 100;
+          if (appliesDirect) factoryLaborBenefitsAnnual += dlAnnualBasic * rate;
+          if (appliesIndirect) factoryLaborBenefitsAnnual += idlAnnualBasic * rate;
+        } else if (b.type === 'fixed_monthly_per_head') {
+          const monthly = b.rateOrAmount || 0;
+          if (appliesDirect) factoryLaborBenefitsAnnual += monthly * 12 * dlHeadcount;
+          if (appliesIndirect) factoryLaborBenefitsAnnual += monthly * 12 * idlHeadcount;
+        } else if (b.type === 'fixed_annual') {
+          const annualAmt = b.rateOrAmount || 0;
+          const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
+          if (totalHead > 0) {
+            factoryLaborBenefitsAnnual += annualAmt;
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   // 6. Factory Depreciation

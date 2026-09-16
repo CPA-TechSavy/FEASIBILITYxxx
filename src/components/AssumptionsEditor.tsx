@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   FeasibilityProject,
   PreOperatingExpenseItem,
@@ -53,11 +53,21 @@ import {
   HeartHandshake,
   Info,
   X,
+  Table,
+  Eye,
+  FileText,
 } from 'lucide-react';
-import { formatCurrency, calculateDepreciation } from '../utils/financialCalculations';
+import { formatCurrency, calculateDepreciation, calculateLaborMonthlyWageForYear } from '../utils/financialCalculations';
 import { LOCAL_BANKS, DEPRECIATION_METHODS } from '../data/bankList';
 import { SAMPLE_BOM_PRESETS } from '../data/bomPresets';
 import ProductCostingTab from './ProductCostingTab';
+import {
+  compileProductionEmployeeBenefits,
+  getSssEmployerShare,
+  getPhilHealthEmployerShare,
+  getPagIbigEmployerShare,
+  SSS_CONTRIBUTION_TABLE,
+} from '../utils/philippineBenefits';
 
 interface AssumptionsEditorProps {
   project: FeasibilityProject;
@@ -229,6 +239,97 @@ export default function AssumptionsEditor({
   const [benefitsFeedback, setBenefitsFeedback] = useState<string | null>(null);
   const [benefitsEmployeeFilter, setBenefitsEmployeeFilter] = useState<'factory_overhead' | 'direct_labor' | 'all'>('factory_overhead');
   const [showBenefitPolicyDetails, setShowBenefitPolicyDetails] = useState<boolean>(false);
+  const [expandEmployeeHeadcount, setExpandEmployeeHeadcount] = useState<boolean>(false);
+  const [showSssTableModal, setShowSssTableModal] = useState<boolean>(false);
+  const [showCustomBenefitsSection, setShowCustomBenefitsSection] = useState<boolean>(false);
+  const [benefitsClassificationFilter, setBenefitsClassificationFilter] = useState<'all' | 'direct' | 'indirect'>('all');
+  const [sssSearchQuery, setSssSearchQuery] = useState<string>('');
+  const [benefitsViewYear, setBenefitsViewYear] = useState<number>(1);
+
+  const compiledProductionBenefits = useMemo(() => {
+    // Project direct and indirect labor wages for the selected year based on custom annual salary increase
+    const projectedDirectLabor = (project.directLabor || []).map((lab) => ({
+      ...lab,
+      monthlyWage: calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        benefitsViewYear,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      ),
+    }));
+
+    const projectedIndirectLabor = (project.indirectLabor || []).map((lab) => ({
+      ...lab,
+      monthlyWage: calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        benefitsViewYear,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      ),
+    }));
+
+    return compileProductionEmployeeBenefits(
+      projectedDirectLabor,
+      projectedIndirectLabor,
+      expandEmployeeHeadcount
+    );
+  }, [project.directLabor, project.indirectLabor, expandEmployeeHeadcount, benefitsViewYear, project.inflationRatePercent]);
+
+  const handleUpdateEmployeeWage = (sourceId: string, classification: 'Direct Labor' | 'Indirect Labor', newWage: number) => {
+    if (classification === 'Direct Labor') {
+      const updated = (project.directLabor || []).map((l) =>
+        l.id === sourceId ? { ...l, monthlyWage: Math.max(0, newWage) } : l
+      );
+      updateDirectLabor(updated);
+    } else {
+      const updated = (project.indirectLabor || []).map((l) =>
+        l.id === sourceId ? { ...l, monthlyWage: Math.max(0, newWage) } : l
+      );
+      updateIndirectLabor(updated);
+    }
+  };
+
+  const handleUpdateEmployeeRole = (sourceId: string, classification: 'Direct Labor' | 'Indirect Labor', newRole: string) => {
+    if (classification === 'Direct Labor') {
+      const updated = (project.directLabor || []).map((l) =>
+        l.id === sourceId ? { ...l, role: newRole } : l
+      );
+      updateDirectLabor(updated);
+    } else {
+      const updated = (project.indirectLabor || []).map((l) =>
+        l.id === sourceId ? { ...l, role: newRole } : l
+      );
+      updateIndirectLabor(updated);
+    }
+  };
+
+  const handleUpdateEmployeeHeadcount = (sourceId: string, classification: 'Direct Labor' | 'Indirect Labor', newHeadcount: number) => {
+    if (classification === 'Direct Labor') {
+      const updated = (project.directLabor || []).map((l) =>
+        l.id === sourceId ? { ...l, headcount: Math.max(1, newHeadcount) } : l
+      );
+      updateDirectLabor(updated);
+    } else {
+      const updated = (project.indirectLabor || []).map((l) =>
+        l.id === sourceId ? { ...l, headcount: Math.max(1, newHeadcount) } : l
+      );
+      updateIndirectLabor(updated);
+    }
+  };
+
+  const handleDeleteEmployeeRole = (sourceId: string, classification: 'Direct Labor' | 'Indirect Labor') => {
+    if (classification === 'Direct Labor') {
+      const updated = (project.directLabor || []).filter((l) => l.id !== sourceId);
+      updateDirectLabor(updated);
+    } else {
+      const updated = (project.indirectLabor || []).filter((l) => l.id !== sourceId);
+      updateIndirectLabor(updated);
+    }
+    setBenefitsFeedback(`Removed ${classification} role from schedule.`);
+    setTimeout(() => setBenefitsFeedback(null), 3000);
+  };
 
   const addIndirectLaborRoleFromBenefits = () => {
     const newRole: IndirectLaborItem = {
@@ -1560,6 +1661,7 @@ export default function AssumptionsEditor({
                           <th className="p-3">Position / Role</th>
                           <th className="p-3 text-right">Headcount</th>
                           <th className="p-3 text-right">Monthly Basic Wage ({c})</th>
+                          <th className="p-3 text-center">Annual Salary Increase</th>
                           <th className="p-3 text-right">Months / Year</th>
                           <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
                           <th className="p-3 text-center w-16">Action</th>
@@ -1568,13 +1670,15 @@ export default function AssumptionsEditor({
                       <tbody className="divide-y divide-slate-100">
                         {project.directLabor.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="text-center py-6 text-slate-400">
+                            <td colSpan={7} className="text-center py-6 text-slate-400">
                               No direct labor positions added yet. Click "Add Direct Labor Role" above.
                             </td>
                           </tr>
                         ) : (
                           project.directLabor.map((lab, idx) => {
                             const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
+                            const incType = lab.annualSalaryIncreaseType || 'percentage';
+                            const incVal = lab.annualSalaryIncreaseValue ?? 0;
                             return (
                               <tr key={lab.id} className="hover:bg-slate-50/50">
                                 <td className="p-2.5">
@@ -1614,6 +1718,40 @@ export default function AssumptionsEditor({
                                     }}
                                     className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
                                   />
+                                </td>
+                                <td className="p-2.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <input
+                                      type="number"
+                                      step={incType === 'percentage' ? '0.1' : '50'}
+                                      min="0"
+                                      placeholder={incType === 'percentage' ? `${project.inflationRatePercent || 0}%` : '0'}
+                                      value={incVal === 0 && !lab.annualSalaryIncreaseValue ? '' : incVal}
+                                      onChange={(e) => {
+                                        const copy = [...project.directLabor];
+                                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                        copy[idx].annualSalaryIncreaseValue = val;
+                                        if (!copy[idx].annualSalaryIncreaseType) {
+                                          copy[idx].annualSalaryIncreaseType = 'percentage';
+                                        }
+                                        updateDirectLabor(copy);
+                                      }}
+                                      className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5 text-xs"
+                                    />
+                                    <select
+                                      value={incType}
+                                      onChange={(e) => {
+                                        const copy = [...project.directLabor];
+                                        copy[idx].annualSalaryIncreaseType = e.target.value as 'percentage' | 'amount';
+                                        updateDirectLabor(copy);
+                                      }}
+                                      className="text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded px-1 py-0.5 focus:outline-none"
+                                      title="Select increase mode: % (percentage per year) or Amount (fixed ₱/month increase each year)"
+                                    >
+                                      <option value="percentage">% / yr</option>
+                                      <option value="amount">{c}/mo / yr</option>
+                                    </select>
+                                  </div>
                                 </td>
                                 <td className="p-2.5 text-right">
                                   <input
@@ -1655,7 +1793,7 @@ export default function AssumptionsEditor({
                             <td className="p-2.5 text-right font-financial font-bold text-indigo-700">
                               {totalDirectLaborHeadcount} pax
                             </td>
-                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                            <td colSpan={3} className="p-2.5 text-right text-slate-500">
                               Annual Total:
                             </td>
                             <td className="p-2.5 text-right font-financial font-bold text-indigo-700 text-sm">
@@ -1837,6 +1975,7 @@ export default function AssumptionsEditor({
                           <th className="p-3">Position / Role</th>
                           <th className="p-3 text-right">Headcount</th>
                           <th className="p-3 text-right">Monthly Basic Wage ({c})</th>
+                          <th className="p-3 text-center">Annual Salary Increase</th>
                           <th className="p-3 text-right">Months / Year</th>
                           <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
                           <th className="p-3 text-center w-16">Action</th>
@@ -1845,13 +1984,15 @@ export default function AssumptionsEditor({
                       <tbody className="divide-y divide-slate-100">
                         {(!project.indirectLabor || project.indirectLabor.length === 0) ? (
                           <tr>
-                            <td colSpan={6} className="text-center py-6 text-slate-400">
+                            <td colSpan={7} className="text-center py-6 text-slate-400">
                               No indirect labor positions added yet. Click "Add Indirect Labor Role" above.
                             </td>
                           </tr>
                         ) : (
                           project.indirectLabor.map((lab, idx) => {
                             const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
+                            const incType = lab.annualSalaryIncreaseType || 'percentage';
+                            const incVal = lab.annualSalaryIncreaseValue ?? 0;
                             return (
                               <tr key={lab.id} className="hover:bg-slate-50/50">
                                 <td className="p-2.5">
@@ -1891,6 +2032,40 @@ export default function AssumptionsEditor({
                                     }}
                                     className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
                                   />
+                                </td>
+                                <td className="p-2.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <input
+                                      type="number"
+                                      step={incType === 'percentage' ? '0.1' : '50'}
+                                      min="0"
+                                      placeholder={incType === 'percentage' ? `${project.inflationRatePercent || 0}%` : '0'}
+                                      value={incVal === 0 && !lab.annualSalaryIncreaseValue ? '' : incVal}
+                                      onChange={(e) => {
+                                        const copy = [...(project.indirectLabor || [])];
+                                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                        copy[idx].annualSalaryIncreaseValue = val;
+                                        if (!copy[idx].annualSalaryIncreaseType) {
+                                          copy[idx].annualSalaryIncreaseType = 'percentage';
+                                        }
+                                        updateIndirectLabor(copy);
+                                      }}
+                                      className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5 text-xs"
+                                    />
+                                    <select
+                                      value={incType}
+                                      onChange={(e) => {
+                                        const copy = [...(project.indirectLabor || [])];
+                                        copy[idx].annualSalaryIncreaseType = e.target.value as 'percentage' | 'amount';
+                                        updateIndirectLabor(copy);
+                                      }}
+                                      className="text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded px-1 py-0.5 focus:outline-none"
+                                      title="Select increase mode: % (percentage per year) or Amount (fixed ₱/month increase each year)"
+                                    >
+                                      <option value="percentage">% / yr</option>
+                                      <option value="amount">{c}/mo / yr</option>
+                                    </select>
+                                  </div>
                                 </td>
                                 <td className="p-2.5 text-right">
                                   <input
@@ -1932,7 +2107,7 @@ export default function AssumptionsEditor({
                             <td className="p-2.5 text-right font-financial font-bold text-amber-700">
                               {totalIndirectLaborHeadcount} pax
                             </td>
-                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                            <td colSpan={3} className="p-2.5 text-right text-slate-500">
                               Annual Total:
                             </td>
                             <td className="p-2.5 text-right font-financial font-bold text-amber-700 text-sm">
@@ -2616,54 +2791,69 @@ export default function AssumptionsEditor({
                   )}
                 </div>
 
-                {/* 5. DIRECT & INDIRECT EMPLOYEE BENEFITS SCHEDULE */}
+                {/* 5. PRODUCTION EMPLOYEE BENEFITS SCHEDULE (DIRECT & INDIRECT LABOR) */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
-                        <ShieldCheck className="w-5 h-5" />
+                  {/* Header & Controls */}
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-200 pb-4">
+                    <div className="flex items-start sm:items-center gap-3">
+                      <span className="p-2 bg-emerald-100 text-emerald-800 rounded-xl shadow-2xs shrink-0">
+                        <ShieldCheck className="w-5 h-5 text-emerald-700" />
                       </span>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">
-                          5. Production Employee Benefits Schedule (Direct & Indirect Labor)
-                        </h4>
-                        <p className="text-xs text-slate-500">
-                          Computes statutory employer contributions (SSS, PhilHealth, Pag-IBIG), 13th Month Pay, and fringe benefits for production workers.
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-bold text-slate-900">
+                            5. Production Employee Benefits Schedule (Direct & Indirect Labor)
+                          </h4>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Official Statutory Table Engine
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
                       <button
                         type="button"
-                        onClick={loadStandardLaborBenefitsPresets}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 transition shadow-2xs"
-                        title="Load SSS 9.5%, PhilHealth 2.5%, Pag-IBIG ₱200/mo, 13th Month 8.33%, Other Benefits"
+                        onClick={() => setShowSssTableModal(true)}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1.5 transition shadow-2xs"
+                        title="Open Official SSS Contribution Table & MSC Brackets (RA 11199)"
                       >
-                        <HeartHandshake className="w-3.5 h-3.5 text-emerald-600" />
-                        Load Standard PH Presets
+                        <Table className="w-3.5 h-3.5 text-indigo-600" />
+                        View Official SSS Table
                       </button>
 
                       <button
                         type="button"
-                        onClick={() =>
-                          updateProductionLaborBenefits([
-                            ...laborBenefitsList,
-                            {
-                              id: `ben-${Date.now()}`,
-                              name: 'Company Health & Safety Allowance',
-                              type: 'fixed_monthly_per_head',
-                              rateOrAmount: 300,
-                              appliesTo: 'both',
-                              notes: 'Monthly PPE & hygiene allowance',
-                            },
-                          ])
-                        }
-                        className="px-3 py-1.5 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-lg font-semibold flex items-center gap-1.5 transition shadow-2xs"
+                        onClick={() => setExpandEmployeeHeadcount(!expandEmployeeHeadcount)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition shadow-2xs flex items-center gap-1.5 ${
+                          expandEmployeeHeadcount
+                            ? 'bg-slate-800 text-white border-slate-900'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                        title="Toggle between grouped by role or itemized individual staff members"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Benefit Row
+                        <Eye className="w-3.5 h-3.5" />
+                        {expandEmployeeHeadcount ? 'Group by Labor Position' : 'Expand All Staff'}
                       </button>
+
+                      {/* Year navigation selector */}
+                      <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <span className="text-[11px] font-semibold text-slate-500 px-1.5">Benefits Year:</span>
+                        {[1, 2, 3, 4, 5].map((yr) => (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={() => setBenefitsViewYear(yr)}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
+                              benefitsViewYear === yr
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                            }`}
+                          >
+                            Year {yr}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -2674,218 +2864,325 @@ export default function AssumptionsEditor({
                     </div>
                   )}
 
-                  {/* Production Workforce Wage & Headcount Reference Bar */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <div>
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
-                        Direct Labor (Tab 4)
+                        SSS Employer Share
                       </span>
-                      <span className="text-sm font-bold text-slate-900">
-                        {directLaborHeadcount} Worker{directLaborHeadcount !== 1 ? 's' : ''}
-                      </span>
-                      <span className="text-[11px] text-slate-600 block mt-0.5 font-financial">
-                        Basic Pay: {formatCurrency(directLaborMonthlyWageTotal, c)}/mo ({formatCurrency(directLaborAnnualBasic12M, c)}/yr)
+                      <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledProductionBenefits.summary.totalSssErAnnual, c)}
+                        <span className="text-xs font-normal text-slate-500"> /yr</span>
                       </span>
                     </div>
 
-                    <div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
-                        Indirect Labor (Tab 5)
+                        PhilHealth Employer Share
                       </span>
-                      <span className="text-sm font-bold text-slate-900">
-                        {indirectLaborHeadcount} Worker{indirectLaborHeadcount !== 1 ? 's' : ''}
-                      </span>
-                      <span className="text-[11px] text-slate-600 block mt-0.5 font-financial">
-                        Basic Pay: {formatCurrency(indirectLaborMonthlyWageTotal, c)}/mo ({formatCurrency(indirectLaborAnnualBasic12M, c)}/yr)
+                      <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledProductionBenefits.summary.totalPhilHealthErAnnual, c)}
+                        <span className="text-xs font-normal text-slate-500"> /yr</span>
                       </span>
                     </div>
 
-                    <div className="border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
-                        Combined Production Personnel
+                        Pag-IBIG Employer Share
                       </span>
-                      <span className="text-sm font-bold text-indigo-950">
-                        {directLaborHeadcount + indirectLaborHeadcount} Total Staff
+                      <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledProductionBenefits.summary.totalPagIbigErAnnual, c)}
+                        <span className="text-xs font-normal text-slate-500"> /yr</span>
                       </span>
-                      <span className="text-[11px] text-indigo-900 block mt-0.5 font-financial font-medium">
-                        Combined Base: {formatCurrency(directLaborAnnualBasic12M + indirectLaborAnnualBasic12M, c)}/yr
+                    </div>
+
+                    <div className="bg-emerald-50/80 p-3 rounded-xl border border-emerald-200">
+                      <span className="text-[10px] text-emerald-800 uppercase tracking-wider font-bold block">
+                        Total Statutory Benefits
+                      </span>
+                      <span className="text-base font-bold text-emerald-950 font-financial block mt-0.5">
+                        {formatCurrency(compiledProductionBenefits.summary.totalStatutoryAnnual, c)}
+                        <span className="text-xs font-semibold text-emerald-800"> /yr</span>
                       </span>
                     </div>
                   </div>
 
-                  {/* Interactive Benefits Calculation Table */}
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  {/* Filter Pills */}
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-600 mr-1">Filter View:</span>
+                      <button
+                        type="button"
+                        onClick={() => setBenefitsClassificationFilter('all')}
+                        className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                          benefitsClassificationFilter === 'all'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        All Workforce ({compiledProductionBenefits.records.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBenefitsClassificationFilter('direct')}
+                        className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                          benefitsClassificationFilter === 'direct'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                        }`}
+                      >
+                        Direct Labor Only ({project.directLabor.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBenefitsClassificationFilter('indirect')}
+                        className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                          benefitsClassificationFilter === 'indirect'
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                        }`}
+                      >
+                        Indirect Labor Only ({(project.indirectLabor || []).length})
+                      </button>
+                    </div>
+
+                    <span className="text-xs text-slate-500 font-financial hidden sm:inline">
+                      Total Production Staff: <strong className="text-slate-800">{compiledProductionBenefits.summary.totalHeadcount} workers</strong>
+                    </span>
+                  </div>
+
+                  {/* Formatted Production Employee Benefits Table */}
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                      <thead className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200">
                         <tr>
-                          <th className="p-2.5">Benefit Particulars</th>
-                          <th className="p-2.5 w-40">Calculation Mode</th>
-                          <th className="p-2.5 text-right w-28">Rate / Amount</th>
-                          <th className="p-2.5 w-36">Applies To</th>
-                          <th className="p-2.5 text-right w-28">Direct Labor Share ({c})</th>
-                          <th className="p-2.5 text-right w-28">Indirect Labor Share ({c})</th>
-                          <th className="p-2.5 text-right w-32">Total Annual Cost ({c})</th>
-                          <th className="p-2.5 text-center w-12">Action</th>
+                          <th className="py-3 px-3 w-48">Employee / Labor Role</th>
+                          <th className="py-3 px-2 text-center w-24">Type</th>
+                          <th className="py-3 px-2 text-center w-16">Staff</th>
+                          <th className="py-3 px-3 text-right w-32">Monthly Salary ({c})</th>
+                          <th className="py-3 px-3 text-right w-36 bg-indigo-50/50 text-indigo-950">
+                            SSS ER Share ({c})
+                          </th>
+                          <th className="py-3 px-3 text-right w-32 bg-blue-50/50 text-blue-950">
+                            PhilHealth ER ({c})
+                          </th>
+                          <th className="py-3 px-3 text-right w-32 bg-emerald-50/50 text-emerald-950">
+                            Pag-IBIG ER ({c})
+                          </th>
+                          <th className="py-3 px-3 text-right w-32 font-bold text-slate-900">
+                            Monthly ER Total ({c})
+                          </th>
+                          <th className="py-3 px-3 text-right w-36 font-bold text-emerald-950 bg-emerald-50/40">
+                            Annual ER Total ({c})
+                          </th>
+                          <th className="py-3 px-2 text-center w-12">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {laborBenefitsList.length === 0 ? (
+                        {compiledProductionBenefits.records.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="text-center py-8 text-slate-400">
-                              <p className="font-medium text-slate-500">No employee benefits configured yet.</p>
-                              <p className="text-[11px] mt-1">
-                                Click "Load Standard PH Presets" above to auto-populate SSS, PhilHealth, Pag-IBIG, and 13th Month Pay.
+                            <td colSpan={10} className="text-center py-10 text-slate-400">
+                              <p className="font-semibold text-slate-600">No production employees found.</p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Add Direct Labor and Indirect Labor positions in the Direct Labor and Indirect Labor tables above.
                               </p>
+                              <div className="mt-3 flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={loadStandardFactoryRoles}
+                                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                >
+                                  Load Factory Roles
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ) : (
-                          laborBenefitsList.map((b, idx) => {
-                            const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-                            const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
-
-                            let directShare = 0;
-                            let indirectShare = 0;
-
-                            if (b.type === 'percentage') {
-                              const rate = (b.rateOrAmount || 0) / 100;
-                              if (appliesDirect) directShare = directLaborAnnualBasic12M * rate;
-                              if (appliesIndirect) indirectShare = indirectLaborAnnualBasic12M * rate;
-                            } else if (b.type === 'fixed_monthly_per_head') {
-                              const monthly = b.rateOrAmount || 0;
-                              if (appliesDirect) directShare = monthly * 12 * directLaborHeadcount;
-                              if (appliesIndirect) indirectShare = monthly * 12 * indirectLaborHeadcount;
-                            } else if (b.type === 'fixed_annual') {
-                              const annualAmt = b.rateOrAmount || 0;
-                              const totalHead = (appliesDirect ? directLaborHeadcount : 0) + (appliesIndirect ? indirectLaborHeadcount : 0);
-                              if (totalHead > 0) {
-                                if (appliesDirect && appliesIndirect) {
-                                  directShare = annualAmt * (directLaborHeadcount / totalHead);
-                                  indirectShare = annualAmt * (indirectLaborHeadcount / totalHead);
-                                } else if (appliesDirect) {
-                                  directShare = annualAmt;
-                                } else if (appliesIndirect) {
-                                  indirectShare = annualAmt;
-                                }
-                              }
-                            }
-
-                            const rowTotal = directShare + indirectShare;
-
-                            return (
-                              <tr key={b.id} className="hover:bg-slate-50/50">
-                                <td className="p-2.5">
-                                  <input
-                                    type="text"
-                                    value={b.name}
-                                    placeholder="Benefit Name (e.g. SSS, PhilHealth, Pag-IBIG)"
-                                    onChange={(e) => {
-                                      const copy = [...laborBenefitsList];
-                                      copy[idx].name = e.target.value;
-                                      updateProductionLaborBenefits(copy);
-                                    }}
-                                    className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none"
-                                  />
-                                  {b.notes && (
-                                    <span className="text-[10px] text-slate-400 block mt-0.5">{b.notes}</span>
-                                  )}
-                                </td>
-
-                                <td className="p-2">
-                                  <select
-                                    value={b.type}
-                                    onChange={(e) => {
-                                      const copy = [...laborBenefitsList];
-                                      copy[idx].type = e.target.value as BenefitCalculationType;
-                                      updateProductionLaborBenefits(copy);
-                                    }}
-                                    className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                  >
-                                    <option value="percentage">% of Basic Salary</option>
-                                    <option value="fixed_monthly_per_head">Monthly Fixed / Head</option>
-                                    <option value="fixed_annual">Annual Lump Sum</option>
-                                  </select>
-                                </td>
-
-                                <td className="p-2 text-right">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <input
-                                      type="number"
-                                      step={b.type === 'percentage' ? '0.01' : '10'}
-                                      min="0"
-                                      value={b.rateOrAmount}
-                                      onChange={(e) => {
-                                        const copy = [...laborBenefitsList];
-                                        copy[idx].rateOrAmount = parseFloat(e.target.value) || 0;
-                                        updateProductionLaborBenefits(copy);
-                                      }}
-                                      className="w-20 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                    />
-                                    <span className="text-[11px] text-slate-500">
-                                      {b.type === 'percentage' ? '%' : b.type === 'fixed_monthly_per_head' ? '/mo' : c}
+                          compiledProductionBenefits.records
+                            .filter((r) => {
+                              if (benefitsClassificationFilter === 'direct') return r.classification === 'Direct Labor';
+                              if (benefitsClassificationFilter === 'indirect') return r.classification === 'Indirect Labor';
+                              return true;
+                            })
+                            .map((r) => {
+                              const isDirect = r.classification === 'Direct Labor';
+                              return (
+                                <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                                  {/* Employee / Role */}
+                                  <td className="py-2.5 px-3">
+                                    <span className="font-semibold text-slate-900 block">
+                                      {r.role}
                                     </span>
-                                  </div>
-                                </td>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span
+                                        className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                          isDirect
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-amber-100 text-amber-800'
+                                        }`}
+                                      >
+                                        {r.classification}
+                                      </span>
+                                    </div>
+                                  </td>
 
-                                <td className="p-2">
-                                  <select
-                                    value={b.appliesTo}
-                                    onChange={(e) => {
-                                      const copy = [...laborBenefitsList];
-                                      copy[idx].appliesTo = e.target.value as BenefitAppliesTo;
-                                      updateProductionLaborBenefits(copy);
-                                    }}
-                                    className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                  >
-                                    <option value="both">Both (Direct & Indirect)</option>
-                                    <option value="direct_only">Direct Labor Only</option>
-                                    <option value="indirect_only">Indirect Labor Only</option>
-                                  </select>
-                                </td>
+                                  {/* Classification */}
+                                  <td className="py-2.5 px-2 text-center">
+                                    <span
+                                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full inline-block ${
+                                        isDirect
+                                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                      }`}
+                                    >
+                                      {isDirect ? 'Direct' : 'Indirect'}
+                                    </span>
+                                  </td>
 
-                                <td className="p-2 text-right font-financial text-slate-700">
-                                  {formatCurrency(directShare, c)}
-                                </td>
+                                  {/* Headcount (read-only) */}
+                                  <td className="py-2.5 px-2 text-center font-financial font-semibold text-slate-800">
+                                    {expandEmployeeHeadcount ? '1' : r.headcount}
+                                  </td>
 
-                                <td className="p-2 text-right font-financial text-slate-700">
-                                  {formatCurrency(indirectShare, c)}
-                                </td>
+                                  {/* Monthly Salary (read-only, projected by year) */}
+                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-800">
+                                    {formatCurrency(r.monthlySalary, c)}
+                                  </td>
 
-                                <td className="p-2 text-right font-financial font-bold text-emerald-900">
-                                  {formatCurrency(rowTotal, c)}
-                                </td>
+                                  {/* SSS Employer Share (Actual Table) */}
+                                  <td className="py-2.5 px-3 text-right bg-indigo-50/20 font-financial">
+                                    <span className="font-bold text-indigo-950 block" title={r.sss.bracketRange}>
+                                      {formatCurrency(r.sss.totalErTotalRole, c)}
+                                    </span>
+                                  </td>
 
-                                <td className="p-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      updateProductionLaborBenefits(laborBenefitsList.filter((_, i) => i !== idx))
-                                    }
-                                    className="text-slate-400 hover:text-red-600 p-1 transition"
-                                    title="Delete benefit item"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })
+                                  {/* PhilHealth Employer Share (Actual 2.5% computation) */}
+                                  <td className="py-2.5 px-3 text-right bg-blue-50/20 font-financial">
+                                    <span className="font-bold text-blue-950 block">
+                                      {formatCurrency(r.philHealth.monthlyErTotalRole, c)}
+                                    </span>
+                                  </td>
+
+                                  {/* Pag-IBIG Employer Share (Actual 2.0% computation up to ₱200 cap) */}
+                                  <td className="py-2.5 px-3 text-right bg-emerald-50/20 font-financial">
+                                    <span className="font-bold text-emerald-950 block">
+                                      {formatCurrency(r.pagIbig.monthlyErTotalRole, c)}
+                                    </span>
+                                  </td>
+
+                                  {/* Monthly ER Total */}
+                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                                    {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
+                                  </td>
+
+                                  {/* Annual ER Total */}
+                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
+                                    {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
+                                  </td>
+
+                                  {/* Action */}
+                                  <td className="py-2.5 px-2 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteEmployeeRole(r.sourceId, r.classification)}
+                                      className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition"
+                                      title={`Delete ${r.role} from ${r.classification}`}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
                         )}
                       </tbody>
 
-                      {laborBenefitsList.length > 0 && (
-                        <tfoot className="bg-emerald-50/50 border-t border-emerald-200 font-semibold text-slate-900">
-                          <tr>
-                            <td colSpan={4} className="p-2.5 font-bold text-emerald-950">
-                              Total Production Labor Benefits (Year 1)
+                      {/* Subtotals & Grand Totals */}
+                      {compiledProductionBenefits.records.length > 0 && (
+                        <tfoot className="border-t-2 border-slate-300 divide-y divide-slate-200">
+                          {/* Direct Labor Subtotal */}
+                          <tr className="bg-blue-50/60 font-semibold text-slate-800">
+                            <td className="py-2 px-3 text-blue-900 font-bold" colSpan={2}>
+                              Direct Labor Subtotal ({compiledProductionBenefits.summary.directLabor.headcount} workers)
                             </td>
-                            <td className="p-2.5 text-right font-financial font-bold text-slate-800">
-                              {formatCurrency(totalDirectBenefitsAnnual, c)}
+                            <td className="py-2 px-2 text-center font-financial text-blue-900">
+                              {compiledProductionBenefits.summary.directLabor.headcount}
                             </td>
-                            <td className="p-2.5 text-right font-financial font-bold text-slate-800">
-                              {formatCurrency(totalIndirectBenefitsAnnual, c)}
+                            <td className="py-2 px-3 text-right font-financial text-blue-900">
+                              {formatCurrency(compiledProductionBenefits.summary.directLabor.monthlyBasicTotal, c)}
                             </td>
-                            <td className="p-2.5 text-right font-financial font-bold text-emerald-950 text-sm">
-                              {formatCurrency(totalProductionLaborBenefitsAnnual, c)}
+                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-bold">
+                              {formatCurrency(compiledProductionBenefits.summary.directLabor.sssErMonthlyTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-blue-900 font-bold">
+                              {formatCurrency(compiledProductionBenefits.summary.directLabor.philHealthErMonthlyTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-emerald-900 font-bold">
+                              {formatCurrency(compiledProductionBenefits.summary.directLabor.pagIbigErMonthlyTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial font-bold text-slate-900">
+                              {formatCurrency(compiledProductionBenefits.summary.directLabor.totalMonthlyBenefits, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial font-bold text-blue-950 bg-blue-100/50">
+                              {formatCurrency(compiledProductionBenefits.summary.directLabor.totalAnnualBenefits, c)}
+                            </td>
+                            <td></td>
+                          </tr>
+
+                          {/* Indirect Labor Subtotal */}
+                          <tr className="bg-amber-50/60 font-semibold text-slate-800">
+                            <td className="py-2 px-3 text-amber-900 font-bold" colSpan={2}>
+                              Indirect Labor / FOH Subtotal ({compiledProductionBenefits.summary.indirectLabor.headcount} workers)
+                            </td>
+                            <td className="py-2 px-2 text-center font-financial text-amber-900">
+                              {compiledProductionBenefits.summary.indirectLabor.headcount}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-amber-900">
+                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.monthlyBasicTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-bold">
+                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.sssErMonthlyTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-blue-900 font-bold">
+                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.philHealthErMonthlyTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-emerald-900 font-bold">
+                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.pagIbigErMonthlyTotal, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial font-bold text-slate-900">
+                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalMonthlyBenefits, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial font-bold text-amber-950 bg-amber-100/50">
+                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits, c)}
+                            </td>
+                            <td></td>
+                          </tr>
+
+                          {/* Combined Grand Total Row */}
+                          <tr className="bg-emerald-100/70 font-bold text-slate-900 text-sm">
+                            <td className="py-3 px-3 text-emerald-950 font-black" colSpan={2}>
+                              Total Production Statutory Benefits (Year {benefitsViewYear})
+                            </td>
+                            <td className="py-3 px-2 text-center font-financial font-black text-emerald-950">
+                              {compiledProductionBenefits.summary.totalHeadcount}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-slate-900">
+                              {formatCurrency(compiledProductionBenefits.summary.totalMonthlyBasic, c)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-indigo-950">
+                              {formatCurrency(compiledProductionBenefits.summary.totalSssErMonthly, c)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-blue-950">
+                              {formatCurrency(compiledProductionBenefits.summary.totalPhilHealthErMonthly, c)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-emerald-950">
+                              {formatCurrency(compiledProductionBenefits.summary.totalPagIbigErMonthly, c)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-slate-950">
+                              {formatCurrency(compiledProductionBenefits.summary.totalStatutoryMonthly, c)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-emerald-950 bg-emerald-200/60">
+                              {formatCurrency(compiledProductionBenefits.summary.totalStatutoryAnnual, c)}
                             </td>
                             <td></td>
                           </tr>
@@ -2894,8 +3191,8 @@ export default function AssumptionsEditor({
                     </table>
                   </div>
 
-                  {/* COGS Treatment & 13th Month Pay Advisory Note */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {/* COGS Capitalization Setting & Statutory Compliance Note */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                     <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-800 select-none">
                       <input
                         type="checkbox"
@@ -2903,34 +3200,368 @@ export default function AssumptionsEditor({
                         onChange={(e) => toggleIncludeLaborBenefitsInCOGS(e.target.checked)}
                         className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
                       />
-                      <span>Include Production Labor Benefits in Factory Overhead (Cost of Goods Sold)</span>
+                      <span>Capitalize Production Statutory Benefits in Factory Overhead (Cost of Goods Sold)</span>
                     </label>
 
-                    <span className="text-[11px] text-slate-500 font-financial">
-                      Status: {includeBenefitsInCOGS ? `+${formatCurrency(totalProductionLaborBenefitsAnnual, c)} capitalized into COGS` : 'Excluded from COGS'}
-                    </span>
+                    <div className="flex items-center gap-2 text-xs font-financial">
+                      <span className="text-slate-500">
+                        Status:
+                      </span>
+                      <span className={`px-2 py-0.5 rounded font-bold ${
+                        includeBenefitsInCOGS
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {includeBenefitsInCOGS
+                          ? `+${formatCurrency(compiledProductionBenefits.summary.totalStatutoryAnnual, c)} capitalized into COGS`
+                          : 'Excluded from COGS (Operating Expenses)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Supplementary / Custom Non-Statutory Benefits Accordion (13th Month, Uniforms, etc.) */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomBenefitsSection(!showCustomBenefitsSection)}
+                      className="w-full p-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-semibold text-slate-800 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <HeartHandshake className="w-4 h-4 text-emerald-600" />
+                        <span>Additional / Non-Statutory Benefits (13th Month Pay, Uniforms, PPE, Fringe Benefits)</span>
+                        <span className="text-[11px] font-normal text-slate-500">
+                          ({laborBenefitsList.length} configured)
+                        </span>
+                      </div>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-500 transition-transform ${
+                          showCustomBenefitsSection ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {showCustomBenefitsSection && (
+                      <div className="p-4 space-y-3 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-slate-600">
+                            Configure supplemental benefits beyond mandatory SSS, PhilHealth, and Pag-IBIG. These will be added on top of statutory contributions in Factory Overhead.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={loadStandardLaborBenefitsPresets}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            >
+                              Load Preset Rows
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateProductionLaborBenefits([
+                                  ...laborBenefitsList,
+                                  {
+                                    id: `ben-${Date.now()}`,
+                                    name: '13th Month Pay',
+                                    type: 'percentage',
+                                    rateOrAmount: 8.33,
+                                    appliesTo: 'both',
+                                    notes: 'Statutory 1/12th annual basic wage',
+                                  },
+                                ])
+                              }
+                              className="px-2.5 py-1 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-lg font-semibold flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Add Custom Benefit
+                            </button>
+                          </div>
+                        </div>
+
+                        {laborBenefitsList.length === 0 ? (
+                          <div className="text-center py-4 text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                            No additional non-statutory benefits configured. Statutory SSS, PhilHealth, and Pag-IBIG are automatically calculated in the main table above.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                                <tr>
+                                  <th className="p-2">Benefit Particulars</th>
+                                  <th className="p-2 w-36">Calculation Mode</th>
+                                  <th className="p-2 text-right w-28">Rate / Amount</th>
+                                  <th className="p-2 w-36">Applies To</th>
+                                  <th className="p-2 text-center w-12">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {laborBenefitsList.map((b, idx) => (
+                                  <tr key={b.id} className="hover:bg-slate-50/50">
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={b.name}
+                                        placeholder="Benefit Name"
+                                        onChange={(e) => {
+                                          const copy = [...laborBenefitsList];
+                                          copy[idx].name = e.target.value;
+                                          updateProductionLaborBenefits(copy);
+                                        }}
+                                        className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <select
+                                        value={b.type}
+                                        onChange={(e) => {
+                                          const copy = [...laborBenefitsList];
+                                          copy[idx].type = e.target.value as BenefitCalculationType;
+                                          updateProductionLaborBenefits(copy);
+                                        }}
+                                        className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
+                                      >
+                                        <option value="percentage">% of Basic Salary</option>
+                                        <option value="fixed_monthly_per_head">Monthly Fixed / Head</option>
+                                        <option value="fixed_annual">Annual Lump Sum</option>
+                                      </select>
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <input
+                                          type="number"
+                                          step={b.type === 'percentage' ? '0.01' : '10'}
+                                          min="0"
+                                          value={b.rateOrAmount}
+                                          onChange={(e) => {
+                                            const copy = [...laborBenefitsList];
+                                            copy[idx].rateOrAmount = parseFloat(e.target.value) || 0;
+                                            updateProductionLaborBenefits(copy);
+                                          }}
+                                          className="w-20 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                        />
+                                        <span className="text-[11px] text-slate-500">
+                                          {b.type === 'percentage' ? '%' : b.type === 'fixed_monthly_per_head' ? '/mo' : c}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="p-2">
+                                      <select
+                                        value={b.appliesTo}
+                                        onChange={(e) => {
+                                          const copy = [...laborBenefitsList];
+                                          copy[idx].appliesTo = e.target.value as BenefitAppliesTo;
+                                          updateProductionLaborBenefits(copy);
+                                        }}
+                                        className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
+                                      >
+                                        <option value="both">Both (Direct & Indirect)</option>
+                                        <option value="direct_only">Direct Labor Only</option>
+                                        <option value="indirect_only">Indirect Labor Only</option>
+                                      </select>
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateProductionLaborBenefits(laborBenefitsList.filter((_, i) => i !== idx))
+                                        }
+                                        className="text-slate-400 hover:text-red-600 p-1"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* 13th Month Double Counting Auditor Check */}
-                  {project.directLabor.some((l) => (l.monthsPerYear || 12) >= 13) &&
-                    laborBenefitsList.some((b) => b.name.toLowerCase().includes('13th') && (b.rateOrAmount || 0) > 0) && (
-                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-bold block">13th Month Pay Alignment Notice:</span>
-                            Direct Labor roles in Tab 4 are configured with 13 months/year (which already embeds 13th Month Pay in base wages). To avoid double-counting, you may either set 13th Month Pay to 0% in this table, or adjust Tab 4 Direct Labor to 12 months.
+                  {project.directLabor.some((l) => (l.monthsPerYear || 12) >= 13) && (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block">13th Month Pay Alignment Notice:</span>
+                          Direct Labor roles in Tab 4 are configured with 13 months/year (which already embeds 13th Month Pay in base wages). If you also add 13th Month Pay as a benefit, ensure it is not double-counted.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={adjustDirectLaborTo12Months}
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition shrink-0 self-start sm:self-center"
+                      >
+                        Adjust Tab 4 to 12 Months
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SSS Contribution Table Modal */}
+                  {showSssTableModal && (
+                    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+                      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+                        {/* Modal Header */}
+                        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <span className="p-2 bg-indigo-100 text-indigo-800 rounded-xl">
+                              <Table className="w-5 h-5 text-indigo-700" />
+                            </span>
+                            <div>
+                              <h3 className="text-base font-bold text-slate-900">
+                                Official Social Security System (SSS) Contribution Table
+                              </h3>
+                              <p className="text-xs text-slate-500">
+                                Republic Act No. 11199 (Social Security Act of 2018) Official Contribution Schedule for Employers & Employees
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowSssTableModal(false)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        {/* Modal Search & Highlight Filter */}
+                        <div className="p-3 sm:px-5 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 w-full sm:w-72">
+                            <input
+                              type="text"
+                              value={sssSearchQuery}
+                              onChange={(e) => setSssSearchQuery(e.target.value)}
+                              placeholder="Search salary or bracket (e.g. 17000)..."
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
+                            />
+                            {sssSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setSssSearchQuery('')}
+                                className="text-slate-400 hover:text-slate-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                              <span>Matched by Your Current Staff</span>
+                            </span>
+                            <span className="text-slate-400">|</span>
+                            <span>Total Brackets: {SSS_CONTRIBUTION_TABLE.length}</span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={adjustDirectLaborTo12Months}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition shrink-0 self-start sm:self-center"
-                        >
-                          Adjust Tab 4 to 12 Months
-                        </button>
+
+                        {/* Modal Table Body */}
+                        <div className="overflow-y-auto flex-1 p-3 sm:p-5">
+                          <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+                            <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                              <tr>
+                                <th className="p-2.5">Range of Compensation ({c})</th>
+                                <th className="p-2.5 text-right">Monthly Salary Credit (MSC)</th>
+                                <th className="p-2.5 text-right text-indigo-900 bg-indigo-50/60">
+                                  ER Share (Reg + WISP)
+                                </th>
+                                <th className="p-2.5 text-right text-indigo-900 bg-indigo-50/60">
+                                  ER EC Fund
+                                </th>
+                                <th className="p-2.5 text-right font-bold text-indigo-950 bg-indigo-100/70">
+                                  Total ER Share
+                                </th>
+                                <th className="p-2.5 text-right text-slate-700">EE Share (4.5%)</th>
+                                <th className="p-2.5 text-right font-bold text-slate-900">Total Contribution</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {SSS_CONTRIBUTION_TABLE.filter((b) => {
+                                if (!sssSearchQuery) return true;
+                                const q = sssSearchQuery.toLowerCase();
+                                return (
+                                  b.msc.toString().includes(q) ||
+                                  b.minSalary.toString().includes(q) ||
+                                  b.maxSalary.toString().includes(q) ||
+                                  b.totalEr.toString().includes(q)
+                                );
+                              }).map((b) => {
+                                // Check if any current production employee falls in this bracket
+                                const matchingStaff = compiledProductionBenefits.records.filter((r) => {
+                                  const sal = r.monthlySalary;
+                                  return sal >= b.minSalary && sal <= b.maxSalary;
+                                });
+                                const isMatched = matchingStaff.length > 0;
+
+                                return (
+                                  <tr
+                                    key={b.msc}
+                                    className={`transition-colors ${
+                                      isMatched
+                                        ? 'bg-emerald-50/80 hover:bg-emerald-100/70 font-semibold'
+                                        : 'hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <td className="p-2.5 font-financial">
+                                      <div className="flex items-center gap-1.5">
+                                        {isMatched && (
+                                          <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" title="Matched staff" />
+                                        )}
+                                        <span>
+                                          {b.minSalary.toLocaleString()} -{' '}
+                                          {b.maxSalary === Infinity ? 'Over' : b.maxSalary.toLocaleString()}
+                                        </span>
+                                      </div>
+                                      {isMatched && (
+                                        <span className="text-[10px] text-emerald-800 font-normal block pl-3.5">
+                                          {matchingStaff.map((s) => s.role).join(', ')}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-2.5 text-right font-financial font-medium text-slate-800">
+                                      {formatCurrency(b.msc, c)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-financial text-indigo-900 bg-indigo-50/30">
+                                      {formatCurrency(b.regularEr + b.wispEr, c)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-financial text-indigo-900 bg-indigo-50/30">
+                                      {formatCurrency(b.ecEr, c)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-financial font-bold text-indigo-950 bg-indigo-100/50">
+                                      {formatCurrency(b.totalEr, c)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-financial text-slate-600">
+                                      {formatCurrency(b.totalEe, c)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-financial font-bold text-slate-900">
+                                      {formatCurrency(b.totalContribution, c)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-3 sm:px-5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+                          <span className="text-slate-500">
+                            Employer Social Security (9.5%) + EC Fund (₱10/₱30) + WISP are automatically calculated per employee.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowSssTableModal(false)}
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg shadow-2xs"
+                          >
+                            Close Reference
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3021,6 +3652,7 @@ export default function AssumptionsEditor({
                           <th className="p-3">Position / Role Title</th>
                           <th className="p-3 text-right">Headcount</th>
                           <th className="p-3 text-right">Monthly Salary / Wage ({c})</th>
+                          <th className="p-3 text-center">Annual Salary Increase</th>
                           <th className="p-3 text-right">Months / Year</th>
                           <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
                           <th className="p-3 text-center w-16">Action</th>
@@ -3029,13 +3661,15 @@ export default function AssumptionsEditor({
                       <tbody className="divide-y divide-slate-100">
                         {(!project.nonManufacturingLabor || project.nonManufacturingLabor.length === 0) ? (
                           <tr>
-                            <td colSpan={7} className="text-center py-8 text-slate-400">
+                            <td colSpan={8} className="text-center py-8 text-slate-400">
                               No non-manufacturing personnel added yet. Click "Add Non-Manufacturing Employee" above to add administrative or sales staff.
                             </td>
                           </tr>
                         ) : (
                           project.nonManufacturingLabor.map((emp, idx) => {
                             const annual = emp.monthlyWage * emp.monthsPerYear * emp.headcount;
+                            const incType = emp.annualSalaryIncreaseType || 'percentage';
+                            const incVal = emp.annualSalaryIncreaseValue ?? 0;
                             return (
                               <tr key={emp.id} className="hover:bg-slate-50/50">
                                 <td className="p-2.5">
@@ -3094,6 +3728,40 @@ export default function AssumptionsEditor({
                                     className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
                                   />
                                 </td>
+                                <td className="p-2.5">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <input
+                                      type="number"
+                                      step={incType === 'percentage' ? '0.1' : '50'}
+                                      min="0"
+                                      placeholder={incType === 'percentage' ? `${project.inflationRatePercent || 0}%` : '0'}
+                                      value={incVal === 0 && !emp.annualSalaryIncreaseValue ? '' : incVal}
+                                      onChange={(e) => {
+                                        const copy = [...(project.nonManufacturingLabor || [])];
+                                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                        copy[idx].annualSalaryIncreaseValue = val;
+                                        if (!copy[idx].annualSalaryIncreaseType) {
+                                          copy[idx].annualSalaryIncreaseType = 'percentage';
+                                        }
+                                        updateNonManufacturingLabor(copy);
+                                      }}
+                                      className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5 text-xs"
+                                    />
+                                    <select
+                                      value={incType}
+                                      onChange={(e) => {
+                                        const copy = [...(project.nonManufacturingLabor || [])];
+                                        copy[idx].annualSalaryIncreaseType = e.target.value as 'percentage' | 'amount';
+                                        updateNonManufacturingLabor(copy);
+                                      }}
+                                      className="text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded px-1 py-0.5 focus:outline-none"
+                                      title="Select increase mode: % (percentage per year) or Amount (fixed ₱/month increase each year)"
+                                    >
+                                      <option value="percentage">% / yr</option>
+                                      <option value="amount">{c}/mo / yr</option>
+                                    </select>
+                                  </div>
+                                </td>
                                 <td className="p-2.5 text-right">
                                   <input
                                     type="number"
@@ -3138,7 +3806,7 @@ export default function AssumptionsEditor({
                             <td className="p-2.5 text-right font-financial font-bold text-blue-700">
                               {totalNonMfgHeadcount} pax
                             </td>
-                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                            <td colSpan={3} className="p-2.5 text-right text-slate-500">
                               Grand Total Annual Payroll:
                             </td>
                             <td className="p-2.5 text-right font-financial font-bold text-blue-700 text-sm">

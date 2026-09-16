@@ -2,8 +2,10 @@ import { FeasibilityProject } from '../types';
 import {
   calculateLoanAmortization,
   calculateDepreciation,
+  calculateYear1FactoryOverhead,
   formatCurrency,
 } from '../utils/financialCalculations';
+import { compileProductionEmployeeBenefits } from '../utils/philippineBenefits';
 import { Table, Calendar, Layers, Receipt, Calculator, Tag, Landmark, PiggyBank, Factory, ShieldCheck, Package } from 'lucide-react';
 
 interface SupportingSchedulesViewProps {
@@ -452,48 +454,17 @@ export default function SupportingSchedulesView({
             factoryDeprMethodLabel = `Global Allocation (${pct}% of total depreciation)`;
           }
 
-          // Benefits
-          const benefits = project.productionLaborBenefits || [];
-          let directBenefitsTotal = 0;
-          let indirectBenefitsTotal = 0;
+          // Factory Overhead Engine Details & Statutory Benefits
+          const fohDetails = calculateYear1FactoryOverhead(project);
+          const statutoryBenefits = compileProductionEmployeeBenefits(
+            project.directLabor || [],
+            project.indirectLabor || []
+          );
 
-          benefits.forEach((b) => {
-            const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-            const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
-
-            if (b.type === 'percentage') {
-              const rate = (b.rateOrAmount || 0) / 100;
-              if (appliesDirect) directBenefitsTotal += directBasicAnnual12M * rate;
-              if (appliesIndirect) indirectBenefitsTotal += indirectBasicAnnual12M * rate;
-            } else if (b.type === 'fixed_monthly_per_head') {
-              const monthly = b.rateOrAmount || 0;
-              if (appliesDirect) directBenefitsTotal += monthly * 12 * directHeadcount;
-              if (appliesIndirect) indirectBenefitsTotal += monthly * 12 * indirectHeadcount;
-            } else if (b.type === 'fixed_annual') {
-              const amt = b.rateOrAmount || 0;
-              const totalHead = (appliesDirect ? directHeadcount : 0) + (appliesIndirect ? indirectHeadcount : 0);
-              if (totalHead > 0) {
-                if (appliesDirect && appliesIndirect) {
-                  directBenefitsTotal += amt * (directHeadcount / totalHead);
-                  indirectBenefitsTotal += amt * (indirectHeadcount / totalHead);
-                } else if (appliesDirect) {
-                  directBenefitsTotal += amt;
-                } else if (appliesIndirect) {
-                  indirectBenefitsTotal += amt;
-                }
-              }
-            }
-          });
-
-          const totalLaborBenefitsYr1 = directBenefitsTotal + indirectBenefitsTotal;
+          const totalLaborBenefitsYr1 = fohDetails.factoryLaborBenefitsAnnual;
           const includeBenefits = project.includeLaborBenefitsInCOGS !== false;
-
-          const totalFOHCapitalizedYr1 =
-            indirectLaborAnnual +
-            utilitiesAnnual +
-            suppliesAnnual +
-            factoryDeprYr1 +
-            (includeBenefits ? totalLaborBenefitsYr1 : 0);
+          const totalFOHCapitalizedYr1 = fohDetails.totalFactoryOverheadAnnual;
+          const benefits = project.productionLaborBenefits || [];
 
           return (
             <div>
@@ -602,7 +573,7 @@ export default function SupportingSchedulesView({
                         </div>
                       </td>
                       <td className="py-2 px-3 text-slate-600">
-                        {benefits.length} benefit schedule(s) for {directHeadcount + indirectHeadcount} plant staff
+                        Statutory SSS/PhilHealth/Pag-IBIG + {benefits.length} custom benefit(s)
                       </td>
                       <td className="py-2 px-3 text-right font-financial text-slate-700">
                         {directHeadcount + indirectHeadcount} staff
@@ -641,38 +612,72 @@ export default function SupportingSchedulesView({
                 </table>
               </div>
 
-              {/* Itemized Employee Benefits Breakdown if configured */}
-              {benefits.length > 0 && (
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                  <div className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+              {/* Itemized Employee Benefits Breakdown including Statutory SSS, PhilHealth, Pag-IBIG */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-2">
+                <div className="font-bold text-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Production Employee Benefits Breakdown Detail:</span>
+                    <span>Production Employee Benefits Breakdown (Statutory + Non-Statutory):</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
-                    {benefits.map((b) => (
-                      <div key={b.id} className="bg-white p-2 rounded-lg border border-slate-200">
-                        <span className="font-semibold text-slate-800 block truncate">{b.name}</span>
-                        <span className="text-[11px] text-slate-500 block">
-                          Mode:{' '}
-                          {b.type === 'percentage'
-                            ? `${b.rateOrAmount}% of basic`
-                            : b.type === 'fixed_monthly_per_head'
-                            ? `${formatCurrency(b.rateOrAmount, c)}/head/mo`
-                            : `${formatCurrency(b.rateOrAmount, c)} lump sum`}
-                        </span>
-                        <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">
-                          Applies to:{' '}
-                          {b.appliesTo === 'both'
-                            ? 'Direct & Indirect Staff'
-                            : b.appliesTo === 'direct_only'
-                            ? 'Direct Labor Only'
-                            : 'Indirect Labor Only'}
-                        </span>
-                      </div>
-                    ))}
+                  <span className="text-slate-500 font-financial text-[11px]">
+                    Total Labor Benefits: {formatCurrency(totalLaborBenefitsYr1, c)} /yr
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <span className="font-bold text-indigo-900 block">SSS Employer Share</span>
+                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                      {formatCurrency(statutoryBenefits.summary.totalSssErAnnual, c)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <span className="font-bold text-blue-900 block">PhilHealth Employer Share</span>
+                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                      {formatCurrency(statutoryBenefits.summary.totalPhilHealthErAnnual, c)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <span className="font-bold text-emerald-900 block">Pag-IBIG Employer Share</span>
+                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                      {formatCurrency(statutoryBenefits.summary.totalPagIbigErAnnual, c)}
+                    </span>
                   </div>
                 </div>
-              )}
+
+                {benefits.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <span className="text-[11px] font-semibold text-slate-600 block mb-1">
+                      Additional / Non-Statutory Benefits:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {benefits.map((b) => (
+                        <div key={b.id} className="bg-white p-2 rounded-lg border border-slate-200">
+                          <span className="font-semibold text-slate-800 block truncate">{b.name}</span>
+                          <span className="text-[11px] text-slate-500 block">
+                            Mode:{' '}
+                            {b.type === 'percentage'
+                              ? `${b.rateOrAmount}% of basic`
+                              : b.type === 'fixed_monthly_per_head'
+                              ? `${formatCurrency(b.rateOrAmount, c)}/head/mo`
+                              : `${formatCurrency(b.rateOrAmount, c)} lump sum`}
+                          </span>
+                          <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">
+                            Applies to:{' '}
+                            {b.appliesTo === 'both'
+                              ? 'Direct & Indirect Staff'
+                              : b.appliesTo === 'direct_only'
+                              ? 'Direct Labor Only'
+                              : 'Indirect Labor Only'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })()}

@@ -69,6 +69,9 @@ export interface DirectLaborItem {
   headcount: number;
   monthlyWage: number;
   monthsPerYear: number; // 13 for 13th month pay standard in many academic jurisdictions
+  annualSalaryIncreaseType?: 'percentage' | 'amount'; // 'percentage' e.g. 5% or 'amount' e.g. ₱500/mo
+  annualSalaryIncreaseValue?: number; // annual increase value (% or ₱/month)
+  annualSalaryIncreaseStartYear?: number; // Year the salary increase begins (e.g. Year 2, 3, 4, 5. Defaults to 2)
 }
 
 export interface IndirectLaborItem {
@@ -77,6 +80,9 @@ export interface IndirectLaborItem {
   headcount: number;
   monthlyWage: number;
   monthsPerYear: number; // Factory supervisory, QA, maintenance, plant support
+  annualSalaryIncreaseType?: 'percentage' | 'amount'; // 'percentage' or 'amount'
+  annualSalaryIncreaseValue?: number; // annual increase value (% or ₱/month)
+  annualSalaryIncreaseStartYear?: number; // Year the salary increase begins (e.g. Year 2, 3, 4, 5. Defaults to 2)
 }
 
 export interface ProductionUtilityItem {
@@ -115,6 +121,9 @@ export interface NonManufacturingLaborItem {
   headcount: number;
   monthlyWage: number;
   monthsPerYear: number;
+  annualSalaryIncreaseType?: 'percentage' | 'amount'; // 'percentage' or 'amount'
+  annualSalaryIncreaseValue?: number; // annual increase value (% or ₱/month)
+  annualSalaryIncreaseStartYear?: number; // Year the salary increase begins (e.g. Year 2, 3, 4, 5. Defaults to 2)
 }
 
 export interface OperatingExpenseItem {
@@ -212,7 +221,9 @@ export interface FeasibilityProject {
   // Operating Projections
   products: ProductItem[];
   directLabor: DirectLaborItem[];
+  directLaborSalaryIncreaseStartYear?: number; // Default start year for direct labor salary increases (e.g. 2)
   indirectLabor?: IndirectLaborItem[];
+  indirectLaborSalaryIncreaseStartYear?: number; // Default start year for indirect labor salary increases (e.g. 2)
   productionUtilities?: ProductionUtilityItem[];
   factoryDepreciationPercent?: number; // % of total fixed asset depreciation attributable to factory/production (default 50%)
   factoryDepreciationMethod?: 'percentage' | 'specific_assets'; // Mode: percentage or specific asset selection
@@ -223,6 +234,7 @@ export interface FeasibilityProject {
   factoryOverheadAnnual: number;
   factoryOverheadGrowthRate: number;
   nonManufacturingLabor?: NonManufacturingLaborItem[];
+  nonManufacturingSalaryIncreaseStartYear?: number; // Default start year for non-mfg salary increases (e.g. 2)
   operatingExpenses: OperatingExpenseItem[];
   salesDiscountsPercent: number; // % of gross sales
 
@@ -286,6 +298,10 @@ export interface YearFinancials {
   totalAssets: number;
 
   accountsPayable: number;
+  salariesPayable?: number; // Last month (Month 12) accrued wages payable
+  sssPayable?: number; // Last month (Month 12) SSS Employer share payable
+  philhealthPayable?: number; // Last month (Month 12) PhilHealth Employer share payable
+  pagibigPayable?: number; // Last month (Month 12) Pag-IBIG Employer share payable
   currentPortionOfDebt: number;
   totalCurrentLiabilities: number;
   longTermDebt: number;

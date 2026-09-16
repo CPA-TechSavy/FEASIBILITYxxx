@@ -5,7 +5,7 @@ import {
   ProductCostComponent,
   CostComponentCategory,
 } from '../types';
-import { formatCurrency, formatPercent } from '../utils/financialCalculations';
+import { formatCurrency, formatPercent, calculateDepreciation } from '../utils/financialCalculations';
 import { SAMPLE_BOM_PRESETS } from '../data/bomPresets';
 import {
   Calculator,
@@ -25,6 +25,7 @@ import {
   Check,
   Copy,
   X,
+  Factory,
 } from 'lucide-react';
 
 interface ProductCostingTabProps {
@@ -78,36 +79,23 @@ export default function ProductCostingTab({
     setTimeout(() => setFeedbackMessage(null), 3500);
   };
 
-  // Previous product calculation & copy states
-  const activeProductIndex = useMemo(() => {
-    if (!activeProduct) return -1;
-    return project.products.findIndex((p) => p.id === activeProduct.id);
+  // Other available products in study to copy from (Requirement 2)
+  const availableSourceProducts: ProductItem[] = useMemo(() => {
+    if (!activeProduct) return [];
+    return project.products.filter((p) => p.id !== activeProduct.id);
   }, [project.products, activeProduct]);
-
-  const previousProduct: ProductItem | null = useMemo(() => {
-    if (activeProductIndex > 0) {
-      return project.products[activeProductIndex - 1];
-    }
-    return null;
-  }, [project.products, activeProductIndex]);
-
-  const precedingProducts: ProductItem[] = useMemo(() => {
-    if (activeProductIndex > 0) {
-      return project.products.slice(0, activeProductIndex);
-    }
-    return [];
-  }, [project.products, activeProductIndex]);
 
   // Copy modal states
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [copySourceProductId, setCopySourceProductId] = useState<string>('');
   const [copyMode, setCopyMode] = useState<'replace' | 'append'>('replace');
 
-  // Selected source product for modal
+  // Selected source product for modal (can be ANY other product)
   const selectedSourceProduct: ProductItem | null = useMemo(() => {
-    if (!copySourceProductId && previousProduct) return previousProduct;
-    return project.products.find((p) => p.id === copySourceProductId) || previousProduct;
-  }, [project.products, copySourceProductId, previousProduct]);
+    if (availableSourceProducts.length === 0) return null;
+    const found = availableSourceProducts.find((p) => p.id === copySourceProductId);
+    return found || availableSourceProducts[0];
+  }, [availableSourceProducts, copySourceProductId]);
 
   // Helper to retrieve raw material & BOM components from any product
   const getSourceComponents = (sourceProd: ProductItem): ProductCostComponent[] => {
@@ -117,9 +105,12 @@ export default function ProductCostingTab({
     const flatCost =
       sourceProd.rawMaterialsCostPerUnit !== undefined
         ? sourceProd.rawMaterialsCostPerUnit
-        : sourceProd.directLaborCostPerUnit !== undefined
-        ? Math.max(0, sourceProd.unitCost - sourceProd.directLaborCostPerUnit)
-        : sourceProd.unitCost;
+        : Math.max(
+            0,
+            sourceProd.unitCost -
+              (sourceProd.directLaborCostPerUnit || 0) -
+              (sourceProd.factoryOverheadCostPerUnit || 0)
+          );
     if (flatCost > 0) {
       return [
         {
@@ -137,9 +128,18 @@ export default function ProductCostingTab({
     return [];
   };
 
-  const handleOpenCopyModal = () => {
-    if (!previousProduct) return;
-    setCopySourceProductId(previousProduct.id);
+  const handleOpenCopyModal = (preselectedSourceId?: string) => {
+    if (availableSourceProducts.length === 0) {
+      showFeedback('No other products available in the study to copy from. Add another product first.');
+      return;
+    }
+    const initialSourceId =
+      preselectedSourceId ||
+      (copySourceProductId && availableSourceProducts.some((p) => p.id === copySourceProductId)
+        ? copySourceProductId
+        : availableSourceProducts[0].id);
+
+    setCopySourceProductId(initialSourceId);
     setCopyMode(activeMaterialsBreakdown.length > 0 ? 'replace' : 'replace');
     setIsCopyModalOpen(true);
   };
@@ -225,6 +225,137 @@ export default function ProductCostingTab({
     return volumeWeightedDlPerUnit;
   };
 
+  // ------------------------------------------------------------------------
+  // FACTORY OVERHEAD AGGREGATES & ALLOCATION (Requirement 1)
+  // ------------------------------------------------------------------------
+  const totalIndirectLaborAnnual = useMemo(() => {
+    return (project.indirectLabor || []).reduce(
+      (sum, lab) =>
+        sum + (lab.monthlyWage || 0) * (lab.monthsPerYear || 12) * (lab.headcount || 1),
+      0
+    );
+  }, [project.indirectLabor]);
+
+  const totalProductionUtilitiesAnnual = useMemo(() => {
+    return (project.productionUtilities || []).reduce(
+      (sum, u) => sum + (u.annualAmountYear1 || 0),
+      0
+    );
+  }, [project.productionUtilities]);
+
+  const totalFactorySuppliesAnnual = useMemo(() => {
+    return (project.factorySupplies || []).reduce(
+      (sum, s) =>
+        sum +
+        (s.annualAmount !== undefined
+          ? s.annualAmount
+          : (s.quantity || 0) * (s.unitCost || 0)),
+      0
+    );
+  }, [project.factorySupplies]);
+
+  const factoryDepreciationYr1 = useMemo(() => {
+    const depreciationSchedule = calculateDepreciation(project);
+    if (project.factoryDepreciationMethod === 'specific_assets' && project.factoryAssetIds) {
+      return depreciationSchedule
+        .filter((d) => project.factoryAssetIds?.includes(d.assetId))
+        .reduce((sum, d) => sum + (d.yearValues[0]?.depreciation || d.annualDepreciation), 0);
+    }
+    const totalYr1Depr = depreciationSchedule.reduce(
+      (sum, d) => sum + (d.yearValues[0]?.depreciation || d.annualDepreciation),
+      0
+    );
+    const fohDeprPercent =
+      project.factoryDepreciationPercent !== undefined
+        ? project.factoryDepreciationPercent
+        : 50;
+    return totalYr1Depr * (fohDeprPercent / 100);
+  }, [
+    project.fixedAssets,
+    project.factoryDepreciationMethod,
+    project.factoryAssetIds,
+    project.factoryDepreciationPercent,
+  ]);
+
+  const totalProductionLaborBenefitsAnnual = useMemo(() => {
+    if (project.includeLaborBenefitsInCOGS === false) return 0;
+    const benefits = project.productionLaborBenefits || [];
+    const directBasicAnnual12M = project.directLabor.reduce(
+      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0) * 12,
+      0
+    );
+    const indirectBasicAnnual12M = (project.indirectLabor || []).reduce(
+      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0) * 12,
+      0
+    );
+    const directHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+    const indirectHeadcount = (project.indirectLabor || []).reduce(
+      (sum, lab) => sum + (lab.headcount || 0),
+      0
+    );
+
+    let total = 0;
+    benefits.forEach((b) => {
+      const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
+      const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+
+      if (b.type === 'percentage') {
+        const rate = (b.rateOrAmount || 0) / 100;
+        if (appliesDirect) total += directBasicAnnual12M * rate;
+        if (appliesIndirect) total += indirectBasicAnnual12M * rate;
+      } else if (b.type === 'fixed_monthly_per_head') {
+        const monthly = b.rateOrAmount || 0;
+        if (appliesDirect) total += monthly * 12 * directHeadcount;
+        if (appliesIndirect) total += monthly * 12 * indirectHeadcount;
+      } else if (b.type === 'fixed_annual') {
+        const amt = b.rateOrAmount || 0;
+        total += amt;
+      }
+    });
+    return total;
+  }, [
+    project.productionLaborBenefits,
+    project.directLabor,
+    project.indirectLabor,
+    project.includeLaborBenefitsInCOGS,
+  ]);
+
+  const totalFactoryOverheadAnnual = useMemo(() => {
+    return (
+      totalIndirectLaborAnnual +
+      totalProductionUtilitiesAnnual +
+      totalFactorySuppliesAnnual +
+      factoryDepreciationYr1 +
+      totalProductionLaborBenefitsAnnual +
+      (project.factoryOverheadAnnual || 0)
+    );
+  }, [
+    totalIndirectLaborAnnual,
+    totalProductionUtilitiesAnnual,
+    totalFactorySuppliesAnnual,
+    factoryDepreciationYr1,
+    totalProductionLaborBenefitsAnnual,
+    project.factoryOverheadAnnual,
+  ]);
+
+  // Average volume-weighted FOH cost per unit
+  const volumeWeightedFohPerUnit = useMemo(() => {
+    if (totalYear1Volume <= 0 || totalFactoryOverheadAnnual <= 0) return 0;
+    return Math.round((totalFactoryOverheadAnnual / totalYear1Volume) * 100) / 100;
+  }, [totalFactoryOverheadAnnual, totalYear1Volume]);
+
+  // Compute FOH cost per unit for a specific product based on its mode
+  const getProductFohPerUnit = (prod: ProductItem): number => {
+    const mode = prod.fohCostMode || 'volume_share';
+    if (mode === 'custom') {
+      return prod.factoryOverheadCostPerUnit !== undefined
+        ? prod.factoryOverheadCostPerUnit
+        : volumeWeightedFohPerUnit;
+    }
+    // Default to volume_share
+    return volumeWeightedFohPerUnit;
+  };
+
   // Compute Direct Materials cost for active product
   const activeMaterialsBreakdown: ProductCostComponent[] = useMemo(() => {
     if (!activeProduct) return [];
@@ -243,10 +374,12 @@ export default function ProductCostingTab({
     if (activeProduct.rawMaterialsCostPerUnit !== undefined) {
       return activeProduct.rawMaterialsCostPerUnit;
     }
-    if (activeProduct.directLaborCostPerUnit !== undefined) {
-      return Math.max(0, activeProduct.unitCost - activeProduct.directLaborCostPerUnit);
-    }
-    return activeProduct.unitCost;
+    return Math.max(
+      0,
+      activeProduct.unitCost -
+        (activeProduct.directLaborCostPerUnit || 0) -
+        (activeProduct.factoryOverheadCostPerUnit || 0)
+    );
   }, [activeProduct, activeMaterialsBreakdown]);
 
   // Compute Direct Labor for active product
@@ -255,10 +388,20 @@ export default function ProductCostingTab({
     return getProductDlPerUnit(activeProduct);
   }, [activeProduct, volumeWeightedDlPerUnit]);
 
-  // Total Unit Cost for active product
+  // Compute Factory Overhead for active product (Requirement 1)
+  const activeFohSubtotal = useMemo(() => {
+    if (!activeProduct) return 0;
+    return getProductFohPerUnit(activeProduct);
+  }, [activeProduct, volumeWeightedFohPerUnit]);
+
+  // Total Unit Cost for active product: Full Absorption Costing (DM + DL + FOH)
   const activeTotalUnitCost = useMemo(() => {
-    return Math.round((activeMaterialsSubtotal + activeLaborSubtotal) * 100) / 100;
-  }, [activeMaterialsSubtotal, activeLaborSubtotal]);
+    return (
+      Math.round(
+        (activeMaterialsSubtotal + activeLaborSubtotal + activeFohSubtotal) * 100
+      ) / 100
+    );
+  }, [activeMaterialsSubtotal, activeLaborSubtotal, activeFohSubtotal]);
 
   // Active product margins
   const activeUnitPrice = activeProduct?.unitPrice || 0;
@@ -281,7 +424,8 @@ export default function ProductCostingTab({
     const matTotal =
       Math.round(normalized.reduce((s, c) => s + (c.totalCost || 0), 0) * 100) / 100;
     const dlCost = getProductDlPerUnit(activeProduct);
-    const combinedCost = Math.round((matTotal + dlCost) * 100) / 100;
+    const fohCost = getProductFohPerUnit(activeProduct);
+    const combinedCost = Math.round((matTotal + dlCost + fohCost) * 100) / 100;
 
     const updated = project.products.map((p) => {
       if (p.id !== activeProduct.id) return p;
@@ -290,6 +434,7 @@ export default function ProductCostingTab({
         costBreakdown: normalized,
         rawMaterialsCostPerUnit: matTotal,
         directLaborCostPerUnit: dlCost,
+        factoryOverheadCostPerUnit: fohCost,
         unitCost: combinedCost,
       };
     });
@@ -335,7 +480,8 @@ export default function ProductCostingTab({
     if (!activeProduct) return;
     const safeVal = Math.max(0, val);
     const dlCost = getProductDlPerUnit(activeProduct);
-    const combined = Math.round((safeVal + dlCost) * 100) / 100;
+    const fohCost = getProductFohPerUnit(activeProduct);
+    const combined = Math.round((safeVal + dlCost + fohCost) * 100) / 100;
 
     const updated = project.products.map((p) => {
       if (p.id !== activeProduct.id) return p;
@@ -343,8 +489,8 @@ export default function ProductCostingTab({
         ...p,
         rawMaterialsCostPerUnit: safeVal,
         directLaborCostPerUnit: dlCost,
+        factoryOverheadCostPerUnit: fohCost,
         unitCost: combined,
-        // If they had no components, keep empty; if they had components, leave them or clear
       };
     });
     onUpdateProject({ ...project, products: updated });
@@ -369,7 +515,8 @@ export default function ProductCostingTab({
     }
 
     const matTotal = activeMaterialsSubtotal;
-    const combined = Math.round((matTotal + dlCost) * 100) / 100;
+    const fohCost = getProductFohPerUnit(activeProduct);
+    const combined = Math.round((matTotal + dlCost + fohCost) * 100) / 100;
 
     const updated = project.products.map((p) => {
       if (p.id !== activeProduct.id) return p;
@@ -377,6 +524,7 @@ export default function ProductCostingTab({
         ...p,
         dlCostMode: mode,
         directLaborCostPerUnit: dlCost,
+        factoryOverheadCostPerUnit: fohCost,
         rawMaterialsCostPerUnit: matTotal,
         unitCost: combined,
         laborMinutesPerUnit:
@@ -392,6 +540,40 @@ export default function ProductCostingTab({
     );
   };
 
+  // Update Factory Overhead allocation settings for active product (Requirement 1)
+  const handleUpdateFohMode = (
+    mode: 'volume_share' | 'custom',
+    customVal?: number
+  ) => {
+    if (!activeProduct) return;
+
+    let fohCost = volumeWeightedFohPerUnit;
+    if (mode === 'custom') {
+      fohCost = customVal !== undefined ? customVal : activeFohSubtotal;
+    }
+
+    const matTotal = activeMaterialsSubtotal;
+    const dlCost = getProductDlPerUnit(activeProduct);
+    const combined = Math.round((matTotal + dlCost + fohCost) * 100) / 100;
+
+    const updated = project.products.map((p) => {
+      if (p.id !== activeProduct.id) return p;
+      return {
+        ...p,
+        fohCostMode: mode,
+        factoryOverheadCostPerUnit: fohCost,
+        directLaborCostPerUnit: dlCost,
+        rawMaterialsCostPerUnit: matTotal,
+        unitCost: combined,
+      };
+    });
+
+    onUpdateProject({ ...project, products: updated });
+    showFeedback(
+      `Updated Factory Overhead allocation for ${activeProduct.name}: ${formatCurrency(fohCost, c, 2)}/unit`
+    );
+  };
+
   // Load a BOM preset
   const handleLoadPreset = (presetKey: string) => {
     if (!activeProduct) return;
@@ -402,23 +584,28 @@ export default function ProductCostingTab({
     showFeedback(`Loaded "${preset.label}" into ${activeProduct.name}!`);
   };
 
-  // Apply computed costs to ALL products in one click
+  // Apply computed DL to ALL products in one click
   const handleApplyDlToAllProducts = () => {
     if (project.products.length === 0) return;
     const updated = project.products.map((p) => {
       const dlUnit = volumeWeightedDlPerUnit;
+      const fohUnit = getProductFohPerUnit(p);
       const baseRaw =
         p.rawMaterialsCostPerUnit !== undefined
           ? p.rawMaterialsCostPerUnit
-          : p.directLaborCostPerUnit !== undefined
-          ? Math.max(0, p.unitCost - p.directLaborCostPerUnit)
-          : p.unitCost;
+          : Math.max(
+              0,
+              p.unitCost -
+                (p.directLaborCostPerUnit || 0) -
+                (p.factoryOverheadCostPerUnit || 0)
+            );
       return {
         ...p,
         dlCostMode: 'volume_share' as const,
         rawMaterialsCostPerUnit: baseRaw,
         directLaborCostPerUnit: dlUnit,
-        unitCost: Math.round((baseRaw + dlUnit) * 100) / 100,
+        factoryOverheadCostPerUnit: fohUnit,
+        unitCost: Math.round((baseRaw + dlUnit + fohUnit) * 100) / 100,
       };
     });
     onUpdateProject({ ...project, products: updated });
@@ -427,15 +614,78 @@ export default function ProductCostingTab({
     );
   };
 
+  // Apply computed Factory Overhead to ALL products in one click (Requirement 1)
+  const handleApplyFohToAllProducts = () => {
+    if (project.products.length === 0) return;
+    const fohUnit = volumeWeightedFohPerUnit;
+    const updated = project.products.map((p) => {
+      const dlUnit = getProductDlPerUnit(p);
+      const baseRaw =
+        p.rawMaterialsCostPerUnit !== undefined
+          ? p.rawMaterialsCostPerUnit
+          : Math.max(
+              0,
+              p.unitCost -
+                (p.directLaborCostPerUnit || 0) -
+                (p.factoryOverheadCostPerUnit || 0)
+            );
+      return {
+        ...p,
+        fohCostMode: 'volume_share' as const,
+        rawMaterialsCostPerUnit: baseRaw,
+        directLaborCostPerUnit: dlUnit,
+        factoryOverheadCostPerUnit: fohUnit,
+        unitCost: Math.round((baseRaw + dlUnit + fohUnit) * 100) / 100,
+      };
+    });
+    onUpdateProject({ ...project, products: updated });
+    showFeedback(
+      `Applied Factory Overhead (${formatCurrency(fohUnit, c, 2)}/unit) to all products!`
+    );
+  };
+
+  // Apply full costing (DL + FOH) to ALL products in one click
+  const handleApplyFullCostingToAllProducts = () => {
+    if (project.products.length === 0) return;
+    const dlUnit = volumeWeightedDlPerUnit;
+    const fohUnit = volumeWeightedFohPerUnit;
+    const updated = project.products.map((p) => {
+      const baseRaw =
+        p.rawMaterialsCostPerUnit !== undefined
+          ? p.rawMaterialsCostPerUnit
+          : Math.max(
+              0,
+              p.unitCost -
+                (p.directLaborCostPerUnit || 0) -
+                (p.factoryOverheadCostPerUnit || 0)
+            );
+      return {
+        ...p,
+        dlCostMode: 'volume_share' as const,
+        fohCostMode: 'volume_share' as const,
+        rawMaterialsCostPerUnit: baseRaw,
+        directLaborCostPerUnit: dlUnit,
+        factoryOverheadCostPerUnit: fohUnit,
+        unitCost: Math.round((baseRaw + dlUnit + fohUnit) * 100) / 100,
+      };
+    });
+    onUpdateProject({ ...project, products: updated });
+    showFeedback(
+      `Applied Full Costing (DL: ${formatCurrency(dlUnit, c, 2)} + FOH: ${formatCurrency(fohUnit, c, 2)}) to all products!`
+    );
+  };
+
   // Reset current product to base materials only
-  const handleResetActiveLabor = () => {
+  const handleResetActiveLaborAndFoh = () => {
     if (!activeProduct) return;
     const updated = project.products.map((p) => {
       if (p.id !== activeProduct.id) return p;
       return {
         ...p,
         dlCostMode: 'custom' as const,
+        fohCostMode: 'custom' as const,
         directLaborCostPerUnit: 0,
+        factoryOverheadCostPerUnit: 0,
         unitCost: activeMaterialsSubtotal,
       };
     });
@@ -445,15 +695,19 @@ export default function ProductCostingTab({
 
   // Add a new product directly from Costing tab
   const handleCreateProduct = () => {
+    const dlInit = volumeWeightedDlPerUnit > 0 ? volumeWeightedDlPerUnit : 15;
+    const fohInit = volumeWeightedFohPerUnit > 0 ? volumeWeightedFohPerUnit : 10;
+    const rawInit = 35;
     const newProd: ProductItem = {
       id: `p-${Date.now()}`,
       name: `Product ${project.products.length + 1}`,
       unitPrice: 150,
       year1Volume: 3000,
       annualGrowthRate: 8,
-      unitCost: 50,
-      rawMaterialsCostPerUnit: 35,
-      directLaborCostPerUnit: 15,
+      rawMaterialsCostPerUnit: rawInit,
+      directLaborCostPerUnit: dlInit,
+      factoryOverheadCostPerUnit: fohInit,
+      unitCost: rawInit + dlInit + fohInit,
       costBreakdown: [],
     };
     onUpdateProject({
@@ -461,7 +715,7 @@ export default function ProductCostingTab({
       products: [...project.products, newProd],
     });
     setSelectedProductId(newProd.id);
-    showFeedback(`Created "${newProd.name}"! Now build its material and labor costing.`);
+    showFeedback(`Created "${newProd.name}"! Now build its material, labor, and overhead costing.`);
   };
 
   // If no products exist yet
@@ -518,15 +772,31 @@ export default function ProductCostingTab({
           <button
             type="button"
             onClick={handleApplyDlToAllProducts}
-            className="px-3 py-1.5 text-xs bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs"
+            className="px-3 py-1.5 text-xs bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
             title="Automatically distribute Direct Labor payroll across all products based on volume"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" /> Apply DL to All Products
+            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" /> Apply DL to All
+          </button>
+          <button
+            type="button"
+            onClick={handleApplyFohToAllProducts}
+            className="px-3 py-1.5 text-xs bg-white hover:bg-purple-50 text-purple-900 border border-purple-200 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+            title="Automatically distribute Factory Overhead across all products based on volume"
+          >
+            <Factory className="w-3.5 h-3.5 text-purple-600" /> Apply FOH to All
+          </button>
+          <button
+            type="button"
+            onClick={handleApplyFullCostingToAllProducts}
+            className="px-3 py-1.5 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-xl font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+            title="Apply both Direct Labor and Factory Overhead absorption costing to all products in one click"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-700" /> Apply Full Costing (DL + FOH)
           </button>
           <button
             type="button"
             onClick={handleCreateProduct}
-            className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs"
+            className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" /> Add Product
           </button>
@@ -554,14 +824,6 @@ export default function ProductCostingTab({
         <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-none">
           {project.products.map((prod) => {
             const isSelected = activeProduct?.id === prod.id;
-            const dm =
-              prod.rawMaterialsCostPerUnit !== undefined
-                ? prod.rawMaterialsCostPerUnit
-                : prod.directLaborCostPerUnit !== undefined
-                ? Math.max(0, prod.unitCost - prod.directLaborCostPerUnit)
-                : prod.unitCost;
-            const dl = prod.directLaborCostPerUnit || 0;
-
             return (
               <button
                 key={prod.id}
@@ -591,9 +853,9 @@ export default function ProductCostingTab({
       {activeProduct && (
         <>
           {/* ---------------------------------------------------- */}
-          {/* TOP SUMMARY CARDS FOR ACTIVE PRODUCT                 */}
+          {/* TOP SUMMARY CARDS FOR ACTIVE PRODUCT (5 CARDS)       */}
           {/* ---------------------------------------------------- */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {/* Card 1: Direct Materials */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-slate-500 text-xs">
@@ -607,11 +869,11 @@ export default function ProductCostingTab({
               </div>
               <p className="text-[11px] text-slate-500">
                 {activeMaterialsBreakdown.length > 0
-                  ? `${activeMaterialsBreakdown.length} itemized component${activeMaterialsBreakdown.length > 1 ? 's' : ''}`
-                  : 'Direct base raw material cost'}
+                  ? `${activeMaterialsBreakdown.length} component${activeMaterialsBreakdown.length > 1 ? 's' : ''}`
+                  : 'Direct base raw material'}
                 {activeTotalUnitCost > 0 && (
                   <span className="text-amber-700 font-bold ml-1">
-                    ({((activeMaterialsSubtotal / activeTotalUnitCost) * 100).toFixed(0)}% of cost)
+                    ({((activeMaterialsSubtotal / activeTotalUnitCost) * 100).toFixed(0)}%)
                   </span>
                 )}
               </p>
@@ -629,19 +891,40 @@ export default function ProductCostingTab({
                 {formatCurrency(activeLaborSubtotal, c, 2)}
               </div>
               <p className="text-[11px] text-slate-500">
-                Allocated from {totalDirectLaborHeadcount} staff wages
+                {totalDirectLaborHeadcount} staff wages
                 {activeTotalUnitCost > 0 && (
                   <span className="text-indigo-700 font-bold ml-1">
-                    ({((activeLaborSubtotal / activeTotalUnitCost) * 100).toFixed(0)}% of cost)
+                    ({((activeLaborSubtotal / activeTotalUnitCost) * 100).toFixed(0)}%)
                   </span>
                 )}
               </p>
             </div>
 
-            {/* Card 3: Total Unit Cost */}
+            {/* Card 3: Factory Overhead (Requirement 1) */}
+            <div className="bg-white border border-purple-200 rounded-2xl p-4 shadow-2xs space-y-1">
+              <div className="flex items-center justify-between text-slate-500 text-xs">
+                <span className="font-semibold uppercase tracking-wider text-[10px] text-purple-900">3. Factory Overhead</span>
+                <span className="p-1 bg-purple-50 text-purple-700 rounded-md">
+                  <Factory className="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="text-xl font-bold font-financial text-purple-700">
+                {formatCurrency(activeFohSubtotal, c, 2)}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Indirect plant cost
+                {activeTotalUnitCost > 0 && (
+                  <span className="text-purple-700 font-bold ml-1">
+                    ({((activeFohSubtotal / activeTotalUnitCost) * 100).toFixed(0)}%)
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Card 4: Total Cost / Unit (COGS) */}
             <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white border border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-indigo-200 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">Total Cost / Unit (COGS)</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Cost / Unit (COGS)</span>
                 <span className="p-1 bg-indigo-800/60 text-indigo-200 rounded-md">
                   <Calculator className="w-3.5 h-3.5" />
                 </span>
@@ -649,27 +932,32 @@ export default function ProductCostingTab({
               <div className="text-2xl font-bold font-financial text-emerald-400">
                 {formatCurrency(activeTotalUnitCost, c, 2)}
               </div>
-              <p className="text-[11px] text-indigo-200/80">
-                = Direct Materials + Direct Labor
+              <p className="text-[10px] text-indigo-200/80">
+                = DM + DL + FOH
               </p>
             </div>
 
-            {/* Card 4: Selling Price & Margin */}
+            {/* Card 5: Selling Price & Margin */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-slate-500 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">Price & Unit Margin</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Price & Margin</span>
                 <span className="p-1 bg-emerald-50 text-emerald-700 rounded-md">
                   <TrendingUp className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="text-xl font-bold font-financial text-slate-900 flex items-baseline gap-2">
                 <span>{formatCurrency(activeUnitPrice, c, 2)}</span>
-                <span className={`text-xs font-semibold ${activeUnitMargin >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                <span
+                  className={`text-xs font-bold font-financial ${
+                    activeUnitMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                  }`}
+                >
                   +{formatCurrency(activeUnitMargin, c, 2)}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Margin: <strong className="text-slate-800">{activeMarginPercent.toFixed(1)}%</strong> | Markup: <strong className="text-slate-800">{activeMarkupPercent.toFixed(1)}%</strong>
+                Margin: <strong className="text-emerald-700">{activeMarginPercent.toFixed(1)}%</strong>
+                {activeMarkupPercent > 0 && ` • Markup: ${activeMarkupPercent.toFixed(1)}%`}
               </p>
             </div>
           </div>
@@ -706,25 +994,22 @@ export default function ProductCostingTab({
 
                 <button
                   type="button"
-                  id="btn-copy-previous-product-materials"
-                  onClick={handleOpenCopyModal}
-                  disabled={!previousProduct}
+                  id="btn-copy-product-materials"
+                  onClick={() => handleOpenCopyModal()}
+                  disabled={availableSourceProducts.length === 0}
                   title={
-                    previousProduct
-                      ? `Copy raw material components from previous product (${previousProduct.name})`
-                      : 'No previous product in the list (this is the first product)'
+                    availableSourceProducts.length > 0
+                      ? 'Choose which product material costing you want to copy'
+                      : 'No other products in the study to copy from'
                   }
                   className={`px-3 py-1.5 text-xs rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs ${
-                    previousProduct
+                    availableSourceProducts.length > 0
                       ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 cursor-pointer'
                       : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
                   }`}
                 >
                   <Copy className="w-3.5 h-3.5 text-amber-700" />
-                  <span>
-                    Copy from Previous Product
-                    {previousProduct ? ` (${previousProduct.name})` : ''}
-                  </span>
+                  <span>Copy Costing from Product...</span>
                 </button>
               </div>
             </div>
@@ -756,14 +1041,14 @@ export default function ProductCostingTab({
                   >
                     <Plus className="w-3.5 h-3.5" /> Start Itemized BOM Table
                   </button>
-                  {previousProduct && (
+                  {availableSourceProducts.length > 0 && (
                     <button
                       type="button"
                       id="btn-empty-state-copy-materials"
-                      onClick={handleOpenCopyModal}
+                      onClick={() => handleOpenCopyModal()}
                       className="px-3 py-1.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
                     >
-                      <Copy className="w-3.5 h-3.5 text-amber-700" /> Copy Materials from {previousProduct.name}
+                      <Copy className="w-3.5 h-3.5 text-amber-700" /> Copy Costing from Product...
                     </button>
                   )}
                 </div>
@@ -1174,6 +1459,163 @@ export default function ProductCostingTab({
           </div>
 
           {/* ---------------------------------------------------- */}
+          {/* STEP 3: FACTORY OVERHEAD ALLOCATION (Requirement 1)  */}
+          {/* ---------------------------------------------------- */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-purple-100 text-purple-800 rounded-lg">
+                    <Factory className="w-4 h-4" />
+                  </span>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Step 3: Factory Overhead Allocation (COGS / Unit)
+                  </h4>
+                  <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {formatCurrency(activeFohSubtotal, c, 2)} / unit
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Full Absorption Costing: Allocate indirect manufacturing overhead (utilities, plant supplies, indirect wages, plant depreciation) into finished goods unit cost.
+                </p>
+              </div>
+
+              {/* Quick Link to Tab 5 Factory Overhead */}
+              <button
+                type="button"
+                onClick={() => onNavigateToTab('factoryOverhead')}
+                className="px-3 py-1.5 text-xs bg-slate-50 hover:bg-purple-50 text-purple-700 border border-purple-200 rounded-xl font-medium flex items-center gap-1.5 transition self-start sm:self-auto cursor-pointer"
+              >
+                <Factory className="w-3.5 h-3.5" /> Manage Plant Overhead & Utilities in Tab 5 →
+              </button>
+            </div>
+
+            {/* Factory Overhead Source Information Banner */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-purple-50/40 border border-purple-100 rounded-xl p-3 text-xs">
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  Factory Overhead Budget (Yr 1)
+                </span>
+                <span className="text-sm font-bold font-financial text-purple-900">
+                  {formatCurrency(totalFactoryOverheadAnnual, c)}
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  Indirect Labor, Utilities, Supplies & Plant Depreciation
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  Total Production Volume
+                </span>
+                <span className="text-sm font-bold font-financial text-slate-900">
+                  {totalYear1Volume.toLocaleString()} units
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  Across all {project.products.length} products
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
+                  Volume-Weighted FOH Benchmark
+                </span>
+                <span className="text-sm font-bold font-financial text-purple-700">
+                  {formatCurrency(volumeWeightedFohPerUnit, c, 2)}
+                  <span className="text-xs font-normal text-slate-500"> / unit</span>
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  = Total Factory Overhead ÷ Total Volume
+                </span>
+              </div>
+            </div>
+
+            {/* Allocation Method Selector */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                  Choose Factory Overhead Allocation Method for {activeProduct.name}:
+                </label>
+                <button
+                  type="button"
+                  onClick={handleApplyFohToAllProducts}
+                  className="text-xs text-purple-700 hover:text-purple-900 font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Apply this benchmark to all products
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Option 1: Volume Share */}
+                <div
+                  onClick={() => handleUpdateFohMode('volume_share')}
+                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
+                    (activeProduct.fohCostMode || 'volume_share') === 'volume_share'
+                      ? 'border-purple-600 bg-purple-50/50 ring-1 ring-purple-600'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-purple-600" />
+                      Volume-Weighted Share (Standard Absorption Costing)
+                    </span>
+                    {(activeProduct.fohCostMode || 'volume_share') === 'volume_share' && (
+                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px]">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Distributes total annual plant overhead evenly across all units manufactured. Standard textbook methodology for feasibility defense.
+                  </p>
+                  <div className="text-sm font-bold font-financial text-purple-700">
+                    {formatCurrency(volumeWeightedFohPerUnit, c, 2)} / unit
+                  </div>
+                </div>
+
+                {/* Option 2: Custom Fixed Rate */}
+                <div
+                  onClick={() => handleUpdateFohMode('custom', activeFohSubtotal)}
+                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
+                    activeProduct.fohCostMode === 'custom'
+                      ? 'border-purple-600 bg-purple-50/50 ring-1 ring-purple-600'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-purple-600" />
+                      Custom Fixed FOH Rate
+                    </span>
+                    {activeProduct.fohCostMode === 'custom' && (
+                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px]">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Specify an exact factory overhead peso amount per finished unit for this product.
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400 font-bold">{c}</span>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={activeProduct.factoryOverheadCostPerUnit ?? activeFohSubtotal}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        handleUpdateFohMode('custom', val);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-24 font-financial font-bold text-xs text-slate-900 border border-slate-300 rounded-lg px-2 py-1 focus:outline-purple-500 bg-white"
+                    />
+                    <span className="text-xs text-slate-500">/ unit</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ---------------------------------------------------- */}
           {/* SECTION C: COST ROLLUP & UNIT ECONOMICS SHEET        */}
           {/* ---------------------------------------------------- */}
           <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 sm:p-6 shadow-md space-y-4">
@@ -1184,7 +1626,7 @@ export default function ProductCostingTab({
                   Unit Cost Synthesis: {activeProduct.name}
                 </h4>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Academic Cost of Goods Sold (COGS) Schedule per finished unit.
+                  Academic Cost of Goods Sold (COGS) Schedule per finished unit under Full Absorption Costing (DM + DL + FOH).
                 </p>
               </div>
 
@@ -1215,7 +1657,7 @@ export default function ProductCostingTab({
                 <tbody className="divide-y divide-slate-700/60">
                   <tr>
                     <td className="p-3 font-medium text-slate-200">
-                      Direct Materials & Packaging
+                      1. Direct Materials & Packaging
                     </td>
                     <td className="p-3 text-right font-financial font-bold text-amber-300">
                       {formatCurrency(activeMaterialsSubtotal, c, 2)}
@@ -1231,7 +1673,7 @@ export default function ProductCostingTab({
                   </tr>
                   <tr>
                     <td className="p-3 font-medium text-slate-200">
-                      Direct Labor Cost
+                      2. Direct Labor Cost
                     </td>
                     <td className="p-3 text-right font-financial font-bold text-indigo-300">
                       {formatCurrency(activeLaborSubtotal, c, 2)}
@@ -1245,10 +1687,26 @@ export default function ProductCostingTab({
                       {formatCurrency(activeLaborSubtotal * activeProduct.year1Volume, c)}
                     </td>
                   </tr>
+                  <tr>
+                    <td className="p-3 font-medium text-slate-200">
+                      3. Factory Overhead (FOH)
+                    </td>
+                    <td className="p-3 text-right font-financial font-bold text-purple-300">
+                      {formatCurrency(activeFohSubtotal, c, 2)}
+                    </td>
+                    <td className="p-3 text-right font-financial text-slate-400">
+                      {activeTotalUnitCost > 0
+                        ? `${((activeFohSubtotal / activeTotalUnitCost) * 100).toFixed(1)}%`
+                        : '0%'}
+                    </td>
+                    <td className="p-3 text-right font-financial text-slate-300">
+                      {formatCurrency(activeFohSubtotal * activeProduct.year1Volume, c)}
+                    </td>
+                  </tr>
                 </tbody>
                 <tfoot className="bg-slate-900 border-t-2 border-slate-600 font-bold">
                   <tr>
-                    <td className="p-3 text-white">Total Cost of Goods Sold / Unit</td>
+                    <td className="p-3 text-white">Total Cost of Goods Sold / Unit (COGS)</td>
                     <td className="p-3 text-right font-financial text-emerald-400 text-sm">
                       {formatCurrency(activeTotalUnitCost, c, 2)}
                     </td>
@@ -1281,14 +1739,14 @@ export default function ProductCostingTab({
                   All Products Costing & Margin Comparative Matrix
                 </h4>
                 <p className="text-xs text-slate-500">
-                  Overview of all products in the study, their direct materials, labor, and unit gross margins.
+                  Full absorption costing overview of all products in the study: Direct Materials + Direct Labor + Factory Overhead = Total Cost of Goods Sold.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => onNavigateToTab('sales')}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 transition self-start sm:self-auto"
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 transition self-start sm:self-auto cursor-pointer"
               >
                 <span>Edit Selling Prices & Volumes in Tab 2</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -1303,6 +1761,7 @@ export default function ProductCostingTab({
                     <th className="p-3 text-right">Selling Price</th>
                     <th className="p-3 text-right">Direct Materials</th>
                     <th className="p-3 text-right">Direct Labor</th>
+                    <th className="p-3 text-right">Factory Overhead</th>
                     <th className="p-3 text-right font-bold text-slate-900">Total Unit Cost</th>
                     <th className="p-3 text-right">Unit Margin</th>
                     <th className="p-3 text-right">Margin %</th>
@@ -1314,13 +1773,14 @@ export default function ProductCostingTab({
                 <tbody className="divide-y divide-slate-100">
                   {project.products.map((p) => {
                     const dl = getProductDlPerUnit(p);
+                    const foh = getProductFohPerUnit(p);
                     const dm =
                       p.rawMaterialsCostPerUnit !== undefined
                         ? p.rawMaterialsCostPerUnit
                         : p.directLaborCostPerUnit !== undefined
-                        ? Math.max(0, p.unitCost - p.directLaborCostPerUnit)
+                        ? Math.max(0, p.unitCost - p.directLaborCostPerUnit - (p.factoryOverheadCostPerUnit || 0))
                         : p.unitCost;
-                    const totalCost = Math.round((dm + dl) * 100) / 100;
+                    const totalCost = Math.round((dm + dl + foh) * 100) / 100;
                     const margin = p.unitPrice - totalCost;
                     const marginPct = p.unitPrice > 0 ? (margin / p.unitPrice) * 100 : 0;
                     const totalCogs = totalCost * p.year1Volume;
@@ -1350,6 +1810,9 @@ export default function ProductCostingTab({
                         <td className="p-3 text-right font-financial text-indigo-700">
                           {formatCurrency(dl, c, 2)}
                         </td>
+                        <td className="p-3 text-right font-financial text-purple-700">
+                          {formatCurrency(foh, c, 2)}
+                        </td>
                         <td className="p-3 text-right font-financial font-bold text-slate-900">
                           {formatCurrency(totalCost, c, 2)}
                         </td>
@@ -1373,7 +1836,7 @@ export default function ProductCostingTab({
                           <button
                             type="button"
                             onClick={() => setSelectedProductId(p.id)}
-                            className="px-2.5 py-1 text-[11px] bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-lg font-semibold transition"
+                            className="px-2.5 py-1 text-[11px] bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-lg font-semibold transition cursor-pointer"
                           >
                             Cost Sheet
                           </button>
@@ -1430,21 +1893,21 @@ export default function ProductCostingTab({
               {/* Source Product Selector */}
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                  Select Source Product to Copy From:
+                  Select Source Product to Copy Costing From:
                 </label>
-                {precedingProducts.length > 1 ? (
+                {availableSourceProducts.length > 1 ? (
                   <select
                     id="select-copy-source-product"
                     value={selectedSourceProduct.id}
                     onChange={(e) => setCopySourceProductId(e.target.value)}
-                    className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer"
                   >
-                    {precedingProducts.map((prod, idx) => {
+                    {availableSourceProducts.map((prod) => {
                       const comps = getSourceComponents(prod);
-                      const isPrev = idx === precedingProducts.length - 1;
+                      const matTotal = comps.reduce((sum, c) => sum + (c.totalCost || 0), 0);
                       return (
                         <option key={prod.id} value={prod.id}>
-                          {prod.name} {isPrev ? '(Previous Product)' : ''} — {comps.length} item(s)
+                          {prod.name} — {comps.length} component(s) ({formatCurrency(matTotal, c, 2)} / unit)
                         </option>
                       );
                     })}
@@ -1455,9 +1918,6 @@ export default function ProductCostingTab({
                       <Package className="w-4 h-4 text-slate-500" />
                       <span className="text-xs font-bold text-slate-800">
                         {selectedSourceProduct.name}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        (Previous Product)
                       </span>
                     </div>
                     <span className="text-xs font-financial font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
