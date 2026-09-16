@@ -23,6 +23,8 @@ import {
   HelpCircle,
   RotateCcw,
   Check,
+  Copy,
+  X,
 } from 'lucide-react';
 
 interface ProductCostingTabProps {
@@ -74,6 +76,99 @@ export default function ProductCostingTab({
   const showFeedback = (msg: string) => {
     setFeedbackMessage(msg);
     setTimeout(() => setFeedbackMessage(null), 3500);
+  };
+
+  // Previous product calculation & copy states
+  const activeProductIndex = useMemo(() => {
+    if (!activeProduct) return -1;
+    return project.products.findIndex((p) => p.id === activeProduct.id);
+  }, [project.products, activeProduct]);
+
+  const previousProduct: ProductItem | null = useMemo(() => {
+    if (activeProductIndex > 0) {
+      return project.products[activeProductIndex - 1];
+    }
+    return null;
+  }, [project.products, activeProductIndex]);
+
+  const precedingProducts: ProductItem[] = useMemo(() => {
+    if (activeProductIndex > 0) {
+      return project.products.slice(0, activeProductIndex);
+    }
+    return [];
+  }, [project.products, activeProductIndex]);
+
+  // Copy modal states
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [copySourceProductId, setCopySourceProductId] = useState<string>('');
+  const [copyMode, setCopyMode] = useState<'replace' | 'append'>('replace');
+
+  // Selected source product for modal
+  const selectedSourceProduct: ProductItem | null = useMemo(() => {
+    if (!copySourceProductId && previousProduct) return previousProduct;
+    return project.products.find((p) => p.id === copySourceProductId) || previousProduct;
+  }, [project.products, copySourceProductId, previousProduct]);
+
+  // Helper to retrieve raw material & BOM components from any product
+  const getSourceComponents = (sourceProd: ProductItem): ProductCostComponent[] => {
+    if (sourceProd.costBreakdown && sourceProd.costBreakdown.length > 0) {
+      return sourceProd.costBreakdown;
+    }
+    const flatCost =
+      sourceProd.rawMaterialsCostPerUnit !== undefined
+        ? sourceProd.rawMaterialsCostPerUnit
+        : sourceProd.directLaborCostPerUnit !== undefined
+        ? Math.max(0, sourceProd.unitCost - sourceProd.directLaborCostPerUnit)
+        : sourceProd.unitCost;
+    if (flatCost > 0) {
+      return [
+        {
+          id: `comp-flat-${sourceProd.id}`,
+          category: 'Raw Materials & Ingredients',
+          name: `${sourceProd.name} Direct Materials`,
+          costMode: 'direct_unit',
+          quantity: 1,
+          unit: 'unit',
+          unitCost: flatCost,
+          totalCost: flatCost,
+        },
+      ];
+    }
+    return [];
+  };
+
+  const handleOpenCopyModal = () => {
+    if (!previousProduct) return;
+    setCopySourceProductId(previousProduct.id);
+    setCopyMode(activeMaterialsBreakdown.length > 0 ? 'replace' : 'replace');
+    setIsCopyModalOpen(true);
+  };
+
+  const handleExecuteCopy = () => {
+    if (!activeProduct || !selectedSourceProduct) return;
+    const sourceComps = getSourceComponents(selectedSourceProduct);
+    if (sourceComps.length === 0) {
+      showFeedback(`No components found to copy from "${selectedSourceProduct.name}".`);
+      setIsCopyModalOpen(false);
+      return;
+    }
+
+    const cloned: ProductCostComponent[] = sourceComps.map((comp) => ({
+      ...comp,
+      id: `comp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      totalCost: computeItemTotalCost(comp),
+    }));
+
+    const finalComponents =
+      copyMode === 'append' ? [...activeMaterialsBreakdown, ...cloned] : cloned;
+
+    handleUpdateComponents(finalComponents);
+    setIsCopyModalOpen(false);
+    showFeedback(
+      copyMode === 'append'
+        ? `Appended ${cloned.length} component(s) from "${selectedSourceProduct.name}"!`
+        : `Copied ${cloned.length} raw material component(s) from "${selectedSourceProduct.name}"!`
+    );
   };
 
   // Helper to compute individual material cost
@@ -598,14 +693,38 @@ export default function ProductCostingTab({
                 </div>
               </div>
 
-              {/* Add Component */}
+              {/* Add Component and Copy from Previous Product Buttons */}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
+                  id="btn-add-material-component"
                   onClick={handleAddComponent}
-                  className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs"
+                  className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Material / Component
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-copy-previous-product-materials"
+                  onClick={handleOpenCopyModal}
+                  disabled={!previousProduct}
+                  title={
+                    previousProduct
+                      ? `Copy raw material components from previous product (${previousProduct.name})`
+                      : 'No previous product in the list (this is the first product)'
+                  }
+                  className={`px-3 py-1.5 text-xs rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs ${
+                    previousProduct
+                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <Copy className="w-3.5 h-3.5 text-amber-700" />
+                  <span>
+                    Copy from Previous Product
+                    {previousProduct ? ` (${previousProduct.name})` : ''}
+                  </span>
                 </button>
               </div>
             </div>
@@ -637,6 +756,16 @@ export default function ProductCostingTab({
                   >
                     <Plus className="w-3.5 h-3.5" /> Start Itemized BOM Table
                   </button>
+                  {previousProduct && (
+                    <button
+                      type="button"
+                      id="btn-empty-state-copy-materials"
+                      onClick={handleOpenCopyModal}
+                      className="px-3 py-1.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-amber-700" /> Copy Materials from {previousProduct.name}
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1257,6 +1386,212 @@ export default function ProductCostingTab({
             </div>
           </div>
         </>
+      )}
+
+      {/* COPY RAW MATERIALS MODAL */}
+      {isCopyModalOpen && selectedSourceProduct && activeProduct && (
+        <div
+          id="modal-copy-materials-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+          onClick={() => setIsCopyModalOpen(false)}
+        >
+          <div
+            id="modal-copy-materials"
+            className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                  <Copy className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Copy Raw Material Components
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Target Product: <strong className="text-indigo-600">{activeProduct.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="btn-close-copy-modal"
+                onClick={() => setIsCopyModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+              {/* Source Product Selector */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                  Select Source Product to Copy From:
+                </label>
+                {precedingProducts.length > 1 ? (
+                  <select
+                    id="select-copy-source-product"
+                    value={selectedSourceProduct.id}
+                    onChange={(e) => setCopySourceProductId(e.target.value)}
+                    className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    {precedingProducts.map((prod, idx) => {
+                      const comps = getSourceComponents(prod);
+                      const isPrev = idx === precedingProducts.length - 1;
+                      return (
+                        <option key={prod.id} value={prod.id}>
+                          {prod.name} {isPrev ? '(Previous Product)' : ''} — {comps.length} item(s)
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-slate-500" />
+                      <span className="text-xs font-bold text-slate-800">
+                        {selectedSourceProduct.name}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        (Previous Product)
+                      </span>
+                    </div>
+                    <span className="text-xs font-financial font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      {getSourceComponents(selectedSourceProduct).length} component{getSourceComponents(selectedSourceProduct).length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Selection if existing components exist */}
+              {activeMaterialsBreakdown.length > 0 && (
+                <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 space-y-2">
+                  <div className="text-xs font-semibold text-indigo-950">
+                    Existing Components in {activeProduct.name}:
+                  </div>
+                  <p className="text-[11px] text-indigo-900/80">
+                    This product already has <strong className="text-indigo-950">{activeMaterialsBreakdown.length}</strong> component(s). How should copied components be applied?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <label
+                      className={`flex items-start gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                        copyMode === 'replace'
+                          ? 'bg-white border-indigo-600 ring-1 ring-indigo-600 font-semibold text-indigo-950 shadow-2xs'
+                          : 'bg-white/60 border-slate-200 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        id="radio-copy-mode-replace"
+                        name="copyMode"
+                        checked={copyMode === 'replace'}
+                        onChange={() => setCopyMode('replace')}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <div>Replace Existing</div>
+                        <div className="text-[10px] text-slate-500 font-normal">
+                          Overwrite all {activeMaterialsBreakdown.length} current components
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-start gap-2 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                        copyMode === 'append'
+                          ? 'bg-white border-indigo-600 ring-1 ring-indigo-600 font-semibold text-indigo-950 shadow-2xs'
+                          : 'bg-white/60 border-slate-200 text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        id="radio-copy-mode-append"
+                        name="copyMode"
+                        checked={copyMode === 'append'}
+                        onChange={() => setCopyMode('append')}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <div>Append / Add</div>
+                        <div className="text-[10px] text-slate-500 font-normal">
+                          Keep current items and add copied components
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview of components to be copied */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Components to Copy ({getSourceComponents(selectedSourceProduct).length}):
+                  </span>
+                  <span className="text-xs font-bold font-financial text-slate-900">
+                    Total: {formatCurrency(
+                      getSourceComponents(selectedSourceProduct).reduce((sum, comp) => sum + (comp.totalCost || 0), 0),
+                      c,
+                      2
+                    )} / unit
+                  </span>
+                </div>
+
+                {getSourceComponents(selectedSourceProduct).length === 0 ? (
+                  <div className="p-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 text-amber-900 text-xs text-center">
+                    "{selectedSourceProduct.name}" does not have any itemized raw materials or base material cost.
+                  </div>
+                ) : (
+                  <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/40">
+                    {getSourceComponents(selectedSourceProduct).map((item, i) => (
+                      <div key={i} className="p-2.5 text-xs flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-800 truncate">{item.name}</div>
+                          <div className="text-[10px] text-slate-500">
+                            {item.category} • {item.costMode === 'package_yield' ? `Bulk yield (${item.packageQuantity || 1} ${item.packageUnit || 'pkg'} ÷ ${item.yieldUnits || 1})` : `${item.quantity} ${item.unit} @ ${formatCurrency(item.unitCost, c, 2)}`}
+                          </div>
+                        </div>
+                        <div className="font-financial font-bold text-slate-900 whitespace-nowrap">
+                          {formatCurrency(item.totalCost, c, 2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                id="btn-cancel-copy-materials"
+                onClick={() => setIsCopyModalOpen(false)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-copy-materials"
+                onClick={handleExecuteCopy}
+                disabled={getSourceComponents(selectedSourceProduct).length === 0}
+                className="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl shadow-2xs flex items-center gap-1.5 transition cursor-pointer disabled:cursor-not-allowed"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>
+                  {copyMode === 'append' ? 'Append' : 'Copy'}{' '}
+                  {getSourceComponents(selectedSourceProduct).length} Component
+                  {getSourceComponents(selectedSourceProduct).length === 1 ? '' : 's'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -224,7 +224,7 @@ export default function AssumptionsEditor({
     onUpdateProject({ ...project, includeLaborBenefitsInCOGS: include });
   };
 
-  const [showSuppliesModal, setShowSuppliesModal] = useState<boolean>(false);
+  const [showSuppliesList, setShowSuppliesList] = useState<boolean>(false);
   const [suppliesSyncFeedback, setSuppliesSyncFeedback] = useState<string | null>(null);
   const [benefitsFeedback, setBenefitsFeedback] = useState<string | null>(null);
   const [benefitsEmployeeFilter, setBenefitsEmployeeFilter] = useState<'factory_overhead' | 'direct_labor' | 'all'>('factory_overhead');

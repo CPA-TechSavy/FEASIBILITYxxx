@@ -52,9 +52,11 @@ export interface ProductItem {
   unitPrice: number;
   year1Volume: number;
   annualGrowthRate: number; // In percent e.g. 8 for 8%
-  unitCost: number; // Direct material/cost per unit
-  directLaborCostPerUnit?: number; // Direct Labor component added per unit
-  rawMaterialsCostPerUnit?: number; // Base Direct Materials/Supplies component per unit
+  unitCost: number; // Total Cost per unit (Direct Materials + Direct Labor + Factory Overhead)
+  directLaborCostPerUnit?: number; // Direct Labor component per unit
+  rawMaterialsCostPerUnit?: number; // Direct Materials component per unit
+  factoryOverheadCostPerUnit?: number; // Factory Overhead component per unit
+  fohCostMode?: 'volume_share' | 'custom'; // Mode for FOH allocation
   costBreakdown?: ProductCostComponent[];
   laborMinutesPerUnit?: number;
   laborHourlyRate?: number;

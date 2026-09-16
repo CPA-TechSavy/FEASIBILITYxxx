@@ -232,9 +232,12 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       const sales = volume * prod.unitPrice;
       const rawCost = prod.rawMaterialsCostPerUnit !== undefined
         ? prod.rawMaterialsCostPerUnit
-        : prod.directLaborCostPerUnit !== undefined
-          ? Math.max(0, prod.unitCost - prod.directLaborCostPerUnit)
-          : prod.unitCost;
+        : Math.max(
+            0,
+            prod.unitCost -
+              (prod.directLaborCostPerUnit || 0) -
+              (prod.factoryOverheadCostPerUnit || 0)
+          );
       const dm = volume * rawCost;
 
       grossSales += sales;
@@ -311,6 +314,15 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       });
     }
 
+    let factorySuppliesTotal = 0;
+    if (project.factorySupplies && project.factorySupplies.length > 0) {
+      project.factorySupplies.forEach((sup) => {
+        const amt = sup.annualAmount !== undefined ? sup.annualAmount : (sup.quantity || 0) * (sup.unitCost || 0);
+        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
+        factorySuppliesTotal += amt * inflationFactor;
+      });
+    }
+
     const otherFactoryOverhead =
       (project.factoryOverheadAnnual || 0) * Math.pow(1 + (project.factoryOverheadGrowthRate || 0) / 100, yr - 1);
 
@@ -318,6 +330,7 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     const factoryOverhead =
       indirectLaborTotal +
       productionUtilitiesTotal +
+      factorySuppliesTotal +
       otherFactoryOverhead +
       (includeBenefitsInCOGS ? factoryLaborBenefits : 0);
 
@@ -721,4 +734,138 @@ export function formatCurrency(
 export function formatPercent(value: number, decimals: number = 1): string {
   if (isNaN(value)) return '0.0%';
   return `${value.toFixed(decimals)}%`;
+}
+
+export interface Year1FactoryOverheadSummary {
+  indirectLaborAnnual: number;
+  productionUtilitiesAnnual: number;
+  factorySuppliesAnnual: number;
+  otherFactoryOverheadAnnual: number;
+  factoryLaborBenefitsAnnual: number;
+  factoryDepreciationAnnual: number;
+  totalFactoryOverheadAnnual: number;
+  totalProductionVolume: number;
+  overheadPerUnit: number;
+}
+
+export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year1FactoryOverheadSummary {
+  // 1. Indirect labor
+  const indirectLaborAnnual = (project.indirectLabor || []).reduce(
+    (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.monthsPerYear || 12) * (lab.headcount || 1),
+    0
+  );
+
+  // 2. Production Utilities
+  const productionUtilitiesAnnual = (project.productionUtilities || []).reduce(
+    (sum, util) => sum + (util.annualAmountYear1 || 0),
+    0
+  );
+
+  // 3. Factory Supplies
+  const factorySuppliesAnnual = (project.factorySupplies || []).reduce(
+    (sum, sup) =>
+      sum +
+      (sup.annualAmount !== undefined
+        ? sup.annualAmount
+        : (sup.quantity || 0) * (sup.unitCost || 0)),
+    0
+  );
+
+  // 4. Other Factory Overhead
+  const otherFactoryOverheadAnnual = project.factoryOverheadAnnual || 0;
+
+  // 5. Factory Labor Benefits (if includeLaborBenefitsInCOGS !== false)
+  let factoryLaborBenefitsAnnual = 0;
+  if (
+    project.includeLaborBenefitsInCOGS !== false &&
+    project.productionLaborBenefits &&
+    project.productionLaborBenefits.length > 0
+  ) {
+    const dlMonthlyBasic = project.directLabor.reduce(
+      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
+      0
+    );
+    const dlAnnualBasic = dlMonthlyBasic * 12;
+    const dlHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+    const idlMonthlyBasic = (project.indirectLabor || []).reduce(
+      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
+      0
+    );
+    const idlAnnualBasic = idlMonthlyBasic * 12;
+    const idlHeadcount = (project.indirectLabor || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+    project.productionLaborBenefits.forEach((b) => {
+      const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
+      const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+
+      if (b.type === 'percentage') {
+        const rate = (b.rateOrAmount || 0) / 100;
+        if (appliesDirect) factoryLaborBenefitsAnnual += dlAnnualBasic * rate;
+        if (appliesIndirect) factoryLaborBenefitsAnnual += idlAnnualBasic * rate;
+      } else if (b.type === 'fixed_monthly_per_head') {
+        const monthly = b.rateOrAmount || 0;
+        if (appliesDirect) factoryLaborBenefitsAnnual += monthly * 12 * dlHeadcount;
+        if (appliesIndirect) factoryLaborBenefitsAnnual += monthly * 12 * idlHeadcount;
+      } else if (b.type === 'fixed_annual') {
+        const annualAmt = b.rateOrAmount || 0;
+        const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
+        if (totalHead > 0) {
+          factoryLaborBenefitsAnnual += annualAmt;
+        }
+      }
+    });
+  }
+
+  // 6. Factory Depreciation
+  const deprSchedule = calculateDepreciation(project);
+  let factoryDepreciationAnnual = 0;
+  if (project.factoryDepreciationMethod === 'specific_assets' && project.factoryAssetIds) {
+    deprSchedule.forEach((d) => {
+      const yr1Val = d.yearValues.find((y) => y.year === 1);
+      const depAmt = yr1Val ? yr1Val.depreciation : d.annualDepreciation;
+      if (project.factoryAssetIds?.includes(d.assetId)) {
+        factoryDepreciationAnnual += depAmt;
+      }
+    });
+  } else {
+    const fohDeprPercent =
+      project.factoryDepreciationPercent !== undefined
+        ? project.factoryDepreciationPercent
+        : 50;
+    const totalYr1Depr = deprSchedule.reduce((sum, d) => {
+      const yr1Val = d.yearValues.find((y) => y.year === 1);
+      return sum + (yr1Val ? yr1Val.depreciation : d.annualDepreciation);
+    }, 0);
+    factoryDepreciationAnnual = totalYr1Depr * (fohDeprPercent / 100);
+  }
+
+  const totalFactoryOverheadAnnual =
+    indirectLaborAnnual +
+    productionUtilitiesAnnual +
+    factorySuppliesAnnual +
+    otherFactoryOverheadAnnual +
+    factoryLaborBenefitsAnnual +
+    factoryDepreciationAnnual;
+
+  const totalProductionVolume = project.products.reduce(
+    (sum, p) => sum + (p.year1Volume || 0),
+    0
+  );
+  const overheadPerUnit =
+    totalProductionVolume > 0
+      ? Math.round((totalFactoryOverheadAnnual / totalProductionVolume) * 100) / 100
+      : 0;
+
+  return {
+    indirectLaborAnnual,
+    productionUtilitiesAnnual,
+    factorySuppliesAnnual,
+    otherFactoryOverheadAnnual,
+    factoryLaborBenefitsAnnual,
+    factoryDepreciationAnnual,
+    totalFactoryOverheadAnnual,
+    totalProductionVolume,
+    overheadPerUnit,
+  };
 }
