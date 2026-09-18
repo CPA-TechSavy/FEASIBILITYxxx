@@ -1,4 +1,13 @@
-import { FeasibilityProject } from '../types';
+import { FeasibilityProject, LaborBenefitItem } from '../types';
+
+export const DEFAULT_13TH_MONTH_PAY: LaborBenefitItem = {
+  id: 'benefit-13th-month-pay',
+  name: '13th Month Pay',
+  type: 'one_month_salary',
+  rateOrAmount: 1,
+  appliesTo: 'both',
+  notes: 'Mandatory 13th month pay equivalent to 1 month basic salary of all Direct and Indirect employees (PD 851)',
+};
 
 export const BLANK_PROJECT: FeasibilityProject = {
   id: 'feasibility-study',
@@ -39,7 +48,7 @@ export const BLANK_PROJECT: FeasibilityProject = {
   factoryDepreciationMethod: 'percentage',
   factoryAssetIds: [],
   factorySupplies: [],
-  productionLaborBenefits: [],
+  productionLaborBenefits: [DEFAULT_13TH_MONTH_PAY],
   includeLaborBenefitsInCOGS: true,
   factoryOverheadAnnual: 0,
   factoryOverheadGrowthRate: 0,

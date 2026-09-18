@@ -4,8 +4,77 @@ import {
   LoanAmortizationRow,
   DepreciationRow,
   FeasibilityMetrics,
+  LaborBenefitItem,
 } from '../types';
 import { compileProductionEmployeeBenefits } from './philippineBenefits';
+
+/**
+ * Calculates the annual cost of an additional/non-statutory labor benefit item.
+ * - 'one_month_salary' (or 13th Month Pay): equivalent to 1 month basic salary of direct and/or indirect employees.
+ * - 'percentage': % of annual basic salary.
+ * - 'fixed_monthly_per_head': monthly allowance per head * 12 * headcount.
+ * - 'fixed_annual': annual lump sum.
+ */
+export function calculateLaborBenefitAmount(
+  benefit: LaborBenefitItem,
+  directLaborWages: Array<{ monthlyWage: number; headcount: number }>,
+  indirectLaborWages: Array<{ monthlyWage: number; headcount: number }>,
+  inflationFactor: number = 1
+): number {
+  const appliesDirect = benefit.appliesTo === 'both' || benefit.appliesTo === 'direct_only';
+  const appliesIndirect = benefit.appliesTo === 'both' || benefit.appliesTo === 'indirect_only';
+
+  const dlMonthlyBasic = (directLaborWages || []).reduce(
+    (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
+    0
+  );
+  const dlAnnualBasic = dlMonthlyBasic * 12;
+  const dlHeadcount = (directLaborWages || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+  const idlMonthlyBasic = (indirectLaborWages || []).reduce(
+    (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
+    0
+  );
+  const idlAnnualBasic = idlMonthlyBasic * 12;
+  const idlHeadcount = (indirectLaborWages || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+
+  const isThirteenthMonth = (benefit.name || '').toLowerCase().includes('13th');
+
+  if (
+    benefit.type === 'one_month_salary' ||
+    (isThirteenthMonth && benefit.type !== 'fixed_monthly_per_head' && benefit.type !== 'fixed_annual')
+  ) {
+    const multiplier = benefit.type === 'one_month_salary' ? (benefit.rateOrAmount || 1) : 1;
+    let total = 0;
+    if (appliesDirect) total += dlMonthlyBasic * multiplier;
+    if (appliesIndirect) total += idlMonthlyBasic * multiplier;
+    return total;
+  }
+
+  if (benefit.type === 'percentage') {
+    const rate = (benefit.rateOrAmount || 0) / 100;
+    let total = 0;
+    if (appliesDirect) total += dlAnnualBasic * rate;
+    if (appliesIndirect) total += idlAnnualBasic * rate;
+    return total;
+  }
+
+  if (benefit.type === 'fixed_monthly_per_head') {
+    const monthly = (benefit.rateOrAmount || 0) * inflationFactor;
+    let total = 0;
+    if (appliesDirect) total += monthly * 12 * dlHeadcount;
+    if (appliesIndirect) total += monthly * 12 * idlHeadcount;
+    return total;
+  }
+
+  if (benefit.type === 'fixed_annual') {
+    const annualAmt = (benefit.rateOrAmount || 0) * inflationFactor;
+    const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
+    return totalHead > 0 ? annualAmt : 0;
+  }
+
+  return 0;
+}
 
 /**
  * Calculates depreciation schedule for all fixed assets using the chosen method:
@@ -194,6 +263,8 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     directMaterials: 0,
     directLabor: 0,
     factoryOverhead: 0,
+    factoryOverheadSuppliesAndUtilities: 0,
+    totalFactoryOverhead: 0,
     factoryDepreciation: 0,
     totalCOGS: 0,
     grossProfit: 0,
@@ -313,12 +384,18 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     if (project.productionUtilities && project.productionUtilities.length > 0) {
       project.productionUtilities.forEach((util) => {
         const growth = Math.pow(1 + (util.annualGrowthRate || 0) / 100, yr - 1);
-        productionUtilitiesTotal += (util.annualAmountYear1 || 0) * growth;
+        const annualBase =
+          util.annualAmountYear1 !== undefined && util.annualAmountYear1 !== 0
+            ? util.annualAmountYear1
+            : (util.monthlyAmount ? util.monthlyAmount * 12 : 0);
+        productionUtilitiesTotal += annualBase * growth;
       });
     }
 
     // Production Labor Benefits (Direct & Indirect)
     let factoryLaborBenefits = 0;
+    let productionStatutoryBenefits = 0;
+    let additionalNonStatutoryBenefits = 0;
     const includeBenefitsInCOGS = project.includeLaborBenefitsInCOGS !== false;
     if (includeBenefitsInCOGS) {
       // Project direct and indirect labor wages for year yr taking into account custom annual salary increase
@@ -348,75 +425,51 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
         projectedDl,
         projectedIdl
       );
-      factoryLaborBenefits += statSummary.totalStatutoryAnnual;
+      productionStatutoryBenefits = statSummary.totalStatutoryAnnual;
+      const thirteenthMonthPay = statSummary.totalThirteenthMonth;
+      factoryLaborBenefits += productionStatutoryBenefits + thirteenthMonthPay;
 
-      // Add any additional non-statutory benefits (e.g. 13th Month Pay, Uniforms, Allowances)
-      if (project.productionLaborBenefits && project.productionLaborBenefits.length > 0) {
-        const customBenefits = project.productionLaborBenefits.filter((b) => {
-          const n = (b.name || '').toLowerCase();
-          return (
-            !n.includes('sss') &&
-            !n.includes('social security') &&
-            !n.includes('philhealth') &&
-            !n.includes('pag-ibig') &&
-            !n.includes('hdmf')
-          );
-        });
+      // Add any additional non-statutory benefits (Uniforms, Allowances, etc.)
+      const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
+      const customBenefits = (project.productionLaborBenefits || []).filter((b) => {
+        const n = (b.name || '').toLowerCase();
+        return (
+          !n.includes('sss') &&
+          !n.includes('social security') &&
+          !n.includes('philhealth') &&
+          !n.includes('pag-ibig') &&
+          !n.includes('hdmf') &&
+          !n.includes('13th')
+        );
+      });
 
-        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
-        const dlMonthlyBasic = projectedDl.reduce((sum, lab) => {
-          return sum + (lab.monthlyWage || 0) * (lab.headcount || 0);
-        }, 0);
-        const dlAnnualBasic = dlMonthlyBasic * 12;
-        const dlHeadcount = projectedDl.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
+      customBenefits.forEach((b) => {
+        const amt = calculateLaborBenefitAmount(b, projectedDl, projectedIdl, inflationFactor);
+        additionalNonStatutoryBenefits += amt;
+      });
+      factoryLaborBenefits += additionalNonStatutoryBenefits;
+    }
 
-        const idlMonthlyBasic = projectedIdl.reduce((sum, lab) => {
-          return sum + (lab.monthlyWage || 0) * (lab.headcount || 0);
-        }, 0);
-        const idlAnnualBasic = idlMonthlyBasic * 12;
-        const idlHeadcount = projectedIdl.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
-
-        customBenefits.forEach((b) => {
-          const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-          const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
-
-          if (b.type === 'percentage') {
-            const rate = (b.rateOrAmount || 0) / 100;
-            if (appliesDirect) factoryLaborBenefits += dlAnnualBasic * rate;
-            if (appliesIndirect) factoryLaborBenefits += idlAnnualBasic * rate;
-          } else if (b.type === 'fixed_monthly_per_head') {
-            const monthly = (b.rateOrAmount || 0) * inflationFactor;
-            if (appliesDirect) factoryLaborBenefits += monthly * 12 * dlHeadcount;
-            if (appliesIndirect) factoryLaborBenefits += monthly * 12 * idlHeadcount;
-          } else if (b.type === 'fixed_annual') {
-            const annualAmt = (b.rateOrAmount || 0) * inflationFactor;
-            const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
-            if (totalHead > 0) {
-              factoryLaborBenefits += annualAmt;
-            }
-          }
-        });
+    // 4. Other Factory Supplies & Miscellaneous Overhead
+    // Aligns itemized supplies with otherFactoryOverheadAnnual to prevent double-counting
+    const itemizedSuppliesYr1 = (project.factorySupplies || []).reduce((sum, sup) => {
+      const amt = sup.annualAmount !== undefined ? sup.annualAmount : (sup.quantity || 0) * (sup.unitCost || 0);
+      return sum + amt;
+    }, 0);
+    const otherOverheadYr1 = project.factoryOverheadAnnual || 0;
+    let baseSuppliesAndOverhead = otherOverheadYr1;
+    if (itemizedSuppliesYr1 > 0) {
+      if (otherOverheadYr1 === 0 || otherOverheadYr1 === itemizedSuppliesYr1) {
+        baseSuppliesAndOverhead = itemizedSuppliesYr1;
+      } else {
+        baseSuppliesAndOverhead = Math.max(itemizedSuppliesYr1, otherOverheadYr1);
       }
     }
-
-    let factorySuppliesTotal = 0;
-    if (project.factorySupplies && project.factorySupplies.length > 0) {
-      project.factorySupplies.forEach((sup) => {
-        const amt = sup.annualAmount !== undefined ? sup.annualAmount : (sup.quantity || 0) * (sup.unitCost || 0);
-        const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
-        factorySuppliesTotal += amt * inflationFactor;
-      });
-    }
-
-    const otherFactoryOverhead =
-      (project.factoryOverheadAnnual || 0) * Math.pow(1 + (project.factoryOverheadGrowthRate || 0) / 100, yr - 1);
-
-    const factoryOverhead =
-      indirectLaborTotal +
-      productionUtilitiesTotal +
-      factorySuppliesTotal +
-      otherFactoryOverhead +
-      (includeBenefitsInCOGS ? factoryLaborBenefits : 0);
+    const overheadInflationFactor = Math.pow(
+      1 + (project.factoryOverheadGrowthRate || project.inflationRatePercent || 0) / 100,
+      yr - 1
+    );
+    const suppliesAndOverheadTotal = baseSuppliesAndOverhead * overheadInflationFactor;
 
     // Total annual depreciation across all fixed assets
     const totalYearDepreciation = depreciationSchedule.reduce((sum, d) => {
@@ -444,7 +497,26 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       opexDepreciation = totalYearDepreciation * (Math.max(0, 100 - fohDeprPercent) / 100);
     }
 
-    const totalCOGS = directMaterials + directLabor + factoryOverhead + factoryDepreciation;
+    // Factory Overhead: combined total amount of:
+    // 1. Indirect Labors
+    // 2. Utilities Expense Attributed to Production
+    // 3. Other Factory Supplies & Miscellaneous Overhead
+    // (Items 1-3 = Factory Overhead Supplies & Utilities)
+    // 4. Depreciation Expense Attributed to Production
+    // 5. Production Employee Benefits Schedule (Statutory Contributions + Mandatory 13th Month Pay + Custom Benefits)
+    
+    // Factory Overhead (Supplies and Utilities): reflects only Indirect Labor, Utilities Production, and Supplies & Misc
+    const factoryOverheadSuppliesAndUtilities =
+      indirectLaborTotal +
+      productionUtilitiesTotal +
+      suppliesAndOverheadTotal;
+
+    const totalFactoryOverhead =
+      factoryOverheadSuppliesAndUtilities +
+      factoryDepreciation +
+      (includeBenefitsInCOGS ? factoryLaborBenefits : 0);
+
+    const totalCOGS = directMaterials + directLabor + totalFactoryOverhead;
     const grossProfit = netSales - totalCOGS;
     const grossProfitMargin = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
 
@@ -564,14 +636,14 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     const isBalanced = diff < 1.0; // Rounding tolerance within 1 currency unit
 
     // 9. Break-Even Analysis
-    // Fixed Costs = Salaries (DL fixed base 70%) + FOH + Admin + Rent/Utilities + Depreciation + Interest
+    // Fixed Costs = Salaries (DL fixed base 70%) + Total FOH (which includes factory depreciation and benefits) + Admin + Rent/Utilities + Other Opex + Opex Depreciation + Interest
     const fixedCosts =
       directLabor * 0.7 +
-      factoryOverhead +
+      totalFactoryOverhead +
       adminExpenses +
       utilitiesAndRent +
       otherOpex +
-      totalYearDepreciation +
+      opexDepreciation +
       interestExpense;
     // Variable Costs = Direct Materials + Direct Labor variable (30%) + Selling commission/marketing
     const variableCosts = directMaterials + directLabor * 0.3 + sellingExpenses + salesDiscounts;
@@ -589,7 +661,9 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       netSales,
       directMaterials,
       directLabor,
-      factoryOverhead,
+      factoryOverhead: factoryOverheadSuppliesAndUtilities, // Factory Overhead (Supplies & Utilities) reflecting Indirect Labor, Utilities Production, and Supplies & Misc
+      factoryOverheadSuppliesAndUtilities,
+      totalFactoryOverhead,
       factoryLaborBenefits,
       factoryDepreciation,
       totalCOGS,
@@ -831,6 +905,11 @@ export interface Year1FactoryOverheadSummary {
   productionUtilitiesAnnual: number;
   factorySuppliesAnnual: number;
   otherFactoryOverheadAnnual: number;
+  suppliesAndOverheadAnnual: number;
+  factoryOverheadSuppliesAndUtilitiesAnnual: number; // Indirect Labor + Utilities Production + Supplies & Misc
+  productionStatutoryBenefitsAnnual: number;
+  productionThirteenthMonthPayAnnual: number;
+  additionalNonStatutoryBenefitsAnnual: number;
   factoryLaborBenefitsAnnual: number;
   factoryDepreciationAnnual: number;
   totalFactoryOverheadAnnual: number;
@@ -838,21 +917,43 @@ export interface Year1FactoryOverheadSummary {
   overheadPerUnit: number;
 }
 
-export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year1FactoryOverheadSummary {
+export function calculateFactoryOverheadForYear(
+  project: FeasibilityProject,
+  year: number = 1
+): Year1FactoryOverheadSummary {
+  const yr = Math.max(1, Math.min(5, Math.round(year) || 1));
+
   // 1. Indirect labor
-  const indirectLaborAnnual = (project.indirectLabor || []).reduce(
-    (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.monthsPerYear || 12) * (lab.headcount || 1),
-    0
-  );
+  let indirectLaborAnnual = 0;
+  if (project.indirectLabor && project.indirectLabor.length > 0) {
+    project.indirectLabor.forEach((lab) => {
+      const wageYr = calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        yr,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      );
+      const annualWage = wageYr * (lab.monthsPerYear || 12) * (lab.headcount || 1);
+      indirectLaborAnnual += annualWage;
+    });
+  }
 
   // 2. Production Utilities
-  const productionUtilitiesAnnual = (project.productionUtilities || []).reduce(
-    (sum, util) => sum + (util.annualAmountYear1 || 0),
-    0
-  );
+  let productionUtilitiesAnnual = 0;
+  if (project.productionUtilities && project.productionUtilities.length > 0) {
+    project.productionUtilities.forEach((util) => {
+      const growth = Math.pow(1 + (util.annualGrowthRate || 0) / 100, yr - 1);
+      const annualBase =
+        util.annualAmountYear1 !== undefined && util.annualAmountYear1 !== 0
+          ? util.annualAmountYear1
+          : (util.monthlyAmount ? util.monthlyAmount * 12 : 0);
+      productionUtilitiesAnnual += annualBase * growth;
+    });
+  }
 
-  // 3. Factory Supplies
-  const factorySuppliesAnnual = (project.factorySupplies || []).reduce(
+  // 3. Factory Supplies & Miscellaneous Overhead
+  const factorySuppliesAnnualBase = (project.factorySupplies || []).reduce(
     (sum, sup) =>
       sum +
       (sup.annualAmount !== undefined
@@ -861,68 +962,89 @@ export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year
     0
   );
 
-  // 4. Other Factory Overhead
-  const otherFactoryOverheadAnnual = project.factoryOverheadAnnual || 0;
+  const otherFactoryOverheadAnnualBase = project.factoryOverheadAnnual || 0;
 
-  // 5. Factory Labor Benefits (if includeLaborBenefitsInCOGS !== false)
-  let factoryLaborBenefitsAnnual = 0;
-  if (project.includeLaborBenefitsInCOGS !== false) {
-    const { summary: statSummary } = compileProductionEmployeeBenefits(
-      project.directLabor || [],
-      project.indirectLabor || []
-    );
-    factoryLaborBenefitsAnnual += statSummary.totalStatutoryAnnual;
-
-    if (
-      project.productionLaborBenefits &&
-      project.productionLaborBenefits.length > 0
-    ) {
-      const customBenefits = project.productionLaborBenefits.filter((b) => {
-        const n = (b.name || '').toLowerCase();
-        return (
-          !n.includes('sss') &&
-          !n.includes('social security') &&
-          !n.includes('philhealth') &&
-          !n.includes('pag-ibig') &&
-          !n.includes('hdmf')
-        );
-      });
-
-      const dlMonthlyBasic = project.directLabor.reduce(
-        (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
-        0
-      );
-      const dlAnnualBasic = dlMonthlyBasic * 12;
-      const dlHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
-
-      const idlMonthlyBasic = (project.indirectLabor || []).reduce(
-        (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0),
-        0
-      );
-      const idlAnnualBasic = idlMonthlyBasic * 12;
-      const idlHeadcount = (project.indirectLabor || []).reduce((sum, lab) => sum + (lab.headcount || 0), 0);
-
-      customBenefits.forEach((b) => {
-        const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-        const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
-
-        if (b.type === 'percentage') {
-          const rate = (b.rateOrAmount || 0) / 100;
-          if (appliesDirect) factoryLaborBenefitsAnnual += dlAnnualBasic * rate;
-          if (appliesIndirect) factoryLaborBenefitsAnnual += idlAnnualBasic * rate;
-        } else if (b.type === 'fixed_monthly_per_head') {
-          const monthly = b.rateOrAmount || 0;
-          if (appliesDirect) factoryLaborBenefitsAnnual += monthly * 12 * dlHeadcount;
-          if (appliesIndirect) factoryLaborBenefitsAnnual += monthly * 12 * idlHeadcount;
-        } else if (b.type === 'fixed_annual') {
-          const annualAmt = b.rateOrAmount || 0;
-          const totalHead = (appliesDirect ? dlHeadcount : 0) + (appliesIndirect ? idlHeadcount : 0);
-          if (totalHead > 0) {
-            factoryLaborBenefitsAnnual += annualAmt;
-          }
-        }
-      });
+  // Aligns itemized supplies with otherFactoryOverheadAnnual to prevent double-counting
+  let baseSuppliesAndOverhead = otherFactoryOverheadAnnualBase;
+  if (factorySuppliesAnnualBase > 0) {
+    if (otherFactoryOverheadAnnualBase === 0 || otherFactoryOverheadAnnualBase === factorySuppliesAnnualBase) {
+      baseSuppliesAndOverhead = factorySuppliesAnnualBase;
+    } else {
+      baseSuppliesAndOverhead = Math.max(factorySuppliesAnnualBase, otherFactoryOverheadAnnualBase);
     }
+  }
+
+  const overheadInflationFactor = Math.pow(
+    1 + (project.factoryOverheadGrowthRate || project.inflationRatePercent || 0) / 100,
+    yr - 1
+  );
+
+  const suppliesAndOverheadAnnual = baseSuppliesAndOverhead * overheadInflationFactor;
+  const factorySuppliesAnnual = factorySuppliesAnnualBase * overheadInflationFactor;
+  const otherFactoryOverheadAnnual = otherFactoryOverheadAnnualBase * overheadInflationFactor;
+
+  // 5. Factory Labor Benefits (Production Employee Benefits Schedule + Mandatory 13th Month Pay + Additional Benefits)
+  let productionStatutoryBenefitsAnnual = 0;
+  let productionThirteenthMonthPayAnnual = 0;
+  let additionalNonStatutoryBenefitsAnnual = 0;
+  let factoryLaborBenefitsAnnual = 0;
+
+  if (project.includeLaborBenefitsInCOGS !== false) {
+    const projectedDl = (project.directLabor || []).map((lab) => ({
+      ...lab,
+      monthlyWage: calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        yr,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      ),
+    }));
+
+    const projectedIdl = (project.indirectLabor || []).map((lab) => ({
+      ...lab,
+      monthlyWage: calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        yr,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      ),
+    }));
+
+    const { summary: statSummary } = compileProductionEmployeeBenefits(
+      projectedDl,
+      projectedIdl
+    );
+    productionStatutoryBenefitsAnnual = statSummary.totalStatutoryAnnual;
+    productionThirteenthMonthPayAnnual = statSummary.totalThirteenthMonth;
+
+    const customBenefits = (project.productionLaborBenefits || []).filter((b) => {
+      const n = (b.name || '').toLowerCase();
+      return (
+        !n.includes('sss') &&
+        !n.includes('social security') &&
+        !n.includes('philhealth') &&
+        !n.includes('pag-ibig') &&
+        !n.includes('hdmf') &&
+        !n.includes('13th')
+      );
+    });
+
+    const nonStatInflationFactor = Math.pow(1 + (project.inflationRatePercent || 0) / 100, yr - 1);
+    customBenefits.forEach((b) => {
+      additionalNonStatutoryBenefitsAnnual += calculateLaborBenefitAmount(
+        b,
+        projectedDl,
+        projectedIdl,
+        nonStatInflationFactor
+      );
+    });
+
+    factoryLaborBenefitsAnnual =
+      productionStatutoryBenefitsAnnual +
+      productionThirteenthMonthPayAnnual +
+      additionalNonStatutoryBenefitsAnnual;
   }
 
   // 6. Factory Depreciation
@@ -930,8 +1052,8 @@ export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year
   let factoryDepreciationAnnual = 0;
   if (project.factoryDepreciationMethod === 'specific_assets' && project.factoryAssetIds) {
     deprSchedule.forEach((d) => {
-      const yr1Val = d.yearValues.find((y) => y.year === 1);
-      const depAmt = yr1Val ? yr1Val.depreciation : d.annualDepreciation;
+      const yrVal = d.yearValues.find((y) => y.year === yr);
+      const depAmt = yrVal ? yrVal.depreciation : d.annualDepreciation;
       if (project.factoryAssetIds?.includes(d.assetId)) {
         factoryDepreciationAnnual += depAmt;
       }
@@ -941,25 +1063,29 @@ export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year
       project.factoryDepreciationPercent !== undefined
         ? project.factoryDepreciationPercent
         : 50;
-    const totalYr1Depr = deprSchedule.reduce((sum, d) => {
-      const yr1Val = d.yearValues.find((y) => y.year === 1);
-      return sum + (yr1Val ? yr1Val.depreciation : d.annualDepreciation);
+    const totalYrDepr = deprSchedule.reduce((sum, d) => {
+      const yrVal = d.yearValues.find((y) => y.year === yr);
+      return sum + (yrVal ? yrVal.depreciation : d.annualDepreciation);
     }, 0);
-    factoryDepreciationAnnual = totalYr1Depr * (fohDeprPercent / 100);
+    factoryDepreciationAnnual = totalYrDepr * (fohDeprPercent / 100);
   }
 
-  const totalFactoryOverheadAnnual =
+  // Factory Overhead (Supplies and Utilities) reflecting Indirect Labor, Utilities Production, and Supplies & Misc
+  const factoryOverheadSuppliesAndUtilitiesAnnual =
     indirectLaborAnnual +
     productionUtilitiesAnnual +
-    factorySuppliesAnnual +
-    otherFactoryOverheadAnnual +
-    factoryLaborBenefitsAnnual +
-    factoryDepreciationAnnual;
+    suppliesAndOverheadAnnual;
 
-  const totalProductionVolume = project.products.reduce(
-    (sum, p) => sum + (p.year1Volume || 0),
-    0
-  );
+  const totalFactoryOverheadAnnual =
+    factoryOverheadSuppliesAndUtilitiesAnnual +
+    factoryDepreciationAnnual +
+    factoryLaborBenefitsAnnual;
+
+  const totalProductionVolume = project.products.reduce((sum, p) => {
+    const vol = (p.year1Volume || 0) * Math.pow(1 + (p.annualGrowthRate || 0) / 100, yr - 1);
+    return sum + vol;
+  }, 0);
+
   const overheadPerUnit =
     totalProductionVolume > 0
       ? Math.round((totalFactoryOverheadAnnual / totalProductionVolume) * 100) / 100
@@ -970,10 +1096,19 @@ export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year
     productionUtilitiesAnnual,
     factorySuppliesAnnual,
     otherFactoryOverheadAnnual,
+    suppliesAndOverheadAnnual,
+    factoryOverheadSuppliesAndUtilitiesAnnual,
+    productionStatutoryBenefitsAnnual,
+    productionThirteenthMonthPayAnnual,
+    additionalNonStatutoryBenefitsAnnual,
     factoryLaborBenefitsAnnual,
     factoryDepreciationAnnual,
     totalFactoryOverheadAnnual,
     totalProductionVolume,
     overheadPerUnit,
   };
+}
+
+export function calculateYear1FactoryOverhead(project: FeasibilityProject): Year1FactoryOverheadSummary {
+  return calculateFactoryOverheadForYear(project, 1);
 }

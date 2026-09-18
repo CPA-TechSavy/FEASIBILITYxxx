@@ -428,34 +428,21 @@ export default function SupportingSchedulesView({
           );
 
           const utilitiesAnnual = (project.productionUtilities || []).reduce(
-            (s, u) => s + (u.annualAmountYear1 || 0),
+            (s, u) =>
+              s +
+              (u.annualAmountYear1 !== undefined && u.annualAmountYear1 !== 0
+                ? u.annualAmountYear1
+                : (u.monthlyAmount ? u.monthlyAmount * 12 : 0)),
             0
           );
-          const suppliesAnnual = project.factoryOverheadAnnual ?? 0;
-
-          // Depreciation attribution
-          let factoryDeprYr1 = 0;
-          let factoryDeprMethodLabel = '';
-          if (project.factoryDepreciationMethod === 'specific_assets') {
-            const selectedSet = new Set(project.factoryAssetIds || []);
-            const yr1FactoryAssets = depreciationSchedule.filter((d) => selectedSet.has(d.assetId));
-            factoryDeprYr1 = yr1FactoryAssets.reduce(
-              (s, d) => s + (d.yearValues.find((y) => y.year === 1)?.depreciation || d.annualDepreciation),
-              0
-            );
-            factoryDeprMethodLabel = `Specific Factory Assets (${yr1FactoryAssets.length} of ${project.fixedAssets.length} assets)`;
-          } else {
-            const totalYr1Depr = depreciationSchedule.reduce(
-              (s, d) => s + (d.yearValues.find((y) => y.year === 1)?.depreciation || d.annualDepreciation),
-              0
-            );
-            const pct = project.factoryDepreciationPercent ?? 100;
-            factoryDeprYr1 = totalYr1Depr * (pct / 100);
-            factoryDeprMethodLabel = `Global Allocation (${pct}% of total depreciation)`;
-          }
-
           // Factory Overhead Engine Details & Statutory Benefits
           const fohDetails = calculateYear1FactoryOverhead(project);
+          const suppliesAnnual = fohDetails.suppliesAndOverheadAnnual;
+          const factoryDeprYr1 = fohDetails.factoryDepreciationAnnual;
+          const factoryDeprMethodLabel =
+            project.factoryDepreciationMethod === 'specific_assets'
+              ? `Specific Factory Assets (${(project.factoryAssetIds || []).length} assigned)`
+              : `Production Allocation (${project.factoryDepreciationPercent ?? 50}% of plant depreciation)`;
           const statutoryBenefits = compileProductionEmployeeBenefits(
             project.directLabor || [],
             project.indirectLabor || []
@@ -549,6 +536,22 @@ export default function SupportingSchedulesView({
                       </td>
                     </tr>
 
+                    {/* FOH Supplies, Utilities & Indirect Labor Subtotal */}
+                    <tr className="bg-amber-50/50 text-slate-700 text-xs border-t border-b border-amber-200/70 font-medium">
+                      <td className="py-2 px-3 text-amber-950 font-semibold" colSpan={2}>
+                        ↳ Subtotal: Factory Overhead (Supplies, Utilities & Indirect Labor)
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial text-slate-600">
+                        {indirectHeadcount} staff
+                      </td>
+                      <td className="py-2 px-3 text-right font-financial font-bold text-amber-950">
+                        {formatCurrency(fohDetails.factoryOverheadSuppliesAndUtilitiesAnnual, c)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-xs text-amber-800 font-medium">
+                        Reflected in Financial Statement
+                      </td>
+                    </tr>
+
                     {/* Factory Depreciation */}
                     <tr className="hover:bg-slate-50/50">
                       <td className="py-2 px-3 font-medium text-slate-800">
@@ -610,6 +613,16 @@ export default function SupportingSchedulesView({
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              {/* Financial Statements COGS Reconciliation Note */}
+              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-200 text-xs text-indigo-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold block">Financial Statement COGS Reconciliation (Year 1):</span>
+                  <span className="text-[11px] text-indigo-800">
+                    Production Benefits ({formatCurrency(totalLaborBenefitsYr1, c)}) + Factory Overhead (Supplies & Utilities) ({formatCurrency(fohDetails.factoryOverheadSuppliesAndUtilitiesAnnual, c)}) + Depreciation ({formatCurrency(factoryDeprYr1, c)}) = Total Year 1 Factory Overhead ({formatCurrency(totalFOHCapitalizedYr1, c)}).
+                  </span>
+                </div>
               </div>
 
               {/* Itemized Employee Benefits Breakdown including Statutory SSS, PhilHealth, Pag-IBIG */}

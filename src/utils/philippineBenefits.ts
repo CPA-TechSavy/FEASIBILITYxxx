@@ -245,6 +245,11 @@ export interface ProductionEmployeeBenefitRecord {
   totalMonthlyBenefitsTotalRole: number;
   totalAnnualBenefitsTotalRole: number;
 
+  // 13th Month Pay (Presidential Decree No. 851: 1/12 of Total Basic Annual Salary)
+  thirteenthMonthPayPerHead: number;
+  thirteenthMonthPayTotalRole: number;
+  totalAnnualBenefitsAnd13thMonthTotalRole: number;
+
   // Totals for the position row (per head * headcount)
   totalMonthlySalaryAll: number;
   totalSssErMonthlyAll: number;
@@ -271,6 +276,8 @@ export interface ProductionBenefitsSummary {
   totalPagIbigErAnnual: number;
   totalStatutoryMonthly: number;
   totalStatutoryAnnual: number;
+  totalThirteenthMonth: number; // Sum of 13th month pay for all production employees (PD 851)
+  totalAnnualStatutoryAnd13th: number;
   directLabor: {
     headcount: number;
     monthlyBasicTotal: number;
@@ -279,6 +286,8 @@ export interface ProductionBenefitsSummary {
     pagIbigErMonthlyTotal: number;
     totalMonthlyBenefits: number;
     totalAnnualBenefits: number;
+    thirteenthMonthTotal: number;
+    totalAnnualBenefitsAnd13th: number;
   };
   indirectLabor: {
     headcount: number;
@@ -288,6 +297,8 @@ export interface ProductionBenefitsSummary {
     pagIbigErMonthlyTotal: number;
     totalMonthlyBenefits: number;
     totalAnnualBenefits: number;
+    thirteenthMonthTotal: number;
+    totalAnnualBenefitsAnd13th: number;
   };
 }
 
@@ -322,6 +333,9 @@ export function compileProductionEmployeeBenefits(
       const totalPerHeadMonthly =
         Math.round((sss.totalEr + philHealth.erShare + pagIbig.erShare) * 100) / 100;
       const totalPerHeadAnnual = Math.round(totalPerHeadMonthly * 12 * 100) / 100;
+
+      // Presidential Decree No. 851: 1/12 of Total Basic Annual Salary = 1 Month Basic Wage
+      const thirteenthMonthPerHead = wage;
 
       if (expandHeadcount && count > 1) {
         for (let i = 1; i <= count; i++) {
@@ -371,6 +385,9 @@ export function compileProductionEmployeeBenefits(
             totalMonthlyBenefitsPerHead: totalPerHeadMonthly,
             totalMonthlyBenefitsTotalRole: totalPerHeadMonthly,
             totalAnnualBenefitsTotalRole: totalPerHeadAnnual,
+            thirteenthMonthPayPerHead: thirteenthMonthPerHead,
+            thirteenthMonthPayTotalRole: thirteenthMonthPerHead,
+            totalAnnualBenefitsAnd13thMonthTotalRole: totalPerHeadAnnual + thirteenthMonthPerHead,
             totalMonthlySalaryAll: wage,
             totalSssErMonthlyAll: sss.totalEr,
             totalPhilHealthErMonthlyAll: philHealth.erShare,
@@ -380,6 +397,8 @@ export function compileProductionEmployeeBenefits(
           });
         }
       } else {
+        const thirteenthMonthRoleTotal = Math.round(thirteenthMonthPerHead * count * 100) / 100;
+        const totalAnnualRole = Math.round(totalPerHeadAnnual * count * 100) / 100;
         records.push({
           id: item.id || `labor-${classification}-${itemIdx}`,
           sourceId: item.id,
@@ -424,13 +443,16 @@ export function compileProductionEmployeeBenefits(
           },
           totalMonthlyBenefitsPerHead: totalPerHeadMonthly,
           totalMonthlyBenefitsTotalRole: Math.round(totalPerHeadMonthly * count * 100) / 100,
-          totalAnnualBenefitsTotalRole: Math.round(totalPerHeadAnnual * count * 100) / 100,
+          totalAnnualBenefitsTotalRole: totalAnnualRole,
+          thirteenthMonthPayPerHead: thirteenthMonthPerHead,
+          thirteenthMonthPayTotalRole: thirteenthMonthRoleTotal,
+          totalAnnualBenefitsAnd13thMonthTotalRole: totalAnnualRole + thirteenthMonthRoleTotal,
           totalMonthlySalaryAll: wage * count,
           totalSssErMonthlyAll: Math.round(sss.totalEr * count * 100) / 100,
           totalPhilHealthErMonthlyAll: Math.round(philHealth.erShare * count * 100) / 100,
           totalPagIbigErMonthlyAll: Math.round(pagIbig.erShare * count * 100) / 100,
           totalStatutoryMonthlyAll: Math.round(totalPerHeadMonthly * count * 100) / 100,
-          totalStatutoryAnnualAll: Math.round(totalPerHeadAnnual * count * 100) / 100,
+          totalStatutoryAnnualAll: totalAnnualRole,
         });
       }
     });
@@ -464,11 +486,16 @@ export function compileProductionEmployeeBenefits(
   const dlPh = directLaborRecords.reduce((sum, r) => sum + r.totalPhilHealthErMonthlyAll, 0);
   const dlPi = directLaborRecords.reduce((sum, r) => sum + r.totalPagIbigErMonthlyAll, 0);
   const dlMonthlyBen = dlSss + dlPh + dlPi;
+  const dl13thMonth = directLaborRecords.reduce((sum, r) => sum + r.thirteenthMonthPayTotalRole, 0);
 
   const idlSss = indirectLaborRecords.reduce((sum, r) => sum + r.totalSssErMonthlyAll, 0);
   const idlPh = indirectLaborRecords.reduce((sum, r) => sum + r.totalPhilHealthErMonthlyAll, 0);
   const idlPi = indirectLaborRecords.reduce((sum, r) => sum + r.totalPagIbigErMonthlyAll, 0);
   const idlMonthlyBen = idlSss + idlPh + idlPi;
+  const idl13thMonth = indirectLaborRecords.reduce((sum, r) => sum + r.thirteenthMonthPayTotalRole, 0);
+
+  const totalThirteenthMonth = dl13thMonth + idl13thMonth;
+  const totalAnnualStatutoryAnd13th = totalStatutoryAnnual + totalThirteenthMonth;
 
   return {
     records,
@@ -491,6 +518,8 @@ export function compileProductionEmployeeBenefits(
       totalPagIbigErAnnual,
       totalStatutoryMonthly,
       totalStatutoryAnnual,
+      totalThirteenthMonth,
+      totalAnnualStatutoryAnd13th,
       directLabor: {
         headcount: directHeadcount,
         monthlyBasicTotal: directMonthlySalary,
@@ -499,6 +528,8 @@ export function compileProductionEmployeeBenefits(
         pagIbigErMonthlyTotal: dlPi,
         totalMonthlyBenefits: dlMonthlyBen,
         totalAnnualBenefits: dlMonthlyBen * 12,
+        thirteenthMonthTotal: dl13thMonth,
+        totalAnnualBenefitsAnd13th: dlMonthlyBen * 12 + dl13thMonth,
       },
       indirectLabor: {
         headcount: indirectHeadcount,
@@ -508,6 +539,8 @@ export function compileProductionEmployeeBenefits(
         pagIbigErMonthlyTotal: idlPi,
         totalMonthlyBenefits: idlMonthlyBen,
         totalAnnualBenefits: idlMonthlyBen * 12,
+        thirteenthMonthTotal: idl13thMonth,
+        totalAnnualBenefitsAnd13th: idlMonthlyBen * 12 + idl13thMonth,
       },
     },
   };

@@ -5,7 +5,7 @@ import {
   ProductCostComponent,
   CostComponentCategory,
 } from '../types';
-import { formatCurrency, formatPercent, calculateDepreciation } from '../utils/financialCalculations';
+import { formatCurrency, formatPercent, calculateDepreciation, calculateYear1FactoryOverhead } from '../utils/financialCalculations';
 import { SAMPLE_BOM_PRESETS } from '../data/bomPresets';
 import {
   Calculator,
@@ -238,7 +238,11 @@ export default function ProductCostingTab({
 
   const totalProductionUtilitiesAnnual = useMemo(() => {
     return (project.productionUtilities || []).reduce(
-      (sum, u) => sum + (u.annualAmountYear1 || 0),
+      (sum, u) =>
+        sum +
+        (u.annualAmountYear1 !== undefined && u.annualAmountYear1 !== 0
+          ? u.annualAmountYear1
+          : (u.monthlyAmount ? u.monthlyAmount * 12 : 0)),
       0
     );
   }, [project.productionUtilities]);
@@ -277,66 +281,12 @@ export default function ProductCostingTab({
     project.factoryDepreciationPercent,
   ]);
 
-  const totalProductionLaborBenefitsAnnual = useMemo(() => {
-    if (project.includeLaborBenefitsInCOGS === false) return 0;
-    const benefits = project.productionLaborBenefits || [];
-    const directBasicAnnual12M = project.directLabor.reduce(
-      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0) * 12,
-      0
-    );
-    const indirectBasicAnnual12M = (project.indirectLabor || []).reduce(
-      (sum, lab) => sum + (lab.monthlyWage || 0) * (lab.headcount || 0) * 12,
-      0
-    );
-    const directHeadcount = project.directLabor.reduce((sum, lab) => sum + (lab.headcount || 0), 0);
-    const indirectHeadcount = (project.indirectLabor || []).reduce(
-      (sum, lab) => sum + (lab.headcount || 0),
-      0
-    );
+  const year1FohSummary = useMemo(() => {
+    return calculateYear1FactoryOverhead(project);
+  }, [project]);
 
-    let total = 0;
-    benefits.forEach((b) => {
-      const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-      const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
-
-      if (b.type === 'percentage') {
-        const rate = (b.rateOrAmount || 0) / 100;
-        if (appliesDirect) total += directBasicAnnual12M * rate;
-        if (appliesIndirect) total += indirectBasicAnnual12M * rate;
-      } else if (b.type === 'fixed_monthly_per_head') {
-        const monthly = b.rateOrAmount || 0;
-        if (appliesDirect) total += monthly * 12 * directHeadcount;
-        if (appliesIndirect) total += monthly * 12 * indirectHeadcount;
-      } else if (b.type === 'fixed_annual') {
-        const amt = b.rateOrAmount || 0;
-        total += amt;
-      }
-    });
-    return total;
-  }, [
-    project.productionLaborBenefits,
-    project.directLabor,
-    project.indirectLabor,
-    project.includeLaborBenefitsInCOGS,
-  ]);
-
-  const totalFactoryOverheadAnnual = useMemo(() => {
-    return (
-      totalIndirectLaborAnnual +
-      totalProductionUtilitiesAnnual +
-      totalFactorySuppliesAnnual +
-      factoryDepreciationYr1 +
-      totalProductionLaborBenefitsAnnual +
-      (project.factoryOverheadAnnual || 0)
-    );
-  }, [
-    totalIndirectLaborAnnual,
-    totalProductionUtilitiesAnnual,
-    totalFactorySuppliesAnnual,
-    factoryDepreciationYr1,
-    totalProductionLaborBenefitsAnnual,
-    project.factoryOverheadAnnual,
-  ]);
+  const totalProductionLaborBenefitsAnnual = year1FohSummary.factoryLaborBenefitsAnnual;
+  const totalFactoryOverheadAnnual = year1FohSummary.totalFactoryOverheadAnnual;
 
   // Average volume-weighted FOH cost per unit
   const volumeWeightedFohPerUnit = useMemo(() => {

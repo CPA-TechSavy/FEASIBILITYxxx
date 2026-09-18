@@ -56,8 +56,16 @@ import {
   Table,
   Eye,
   FileText,
+  Calendar,
 } from 'lucide-react';
-import { formatCurrency, calculateDepreciation, calculateLaborMonthlyWageForYear } from '../utils/financialCalculations';
+import {
+  formatCurrency,
+  calculateDepreciation,
+  calculateLaborMonthlyWageForYear,
+  calculateYear1FactoryOverhead,
+  calculateFactoryOverheadForYear,
+  calculateLaborBenefitAmount,
+} from '../utils/financialCalculations';
 import { LOCAL_BANKS, DEPRECIATION_METHODS } from '../data/bankList';
 import { SAMPLE_BOM_PRESETS } from '../data/bomPresets';
 import ProductCostingTab from './ProductCostingTab';
@@ -223,7 +231,16 @@ export default function AssumptionsEditor({
   };
 
   const updateFactorySupplies = (newSupplies: FactorySupplyItem[]) => {
-    onUpdateProject({ ...project, factorySupplies: newSupplies });
+    const newSuppliesTotal = newSupplies.reduce(
+      (sum, s) => sum + (s.annualAmount !== undefined ? s.annualAmount : (s.quantity || 0) * (s.unitCost || 0)),
+      0
+    );
+    onUpdateProject({
+      ...project,
+      factorySupplies: newSupplies,
+      // Automatically keeps factoryOverheadAnnual aligned with itemized supplies to eliminate discrepancies
+      factoryOverheadAnnual: newSupplies.length > 0 ? newSuppliesTotal : project.factoryOverheadAnnual,
+    });
   };
 
   const updateProductionLaborBenefits = (newBenefits: LaborBenefitItem[]) => {
@@ -233,6 +250,15 @@ export default function AssumptionsEditor({
   const toggleIncludeLaborBenefitsInCOGS = (include: boolean) => {
     onUpdateProject({ ...project, includeLaborBenefitsInCOGS: include });
   };
+
+  // Clean up any duplicated 13th month entry from custom non-statutory benefits since it's now directly in the Production Employee Benefits Schedule
+  useEffect(() => {
+    const list = project.productionLaborBenefits || [];
+    const filtered = list.filter((b) => !(b.name || '').toLowerCase().includes('13th'));
+    if (filtered.length !== list.length) {
+      updateProductionLaborBenefits(filtered);
+    }
+  }, [project.productionLaborBenefits]);
 
   const [showSuppliesList, setShowSuppliesList] = useState<boolean>(false);
   const [suppliesSyncFeedback, setSuppliesSyncFeedback] = useState<string | null>(null);
@@ -244,7 +270,58 @@ export default function AssumptionsEditor({
   const [showCustomBenefitsSection, setShowCustomBenefitsSection] = useState<boolean>(false);
   const [benefitsClassificationFilter, setBenefitsClassificationFilter] = useState<'all' | 'direct' | 'indirect'>('all');
   const [sssSearchQuery, setSssSearchQuery] = useState<string>('');
-  const [benefitsViewYear, setBenefitsViewYear] = useState<number>(1);
+  const [dlViewYear, setDlViewYear] = useState<number>(1);
+  const [fohViewYear, setFohViewYear] = useState<number>(1);
+  const benefitsViewYear = fohViewYear;
+
+  const selectedDlYearSummary = useMemo(() => {
+    const annual = (project.directLabor || []).reduce((sum, lab) => {
+      const wageYr = calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        dlViewYear,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      );
+      return sum + wageYr * (lab.monthsPerYear || 12) * (lab.headcount || 1);
+    }, 0);
+
+    const monthly = (project.directLabor || []).reduce((sum, lab) => {
+      const wageYr = calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        dlViewYear,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      );
+      return sum + wageYr * (lab.headcount || 1);
+    }, 0);
+
+    const totalVol = (project.products || []).reduce((sum, p) => {
+      const volGrowth = Math.pow(1 + (p.annualGrowthRate || 0) / 100, dlViewYear - 1);
+      return sum + Math.round((p.year1Volume || 0) * volGrowth);
+    }, 0);
+
+    return {
+      annualTotal: annual,
+      monthlyTotal: monthly,
+      volume: totalVol,
+      costPerUnit: totalVol > 0 ? annual / totalVol : 0,
+    };
+  }, [project.directLabor, project.products, project.inflationRatePercent, dlViewYear]);
+
+  const selectedIndirectLaborMonthly = useMemo(() => {
+    return (project.indirectLabor || []).reduce((sum, lab) => {
+      const wageYr = calculateLaborMonthlyWageForYear(
+        lab.monthlyWage || 0,
+        fohViewYear,
+        lab.annualSalaryIncreaseType,
+        lab.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      );
+      return sum + wageYr * (lab.headcount || 1);
+    }, 0);
+  }, [project.indirectLabor, project.inflationRatePercent, fohViewYear]);
 
   const compiledProductionBenefits = useMemo(() => {
     // Project direct and indirect labor wages for the selected year based on custom annual salary increase
@@ -279,14 +356,34 @@ export default function AssumptionsEditor({
 
   const handleUpdateEmployeeWage = (sourceId: string, classification: 'Direct Labor' | 'Indirect Labor', newWage: number) => {
     if (classification === 'Direct Labor') {
-      const updated = (project.directLabor || []).map((l) =>
-        l.id === sourceId ? { ...l, monthlyWage: Math.max(0, newWage) } : l
-      );
+      const updated = (project.directLabor || []).map((l) => {
+        if (l.id !== sourceId) return l;
+        if (benefitsViewYear === 1) {
+          return { ...l, monthlyWage: Math.max(0, newWage) };
+        }
+        const incType = l.annualSalaryIncreaseType || 'percentage';
+        const incVal = l.annualSalaryIncreaseValue ?? (project.inflationRatePercent || 0);
+        if (incType === 'amount') {
+          return { ...l, monthlyWage: Math.max(0, newWage - incVal * (benefitsViewYear - 1)) };
+        }
+        const growth = Math.pow(1 + (incVal || 0) / 100, benefitsViewYear - 1);
+        return { ...l, monthlyWage: growth > 0 ? Math.round((newWage / growth) * 100) / 100 : newWage };
+      });
       updateDirectLabor(updated);
     } else {
-      const updated = (project.indirectLabor || []).map((l) =>
-        l.id === sourceId ? { ...l, monthlyWage: Math.max(0, newWage) } : l
-      );
+      const updated = (project.indirectLabor || []).map((l) => {
+        if (l.id !== sourceId) return l;
+        if (benefitsViewYear === 1) {
+          return { ...l, monthlyWage: Math.max(0, newWage) };
+        }
+        const incType = l.annualSalaryIncreaseType || 'percentage';
+        const incVal = l.annualSalaryIncreaseValue ?? (project.inflationRatePercent || 0);
+        if (incType === 'amount') {
+          return { ...l, monthlyWage: Math.max(0, newWage - incVal * (benefitsViewYear - 1)) };
+        }
+        const growth = Math.pow(1 + (incVal || 0) / 100, benefitsViewYear - 1);
+        return { ...l, monthlyWage: growth > 0 ? Math.round((newWage / growth) * 100) / 100 : newWage };
+      });
       updateIndirectLabor(updated);
     }
   };
@@ -397,47 +494,39 @@ export default function AssumptionsEditor({
     const presets: LaborBenefitItem[] = [
       {
         id: `ben-${Date.now()}-1`,
-        name: 'SSS (Social Security System) - Employer Share',
-        type: 'percentage',
-        rateOrAmount: 9.5,
+        name: '13th Month Pay',
+        type: 'one_month_salary',
+        rateOrAmount: 1,
         appliesTo: 'both',
-        notes: 'Statutory employer contribution (~9.5% of basic monthly salary)',
+        notes: 'Mandatory 13th month pay equivalent to 1 month salary of all Direct and Indirect Employees (PD 851)',
       },
       {
         id: `ben-${Date.now()}-2`,
-        name: 'PhilHealth - Employer Share',
-        type: 'percentage',
-        rateOrAmount: 2.5,
+        name: 'Uniform, PPE & Safety Shoes Allowance',
+        type: 'fixed_monthly_per_head',
+        rateOrAmount: 300,
         appliesTo: 'both',
-        notes: '50% employer share of mandatory PhilHealth premium',
+        notes: 'Protective gear, plant uniform allowance, and safety apparel',
       },
       {
         id: `ben-${Date.now()}-3`,
-        name: 'Pag-IBIG / HDMF - Employer Contribution',
+        name: 'Plant Meal & Attendance Subsidy',
         type: 'fixed_monthly_per_head',
-        rateOrAmount: 200,
+        rateOrAmount: 500,
         appliesTo: 'both',
-        notes: 'Mandatory standard employer contribution (₱200/month per employee)',
+        notes: 'Monthly meal & perfect attendance allowance for production crew',
       },
       {
         id: `ben-${Date.now()}-4`,
-        name: '13th Month Pay',
-        type: 'percentage',
-        rateOrAmount: 8.33,
+        name: 'Annual Factory Medical & Physical Exam',
+        type: 'fixed_annual',
+        rateOrAmount: 25000,
         appliesTo: 'both',
-        notes: 'Statutory 1/12th of annual basic pay (1 month basic salary)',
-      },
-      {
-        id: `ben-${Date.now()}-5`,
-        name: 'Other Benefits (Uniform, PPE & Welfare)',
-        type: 'fixed_monthly_per_head',
-        rateOrAmount: 250,
-        appliesTo: 'both',
-        notes: 'Protective gear, plant uniform allowance, safety attendance bonus',
+        notes: 'Occupational health screening and annual worker checkup',
       },
     ];
     updateProductionLaborBenefits(presets);
-    setBenefitsFeedback('Loaded standard Philippine statutory benefits preset!');
+    setBenefitsFeedback('Loaded standard additional non-statutory benefits preset!');
     setTimeout(() => setBenefitsFeedback(null), 3500);
   };
 
@@ -577,7 +666,18 @@ export default function AssumptionsEditor({
 
   // Total Production Utilities Annual (Year 1)
   const totalProductionUtilitiesAnnual = (project.productionUtilities || []).reduce(
-    (sum, util) => sum + (util.annualAmountYear1 || 0),
+    (sum, util) => sum + (util.annualAmountYear1 || (util.monthlyAmount ? util.monthlyAmount * 12 : 0) || 0),
+    0
+  );
+
+  const totalProductionUtilitiesMonthly = (project.productionUtilities || []).reduce(
+    (sum, util) => {
+      const monthly =
+        util.monthlyAmount !== undefined
+          ? util.monthlyAmount
+          : (util.annualAmountYear1 ? util.annualAmountYear1 / 12 : 0);
+      return sum + monthly;
+    },
     0
   );
 
@@ -625,96 +725,24 @@ export default function AssumptionsEditor({
   const directLaborHeadcount = totalDirectLaborHeadcount;
   const indirectLaborHeadcount = totalIndirectLaborHeadcount;
 
-  // Benefits Calculation
-  const laborBenefitsList = project.productionLaborBenefits || [];
-  let totalDirectBenefitsAnnual = 0;
-  let totalIndirectBenefitsAnnual = 0;
+  // Factory Overhead Engine & Summary (combines Indirect Labor, Utilities, Depreciation, Supplies, Statutory Benefits, and Non-Statutory Benefits)
+  const year1FohSummary = useMemo(() => {
+    return calculateYear1FactoryOverhead(project);
+  }, [project]);
 
-  laborBenefitsList.forEach((b) => {
-    const appliesDirect = b.appliesTo === 'both' || b.appliesTo === 'direct_only';
-    const appliesIndirect = b.appliesTo === 'both' || b.appliesTo === 'indirect_only';
+  // Factory Overhead Summary dynamically computed for the selected projection year with custom escalations
+  const selectedYearFohSummary = useMemo(() => {
+    return calculateFactoryOverheadForYear(project, fohViewYear);
+  }, [project, fohViewYear]);
 
-    if (b.type === 'percentage') {
-      const rate = (b.rateOrAmount || 0) / 100;
-      if (appliesDirect) totalDirectBenefitsAnnual += directLaborAnnualBasic12M * rate;
-      if (appliesIndirect) totalIndirectBenefitsAnnual += indirectLaborAnnualBasic12M * rate;
-    } else if (b.type === 'fixed_monthly_per_head') {
-      const monthly = b.rateOrAmount || 0;
-      if (appliesDirect) totalDirectBenefitsAnnual += monthly * 12 * totalDirectLaborHeadcount;
-      if (appliesIndirect) totalIndirectBenefitsAnnual += monthly * 12 * totalIndirectLaborHeadcount;
-    } else if (b.type === 'fixed_annual') {
-      const annualAmt = b.rateOrAmount || 0;
-      const totalHead = (appliesDirect ? totalDirectLaborHeadcount : 0) + (appliesIndirect ? totalIndirectLaborHeadcount : 0);
-      if (totalHead > 0) {
-        if (appliesDirect && appliesIndirect) {
-          totalDirectBenefitsAnnual += annualAmt * (totalDirectLaborHeadcount / totalHead);
-          totalIndirectBenefitsAnnual += annualAmt * (totalIndirectLaborHeadcount / totalHead);
-        } else if (appliesDirect) {
-          totalDirectBenefitsAnnual += annualAmt;
-        } else if (appliesIndirect) {
-          totalIndirectBenefitsAnnual += annualAmt;
-        }
-      }
-    }
-  });
-
-  const totalProductionLaborBenefitsAnnual = totalDirectBenefitsAnnual + totalIndirectBenefitsAnnual;
+  const totalFactoryOverheadYr1 = year1FohSummary.totalFactoryOverheadAnnual;
   const includeBenefitsInCOGS = project.includeLaborBenefitsInCOGS !== false;
-
-  // Extraction of statutory benefit contribution policies for employee-level schedule
-  const sssBenefitItem = laborBenefitsList.find(
-    (b) => b.name.toLowerCase().includes('sss') || b.name.toLowerCase().includes('social security')
-  );
-  const sssRate = sssBenefitItem && sssBenefitItem.type === 'percentage'
-    ? (sssBenefitItem.rateOrAmount || 0) / 100
-    : 0.095;
-
-  const philHealthBenefitItem = laborBenefitsList.find(
-    (b) => b.name.toLowerCase().includes('philhealth')
-  );
-  const philHealthRate = philHealthBenefitItem && philHealthBenefitItem.type === 'percentage'
-    ? (philHealthBenefitItem.rateOrAmount || 0) / 100
-    : 0.025;
-
-  const pagIbigBenefitItem = laborBenefitsList.find(
-    (b) => b.name.toLowerCase().includes('pag-ibig') || b.name.toLowerCase().includes('hdmf')
-  );
-  const pagIbigMonthlyAmount = pagIbigBenefitItem && pagIbigBenefitItem.type === 'fixed_monthly_per_head'
-    ? (pagIbigBenefitItem.rateOrAmount || 0)
-    : 200;
-
-  const thirteenthMonthBenefitItem = laborBenefitsList.find(
-    (b) => b.name.toLowerCase().includes('13th')
-  );
-  const thirteenthMonthRate = thirteenthMonthBenefitItem && thirteenthMonthBenefitItem.type === 'percentage'
-    ? (thirteenthMonthBenefitItem.rateOrAmount || 0) / 100
-    : 1 / 12;
-
-  const otherCustomBenefits = laborBenefitsList.filter((b) => {
-    const n = b.name.toLowerCase();
-    return (
-      !n.includes('sss') &&
-      !n.includes('social security') &&
-      !n.includes('philhealth') &&
-      !n.includes('pag-ibig') &&
-      !n.includes('hdmf') &&
-      !n.includes('13th')
-    );
-  });
+  const totalProductionLaborBenefitsAnnual = year1FohSummary.factoryLaborBenefitsAnnual;
+  const laborBenefitsList = project.productionLaborBenefits || [];
 
   // Itemized Supplies
   const factorySuppliesList = project.factorySupplies || [];
-  const totalItemizedSuppliesAnnual = factorySuppliesList.reduce((sum, s) => {
-    return sum + (s.annualAmount !== undefined ? s.annualAmount : ((s.quantity || 0) * (s.unitCost || 0)));
-  }, 0);
-
-  // Total Factory Overhead (Year 1)
-  const totalFactoryOverheadYr1 =
-    totalIndirectLaborAnnual +
-    totalProductionUtilitiesAnnual +
-    factoryDepreciationAmountYr1 +
-    (project.factoryOverheadAnnual || 0) +
-    (includeBenefitsInCOGS ? totalProductionLaborBenefitsAnnual : 0);
+  const totalItemizedSuppliesAnnual = year1FohSummary.factorySuppliesAnnual;
 
   // Non-Manufacturing Personnel Metrics
   const nonMfgEmployees = project.nonManufacturingLabor || [];
@@ -1621,20 +1649,43 @@ export default function AssumptionsEditor({
                 {/* 1. DIRECT LABOR TABLE                                */}
                 {/* ---------------------------------------------------- */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="p-1 bg-indigo-100 text-indigo-700 rounded-lg">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-gradient-to-r from-indigo-50/60 via-white to-slate-50 p-3.5 rounded-xl border border-indigo-200">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-2xs">
                           <Users className="w-4 h-4" />
                         </span>
                         <h3 className="text-sm font-bold text-slate-900">
-                          Direct Labor Headcount & Compensation
+                          Direct Labor Headcount & Compensation {dlViewYear > 1 ? `(Year ${dlViewYear} Escalated)` : `(Year 1)`}
                         </h3>
                         <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                           Direct Labor
                         </span>
                       </div>
+
+                      {/* Year navigation selector */}
+                      <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-200 shadow-2xs w-fit">
+                        <span className="text-[11px] font-bold text-indigo-950 px-2 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-700" />
+                          Projection Year:
+                        </span>
+                        {[1, 2, 3, 4, 5].map((yr) => (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={() => setDlViewYear(yr)}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                              dlViewYear === yr
+                                ? 'bg-indigo-600 text-white shadow-2xs ring-1 ring-indigo-700/20'
+                                : 'text-slate-600 hover:bg-indigo-100/70 hover:text-indigo-950'
+                            }`}
+                          >
+                            Year {yr}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
                     <button
                       onClick={() =>
                         updateDirectLabor([
@@ -1648,7 +1699,7 @@ export default function AssumptionsEditor({
                           },
                         ])
                       }
-                      className="px-3 py-1.5 text-xs bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium flex items-center gap-1.5 transition shadow-2xs shrink-0"
+                      className="px-3 py-1.5 text-xs bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium flex items-center gap-1.5 transition shadow-2xs shrink-0 self-start lg:self-center"
                     >
                       <Plus className="w-3.5 h-3.5" /> Add Direct Labor Role
                     </button>
@@ -1660,10 +1711,14 @@ export default function AssumptionsEditor({
                         <tr>
                           <th className="p-3">Position / Role</th>
                           <th className="p-3 text-right">Headcount</th>
-                          <th className="p-3 text-right">Monthly Basic Wage ({c})</th>
+                          <th className="p-3 text-right">
+                            {dlViewYear > 1 ? `Monthly Basic Wage (Yr ${dlViewYear}) (${c})` : `Monthly Basic Wage (${c})`}
+                          </th>
                           <th className="p-3 text-center">Annual Salary Increase</th>
                           <th className="p-3 text-right">Months / Year</th>
-                          <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
+                          <th className="p-3 text-right">
+                            {dlViewYear > 1 ? `Total Annual Cost (Yr ${dlViewYear})` : `Total Annual Cost (Yr 1)`}
+                          </th>
                           <th className="p-3 text-center w-16">Action</th>
                         </tr>
                       </thead>
@@ -1676,7 +1731,14 @@ export default function AssumptionsEditor({
                           </tr>
                         ) : (
                           project.directLabor.map((lab, idx) => {
-                            const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
+                            const wageYr = calculateLaborMonthlyWageForYear(
+                              lab.monthlyWage || 0,
+                              dlViewYear,
+                              lab.annualSalaryIncreaseType,
+                              lab.annualSalaryIncreaseValue,
+                              project.inflationRatePercent
+                            );
+                            const annual = wageYr * (lab.monthsPerYear || 12) * (lab.headcount || 1);
                             const incType = lab.annualSalaryIncreaseType || 'percentage';
                             const incVal = lab.annualSalaryIncreaseValue ?? 0;
                             return (
@@ -1710,14 +1772,30 @@ export default function AssumptionsEditor({
                                 <td className="p-2.5 text-right">
                                   <input
                                     type="number"
-                                    value={lab.monthlyWage}
+                                    value={dlViewYear === 1 ? lab.monthlyWage : Math.round(wageYr * 100) / 100}
                                     onChange={(e) => {
                                       const copy = [...project.directLabor];
-                                      copy[idx].monthlyWage = parseFloat(e.target.value) || 0;
+                                      const val = parseFloat(e.target.value) || 0;
+                                      if (dlViewYear === 1) {
+                                        copy[idx].monthlyWage = val;
+                                      } else {
+                                        if (incType === 'amount') {
+                                          copy[idx].monthlyWage = Math.max(0, val - incVal * (dlViewYear - 1));
+                                        } else {
+                                          const rate = incVal !== 0 || lab.annualSalaryIncreaseValue !== undefined ? incVal : (project.inflationRatePercent || 0);
+                                          const growth = Math.pow(1 + rate / 100, dlViewYear - 1);
+                                          copy[idx].monthlyWage = growth > 0 ? Math.round((val / growth) * 100) / 100 : val;
+                                        }
+                                      }
                                       updateDirectLabor(copy);
                                     }}
-                                    className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                    className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5 focus:border-indigo-500 focus:outline-none"
                                   />
+                                  {dlViewYear > 1 && (
+                                    <span className="block text-[10px] text-indigo-700 font-normal">
+                                      Base Yr 1: {formatCurrency(lab.monthlyWage, c)}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="p-2.5">
                                   <div className="flex items-center justify-center gap-1">
@@ -1793,11 +1871,22 @@ export default function AssumptionsEditor({
                             <td className="p-2.5 text-right font-financial font-bold text-indigo-700">
                               {totalDirectLaborHeadcount} pax
                             </td>
-                            <td colSpan={3} className="p-2.5 text-right text-slate-500">
-                              Annual Total:
+                            <td className="p-2.5 text-right font-financial font-bold text-indigo-700 text-xs">
+                              {formatCurrency(selectedDlYearSummary.monthlyTotal, c)}
+                              <span className="block text-[10px] text-slate-400 font-normal">
+                                / month ({dlViewYear > 1 ? `Yr ${dlViewYear} Escalated` : 'Yr 1'})
+                              </span>
+                            </td>
+                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                              {dlViewYear > 1 ? `Total Year ${dlViewYear} Annual:` : 'Annual Total:'}
                             </td>
                             <td className="p-2.5 text-right font-financial font-bold text-indigo-700 text-sm">
-                              {formatCurrency(totalDirectLaborAnnual, c)}
+                              {formatCurrency(selectedDlYearSummary.annualTotal, c)}
+                              {dlViewYear > 1 && (
+                                <span className="block text-[10px] text-slate-400 font-normal">
+                                  (Escalated)
+                                </span>
+                              )}
                             </td>
                             <td></td>
                           </tr>
@@ -1850,22 +1939,22 @@ export default function AssumptionsEditor({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
                     <div>
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
-                        Total Direct Labor (Year 1)
+                        Total Direct Labor (Year {dlViewYear})
                       </span>
                       <span className="text-sm font-bold font-financial text-indigo-700">
-                        {formatCurrency(totalDirectLaborAnnual, c)}
+                        {formatCurrency(selectedDlYearSummary.annualTotal, c)}
                       </span>
                       <span className="text-[10px] text-slate-400 block">
-                        {totalDirectLaborHeadcount} staff across {project.directLabor.length} positions
+                        {formatCurrency(selectedDlYearSummary.monthlyTotal, c)} / mo • {totalDirectLaborHeadcount} staff across {project.directLabor.length} positions
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
-                        Total Year 1 Production Volume
+                        Total Year {dlViewYear} Production Volume
                       </span>
                       <span className="text-sm font-bold font-financial text-slate-900">
-                        {totalYear1Volume.toLocaleString()} units
+                        {selectedDlYearSummary.volume.toLocaleString()} units
                       </span>
                       <span className="text-[10px] text-slate-400 block">
                         Across {project.products.length} products defined
@@ -1874,10 +1963,10 @@ export default function AssumptionsEditor({
 
                     <div>
                       <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">
-                        Average DL Cost / Unit
+                        Average DL Cost / Unit (Year {dlViewYear})
                       </span>
                       <span className="text-sm font-bold font-financial text-emerald-700">
-                        {formatCurrency(totalYear1Volume > 0 ? totalDirectLaborAnnual / totalYear1Volume : 0, c)}
+                        {formatCurrency(selectedDlYearSummary.costPerUnit, c)}
                         <span className="text-xs font-normal text-slate-500"> / unit</span>
                       </span>
                       <span className="text-[10px] text-slate-400 block">
@@ -1900,10 +1989,10 @@ export default function AssumptionsEditor({
             {/* TAB 5: FACTORY OVERHEAD */}
             {activeTab === 'factoryOverhead' && (
               <div className="space-y-6">
-                {/* Header & Master Badge */}
-                <div className="bg-gradient-to-r from-amber-50/80 via-white to-slate-50 border border-amber-200/80 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
+                {/* Header & Master Badge with Year Function Tab */}
+                <div className="bg-gradient-to-r from-amber-50/90 via-white to-slate-50 border border-amber-200/90 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="p-1.5 bg-amber-600 text-white rounded-lg shadow-2xs">
                         <Factory className="w-4 h-4" />
                       </span>
@@ -1914,17 +2003,104 @@ export default function AssumptionsEditor({
                         Manufacturing Overhead
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                      Indirect production costs capitalized into Cost of Goods Sold (COGS). Includes plant supervision & QA labor, production utilities (machine power & processing water), and factory machinery depreciation.
-                    </p>
+
+                    {/* Year Function Tab Navigation */}
+                    <div className="flex items-center gap-1 bg-white/95 p-1 rounded-xl border border-amber-300 shadow-2xs w-fit">
+                      <span className="text-[11px] font-bold text-amber-900 px-2 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                        FOH Year:
+                      </span>
+                      {[1, 2, 3, 4, 5].map((yr) => (
+                        <button
+                          key={yr}
+                          type="button"
+                          onClick={() => setFohViewYear(yr)}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                            fohViewYear === yr
+                              ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-700/20'
+                              : 'text-slate-600 hover:bg-amber-100/70 hover:text-amber-950'
+                          }`}
+                        >
+                          Year {yr}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="bg-white border border-amber-200 rounded-xl px-4 py-2.5 shadow-2xs text-right shrink-0">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block">
-                      Total Year 1 FOH (COGS)
-                    </span>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block">
+                        Total Year {fohViewYear} FOH (COGS)
+                      </span>
+                      {fohViewYear > 1 && (
+                        <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded">
+                          Escalated
+                        </span>
+                      )}
+                    </div>
                     <span className="text-base font-bold font-financial text-amber-700">
-                      {formatCurrency(totalFactoryOverheadYr1, c)}
+                      {formatCurrency(selectedYearFohSummary.totalFactoryOverheadAnnual, c)}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 font-financial mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.overheadPerUnit, c)} / unit ({selectedYearFohSummary.totalProductionVolume.toLocaleString()} units)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 6 Combined Components of Factory Overhead (Updated dynamically for Year {fohViewYear}) */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 bg-amber-50/40 p-3 rounded-xl border border-amber-200 text-xs">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">1. Indirect Labor</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
+                    </div>
+                    <span className="font-bold font-financial text-slate-900 block mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.indirectLaborAnnual, c)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">2. Utilities (Prod.)</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
+                    </div>
+                    <span className="font-bold font-financial text-slate-900 block mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.productionUtilitiesAnnual, c)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">3. Depreciation (Prod.)</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
+                    </div>
+                    <span className="font-bold font-financial text-slate-900 block mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.factoryDepreciationAnnual, c)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">4. Supplies & Misc</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
+                    </div>
+                    <span className="font-bold font-financial text-slate-900 block mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.suppliesAndOverheadAnnual, c)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">5. Statutory Benefits</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
+                    </div>
+                    <span className="font-bold font-financial text-slate-900 block mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.productionStatutoryBenefitsAnnual, c)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">6. 13th Mo. & Non-Stat.</span>
+                      <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
+                    </div>
+                    <span className="font-bold font-financial text-emerald-700 block mt-0.5">
+                      {formatCurrency(selectedYearFohSummary.productionThirteenthMonthPayAnnual + selectedYearFohSummary.additionalNonStatutoryBenefitsAnnual, c)}
                     </span>
                   </div>
                 </div>
@@ -1974,10 +2150,14 @@ export default function AssumptionsEditor({
                         <tr>
                           <th className="p-3">Position / Role</th>
                           <th className="p-3 text-right">Headcount</th>
-                          <th className="p-3 text-right">Monthly Basic Wage ({c})</th>
+                          <th className="p-3 text-right">
+                            {fohViewYear > 1 ? `Monthly Basic Wage (Yr ${fohViewYear}) (${c})` : `Monthly Basic Wage (${c})`}
+                          </th>
                           <th className="p-3 text-center">Annual Salary Increase</th>
                           <th className="p-3 text-right">Months / Year</th>
-                          <th className="p-3 text-right">Total Annual Cost (Yr 1)</th>
+                          <th className="p-3 text-right">
+                            {fohViewYear > 1 ? `Total Annual Cost (Yr ${fohViewYear})` : `Total Annual Cost (Yr 1)`}
+                          </th>
                           <th className="p-3 text-center w-16">Action</th>
                         </tr>
                       </thead>
@@ -1990,7 +2170,14 @@ export default function AssumptionsEditor({
                           </tr>
                         ) : (
                           project.indirectLabor.map((lab, idx) => {
-                            const annual = lab.monthlyWage * lab.monthsPerYear * lab.headcount;
+                            const wageYr = calculateLaborMonthlyWageForYear(
+                              lab.monthlyWage || 0,
+                              fohViewYear,
+                              lab.annualSalaryIncreaseType,
+                              lab.annualSalaryIncreaseValue,
+                              project.inflationRatePercent
+                            );
+                            const annual = wageYr * (lab.monthsPerYear || 12) * (lab.headcount || 1);
                             const incType = lab.annualSalaryIncreaseType || 'percentage';
                             const incVal = lab.annualSalaryIncreaseValue ?? 0;
                             return (
@@ -2024,14 +2211,30 @@ export default function AssumptionsEditor({
                                 <td className="p-2.5 text-right">
                                   <input
                                     type="number"
-                                    value={lab.monthlyWage}
+                                    value={fohViewYear === 1 ? lab.monthlyWage : Math.round(wageYr * 100) / 100}
                                     onChange={(e) => {
                                       const copy = [...(project.indirectLabor || [])];
-                                      copy[idx].monthlyWage = parseFloat(e.target.value) || 0;
+                                      const val = parseFloat(e.target.value) || 0;
+                                      if (fohViewYear === 1) {
+                                        copy[idx].monthlyWage = val;
+                                      } else {
+                                        if (incType === 'amount') {
+                                          copy[idx].monthlyWage = Math.max(0, val - incVal * (fohViewYear - 1));
+                                        } else {
+                                          const rate = incVal !== 0 || lab.annualSalaryIncreaseValue !== undefined ? incVal : (project.inflationRatePercent || 0);
+                                          const growth = Math.pow(1 + rate / 100, fohViewYear - 1);
+                                          copy[idx].monthlyWage = growth > 0 ? Math.round((val / growth) * 100) / 100 : val;
+                                        }
+                                      }
                                       updateIndirectLabor(copy);
                                     }}
-                                    className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                    className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5 focus:border-amber-500 focus:outline-none"
                                   />
+                                  {fohViewYear > 1 && (
+                                    <span className="block text-[10px] text-amber-700 font-normal">
+                                      Base Yr 1: {formatCurrency(lab.monthlyWage, c)}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="p-2.5">
                                   <div className="flex items-center justify-center gap-1">
@@ -2107,11 +2310,22 @@ export default function AssumptionsEditor({
                             <td className="p-2.5 text-right font-financial font-bold text-amber-700">
                               {totalIndirectLaborHeadcount} pax
                             </td>
-                            <td colSpan={3} className="p-2.5 text-right text-slate-500">
-                              Annual Total:
+                            <td className="p-2.5 text-right font-financial font-bold text-amber-700 text-xs">
+                              {formatCurrency(selectedIndirectLaborMonthly, c)}
+                              <span className="block text-[10px] text-slate-400 font-normal">
+                                / month ({fohViewYear > 1 ? `Yr ${fohViewYear} Escalated` : 'Yr 1'})
+                              </span>
+                            </td>
+                            <td colSpan={2} className="p-2.5 text-right text-slate-500">
+                              {fohViewYear > 1 ? `Total Year ${fohViewYear} Cost:` : 'Annual Total:'}
                             </td>
                             <td className="p-2.5 text-right font-financial font-bold text-amber-700 text-sm">
-                              {formatCurrency(totalIndirectLaborAnnual, c)}
+                              {formatCurrency(selectedYearFohSummary.indirectLaborAnnual, c)}
+                              {fohViewYear > 1 && (
+                                <span className="block text-[10px] text-slate-400 font-normal">
+                                  (Escalated)
+                                </span>
+                              )}
                             </td>
                             <td></td>
                           </tr>
@@ -2150,6 +2364,7 @@ export default function AssumptionsEditor({
                             {
                               id: `pu-${Date.now()}`,
                               name: 'Factory Electricity (Machinery & Plant Power)',
+                              monthlyAmount: 3000,
                               annualAmountYear1: 36000,
                               annualGrowthRate: 5,
                             },
@@ -2167,7 +2382,12 @@ export default function AssumptionsEditor({
                       <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                         <tr>
                           <th className="p-3">Production Utility Item</th>
-                          <th className="p-3 text-right">Year 1 Annual Amount ({c})</th>
+                          <th className="p-3 text-right">
+                            {fohViewYear > 1 ? `Monthly Amount (Yr ${fohViewYear}) (${c})` : `Monthly Amount (${c})`}
+                          </th>
+                          <th className="p-3 text-right">
+                            {fohViewYear > 1 ? `Year ${fohViewYear} Annual Amount (${c})` : `Year 1 Annual Amount (${c})`}
+                          </th>
                           <th className="p-3 text-right">Annual Escalation Rate (%)</th>
                           <th className="p-3 text-center w-16">Action</th>
                         </tr>
@@ -2175,77 +2395,116 @@ export default function AssumptionsEditor({
                       <tbody className="divide-y divide-slate-100">
                         {(!project.productionUtilities || project.productionUtilities.length === 0) ? (
                           <tr>
-                            <td colSpan={4} className="text-center py-6 text-slate-400">
+                            <td colSpan={5} className="text-center py-6 text-slate-400">
                               No production utilities added yet. Click "Add Production Utility" above.
                             </td>
                           </tr>
                         ) : (
-                          project.productionUtilities.map((util, idx) => (
-                            <tr key={util.id} className="hover:bg-slate-50/50">
-                              <td className="p-2.5">
-                                <input
-                                  type="text"
-                                  value={util.name}
-                                  placeholder="e.g. Factory Electricity, Water for Food Processing, Plant Fuel"
-                                  onChange={(e) => {
-                                    const copy = [...(project.productionUtilities || [])];
-                                    copy[idx].name = e.target.value;
-                                    updateProductionUtilities(copy);
-                                  }}
-                                  className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-amber-500 focus:outline-none"
-                                />
-                              </td>
-                              <td className="p-2.5 text-right">
-                                <input
-                                  type="number"
-                                  value={util.annualAmountYear1}
-                                  onChange={(e) => {
-                                    const copy = [...(project.productionUtilities || [])];
-                                    copy[idx].annualAmountYear1 = parseFloat(e.target.value) || 0;
-                                    updateProductionUtilities(copy);
-                                  }}
-                                  className="w-28 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                />
-                              </td>
-                              <td className="p-2.5 text-right">
-                                <div className="flex items-center justify-end gap-1">
+                          project.productionUtilities.map((util, idx) => {
+                            const baseMonthlyVal =
+                              util.monthlyAmount !== undefined
+                                ? util.monthlyAmount
+                                : (util.annualAmountYear1 ? Math.round((util.annualAmountYear1 / 12) * 100) / 100 : 0);
+                            const growth = Math.pow(1 + (util.annualGrowthRate || 0) / 100, fohViewYear - 1);
+                            const escalatedMonthlyVal = Math.round(baseMonthlyVal * growth * 100) / 100;
+                            const annualVal = baseMonthlyVal * 12 * growth;
+
+                            return (
+                              <tr key={util.id} className="hover:bg-slate-50/50">
+                                <td className="p-2.5">
                                   <input
-                                    type="number"
-                                    step="0.5"
-                                    value={util.annualGrowthRate}
+                                    type="text"
+                                    value={util.name}
+                                    placeholder="e.g. Factory Electricity, Water for Food Processing, Plant Fuel"
                                     onChange={(e) => {
                                       const copy = [...(project.productionUtilities || [])];
-                                      copy[idx].annualGrowthRate = parseFloat(e.target.value) || 0;
+                                      copy[idx].name = e.target.value;
                                       updateProductionUtilities(copy);
                                     }}
-                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                    className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-amber-500 focus:outline-none"
                                   />
-                                  <span className="text-slate-400">%</span>
-                                </div>
-                              </td>
-                              <td className="p-2.5 text-center">
-                                <button
-                                  onClick={() => {
-                                    updateProductionUtilities(
-                                      (project.productionUtilities || []).filter((_, i) => i !== idx)
-                                    );
-                                  }}
-                                  className="text-slate-400 hover:text-red-600 p-1 transition"
-                                  title="Delete utility"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={fohViewYear === 1 ? (baseMonthlyVal === 0 ? '' : baseMonthlyVal) : (escalatedMonthlyVal === 0 ? '' : escalatedMonthlyVal)}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const copy = [...(project.productionUtilities || [])];
+                                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                      if (fohViewYear === 1) {
+                                        copy[idx].monthlyAmount = val;
+                                        copy[idx].annualAmountYear1 = Math.round(val * 12 * 100) / 100;
+                                      } else {
+                                        const baseMonthly = growth > 0 ? Math.round((val / growth) * 100) / 100 : val;
+                                        copy[idx].monthlyAmount = baseMonthly;
+                                        copy[idx].annualAmountYear1 = Math.round(baseMonthly * 12 * 100) / 100;
+                                      }
+                                      updateProductionUtilities(copy);
+                                    }}
+                                    className="w-28 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5 focus:border-amber-500 focus:outline-none"
+                                  />
+                                  {fohViewYear > 1 && (
+                                    <span className="block text-[10px] text-amber-700 font-normal">
+                                      Base Yr 1: {formatCurrency(baseMonthlyVal, c)}
+                                      {util.annualGrowthRate ? ` (+${((growth - 1) * 100).toFixed(1)}%)` : ''}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-right font-financial font-bold text-slate-900">
+                                  {formatCurrency(annualVal, c)}
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <input
+                                      type="number"
+                                      step="0.5"
+                                      value={util.annualGrowthRate}
+                                      onChange={(e) => {
+                                        const copy = [...(project.productionUtilities || [])];
+                                        copy[idx].annualGrowthRate = parseFloat(e.target.value) || 0;
+                                        updateProductionUtilities(copy);
+                                      }}
+                                      className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                    />
+                                    <span className="text-slate-400">%</span>
+                                  </div>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    onClick={() => {
+                                      updateProductionUtilities(
+                                        (project.productionUtilities || []).filter((_, i) => i !== idx)
+                                      );
+                                    }}
+                                    className="text-slate-400 hover:text-red-600 p-1 transition"
+                                    title="Delete utility"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                       {(project.productionUtilities && project.productionUtilities.length > 0) && (
                         <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold text-slate-800">
                           <tr>
                             <td className="p-2.5">Total Production Utilities</td>
+                            <td className="p-2.5 text-right font-financial font-bold text-slate-800 text-xs">
+                              {formatCurrency(selectedYearFohSummary.productionUtilitiesAnnual / 12, c)}
+                              <span className="block text-[10px] text-slate-400 font-normal">
+                                {fohViewYear > 1 ? `/ month (Yr ${fohViewYear} Escalated)` : '/ month'}
+                              </span>
+                            </td>
                             <td className="p-2.5 text-right font-financial font-bold text-amber-700 text-sm">
-                              {formatCurrency(totalProductionUtilitiesAnnual, c)}
+                              {formatCurrency(selectedYearFohSummary.productionUtilitiesAnnual, c)}
+                              <span className="block text-[10px] text-slate-400 font-normal">
+                                / year ({fohViewYear > 1 ? `Yr ${fohViewYear} Escalated` : '12 mos'})
+                              </span>
                             </td>
                             <td colSpan={2} className="p-2.5 text-right text-slate-400 text-[11px]">
                               Included in Factory Overhead (COGS)
@@ -2489,10 +2748,10 @@ export default function AssumptionsEditor({
                         </div>
                         <div>
                           <span className="text-[10px] text-amber-800 uppercase tracking-wider font-bold block">
-                            Factory Depreciation (Yr 1 COGS)
+                            Factory Depreciation (Yr {fohViewYear} COGS)
                           </span>
                           <span className="text-base font-bold font-financial text-amber-700">
-                            {formatCurrency(factoryDepreciationAmountYr1, c)}
+                            {formatCurrency(selectedYearFohSummary.factoryDepreciationAnnual, c)}
                           </span>
                         </div>
                         <div>
@@ -2592,6 +2851,24 @@ export default function AssumptionsEditor({
                     </div>
                   </div>
 
+                  {fohViewYear > 1 && (
+                    <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs font-medium flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Boxes className="w-4 h-4 text-amber-700" />
+                        Year {fohViewYear} Escalated Supplies & Miscellaneous Overhead:
+                      </span>
+                      <div className="text-right">
+                        <span className="font-bold font-financial text-amber-800 text-sm">
+                          {formatCurrency(selectedYearFohSummary.suppliesAndOverheadAnnual, c)} / year
+                        </span>
+                        <span className="block text-[10px] text-amber-700 font-financial">
+                          {formatCurrency(selectedYearFohSummary.suppliesAndOverheadAnnual / 12, c)} / month
+                          {project.factoryOverheadGrowthRate ? ` (escalated at ${project.factoryOverheadGrowthRate}% / yr)` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {suppliesSyncFeedback && (
                     <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -2606,7 +2883,7 @@ export default function AssumptionsEditor({
                         <div>
                           <h5 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                             <PackageCheck className="w-4 h-4 text-indigo-600" />
-                            Indirect Production Supplies & Consumables Breakdown
+                            Indirect Production Supplies & Consumables Breakdown {fohViewYear > 1 ? `(Year ${fohViewYear} Escalated)` : `(Year 1)`}
                           </h5>
                           <p className="text-[11px] text-slate-500">
                             Specify auxiliary items indirect to production, their quantity, unit, and unit cost.
@@ -2641,10 +2918,15 @@ export default function AssumptionsEditor({
                           <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                             <tr>
                               <th className="p-2.5">Indirect Supply / Item Particulars</th>
-                              <th className="p-2.5 text-right w-24">Quantity</th>
-                              <th className="p-2.5 w-28">Unit</th>
-                              <th className="p-2.5 text-right w-28">Unit Cost ({c})</th>
-                              <th className="p-2.5 text-right w-32">Annual Amount ({c})</th>
+                              <th className="p-2.5 text-right w-20">Quantity</th>
+                              <th className="p-2.5 w-24">Unit</th>
+                              <th className="p-2.5 text-right w-24">Unit Cost ({c})</th>
+                              <th className="p-2.5 text-right w-28">
+                                {fohViewYear > 1 ? `Monthly (Yr ${fohViewYear})` : `Monthly Amount`}
+                              </th>
+                              <th className="p-2.5 text-right w-32">
+                                {fohViewYear > 1 ? `Annual (Yr ${fohViewYear})` : `Annual Amount ({c})`}
+                              </th>
                               <th className="p-2.5">Purpose / Notes</th>
                               <th className="p-2.5 text-center w-12">Action</th>
                             </tr>
@@ -2652,119 +2934,148 @@ export default function AssumptionsEditor({
                           <tbody className="divide-y divide-slate-100">
                             {factorySuppliesList.length === 0 ? (
                               <tr>
-                                <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
+                                <td colSpan={8} className="text-center py-6 text-slate-400 text-xs">
                                   No itemized supplies added yet. Click "Add Supply Item" above to list indirect production supplies.
                                 </td>
                               </tr>
                             ) : (
-                              factorySuppliesList.map((sup, idx) => (
-                                <tr key={sup.id} className="hover:bg-slate-50/50">
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={sup.name}
-                                      placeholder="e.g. Machine Lubricant, Hairnets & Gloves, QC Vials"
-                                      onChange={(e) => {
-                                        const copy = [...factorySuppliesList];
-                                        copy[idx].name = e.target.value;
-                                        updateFactorySupplies(copy);
-                                      }}
-                                      className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
-                                    />
-                                  </td>
-                                  <td className="p-2 text-right">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={sup.quantity}
-                                      onChange={(e) => {
-                                        const copy = [...factorySuppliesList];
-                                        const q = parseFloat(e.target.value) || 0;
-                                        copy[idx].quantity = q;
-                                        copy[idx].annualAmount = Math.round(q * (copy[idx].unitCost || 0));
-                                        updateFactorySupplies(copy);
-                                      }}
-                                      className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={sup.unit}
-                                      placeholder="e.g. boxes, liters"
-                                      onChange={(e) => {
-                                        const copy = [...factorySuppliesList];
-                                        copy[idx].unit = e.target.value;
-                                        updateFactorySupplies(copy);
-                                      }}
-                                      className="w-24 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 text-xs"
-                                    />
-                                  </td>
-                                  <td className="p-2 text-right">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={sup.unitCost}
-                                      onChange={(e) => {
-                                        const copy = [...factorySuppliesList];
-                                        const u = parseFloat(e.target.value) || 0;
-                                        copy[idx].unitCost = u;
-                                        copy[idx].annualAmount = Math.round((copy[idx].quantity || 0) * u);
-                                        updateFactorySupplies(copy);
-                                      }}
-                                      className="w-24 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
-                                    />
-                                  </td>
-                                  <td className="p-2 text-right">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={sup.annualAmount}
-                                      onChange={(e) => {
-                                        const copy = [...factorySuppliesList];
-                                        copy[idx].annualAmount = parseFloat(e.target.value) || 0;
-                                        updateFactorySupplies(copy);
-                                      }}
-                                      className="w-28 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5 text-indigo-950"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={sup.notes || ''}
-                                      placeholder="e.g. For weekly machine sanitation"
-                                      onChange={(e) => {
-                                        const copy = [...factorySuppliesList];
-                                        copy[idx].notes = e.target.value;
-                                        updateFactorySupplies(copy);
-                                      }}
-                                      className="w-full text-slate-500 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none text-[11px]"
-                                    />
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateFactorySupplies(factorySuppliesList.filter((_, i) => i !== idx))
-                                      }
-                                      className="text-slate-400 hover:text-red-600 p-1 transition"
-                                      title="Delete supply item"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))
+                              factorySuppliesList.map((sup, idx) => {
+                                const supGrowth = Math.pow(1 + (project.factoryOverheadGrowthRate || 0) / 100, fohViewYear - 1);
+                                const baseAnnual = sup.annualAmount !== undefined ? sup.annualAmount : Math.round((sup.quantity || 0) * (sup.unitCost || 0));
+                                const annualYr = baseAnnual * supGrowth;
+                                const monthlyYr = annualYr / 12;
+
+                                return (
+                                  <tr key={sup.id} className="hover:bg-slate-50/50">
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={sup.name}
+                                        placeholder="e.g. Machine Lubricant, Hairnets & Gloves, QC Vials"
+                                        onChange={(e) => {
+                                          const copy = [...factorySuppliesList];
+                                          copy[idx].name = e.target.value;
+                                          updateFactorySupplies(copy);
+                                        }}
+                                        className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
+                                      />
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={sup.quantity}
+                                        onChange={(e) => {
+                                          const copy = [...factorySuppliesList];
+                                          const q = parseFloat(e.target.value) || 0;
+                                          copy[idx].quantity = q;
+                                          copy[idx].annualAmount = Math.round(q * (copy[idx].unitCost || 0));
+                                          updateFactorySupplies(copy);
+                                        }}
+                                        className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={sup.unit}
+                                        placeholder="e.g. boxes, liters"
+                                        onChange={(e) => {
+                                          const copy = [...factorySuppliesList];
+                                          copy[idx].unit = e.target.value;
+                                          updateFactorySupplies(copy);
+                                        }}
+                                        className="w-20 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 text-xs"
+                                      />
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={sup.unitCost}
+                                        onChange={(e) => {
+                                          const copy = [...factorySuppliesList];
+                                          const u = parseFloat(e.target.value) || 0;
+                                          copy[idx].unitCost = u;
+                                          copy[idx].annualAmount = Math.round((copy[idx].quantity || 0) * u);
+                                          updateFactorySupplies(copy);
+                                        }}
+                                        className="w-20 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                      />
+                                    </td>
+                                    <td className="p-2 text-right font-financial text-slate-700">
+                                      {formatCurrency(monthlyYr, c)}
+                                      {fohViewYear > 1 && (
+                                        <span className="block text-[9px] text-slate-400">
+                                          Base: {formatCurrency(baseAnnual / 12, c)}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={fohViewYear === 1 ? sup.annualAmount : Math.round(annualYr * 100) / 100}
+                                        onChange={(e) => {
+                                          const copy = [...factorySuppliesList];
+                                          const val = parseFloat(e.target.value) || 0;
+                                          if (fohViewYear === 1) {
+                                            copy[idx].annualAmount = val;
+                                          } else {
+                                            copy[idx].annualAmount = supGrowth > 0 ? Math.round((val / supGrowth) * 100) / 100 : val;
+                                          }
+                                          updateFactorySupplies(copy);
+                                        }}
+                                        className="w-24 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5 text-indigo-950 focus:border-indigo-500 focus:outline-none"
+                                      />
+                                      {fohViewYear > 1 && (
+                                        <span className="block text-[9px] text-amber-700">
+                                          Base: {formatCurrency(baseAnnual, c)}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={sup.notes || ''}
+                                        placeholder="e.g. For weekly machine sanitation"
+                                        onChange={(e) => {
+                                          const copy = [...factorySuppliesList];
+                                          copy[idx].notes = e.target.value;
+                                          updateFactorySupplies(copy);
+                                        }}
+                                        className="w-full text-slate-500 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none text-[11px]"
+                                      />
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateFactorySupplies(factorySuppliesList.filter((_, i) => i !== idx))
+                                        }
+                                        className="text-slate-400 hover:text-red-600 p-1 transition"
+                                        title="Delete supply item"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
                             )}
                           </tbody>
                           {factorySuppliesList.length > 0 && (
                             <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold text-slate-900">
                               <tr>
                                 <td colSpan={4} className="p-2.5">
-                                  Total Itemized Indirect Supplies & Consumables
+                                  Total Itemized Indirect Supplies & Consumables {fohViewYear > 1 ? `(Yr ${fohViewYear} Escalated)` : ''}
+                                </td>
+                                <td className="p-2.5 text-right font-financial font-bold text-slate-700 text-xs">
+                                  {formatCurrency(totalItemizedSuppliesAnnual * Math.pow(1 + (project.factoryOverheadGrowthRate || 0) / 100, fohViewYear - 1) / 12, c)}
+                                  <span className="block text-[10px] text-slate-400 font-normal">/ month</span>
                                 </td>
                                 <td className="p-2.5 text-right font-financial font-bold text-indigo-950 text-sm">
-                                  {formatCurrency(totalItemizedSuppliesAnnual, c)}
+                                  {formatCurrency(totalItemizedSuppliesAnnual * Math.pow(1 + (project.factoryOverheadGrowthRate || 0) / 100, fohViewYear - 1), c)}
                                 </td>
                                 <td colSpan={2} className="p-2.5 text-right">
                                   <button
@@ -2802,10 +3113,10 @@ export default function AssumptionsEditor({
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="text-sm font-bold text-slate-900">
-                            5. Production Employee Benefits Schedule (Direct & Indirect Labor)
+                            5. Production Employee Benefits Schedule {fohViewYear > 1 ? `(Year ${fohViewYear} Escalated)` : `(Year 1)`}
                           </h4>
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            Official Statutory Table Engine
+                            {fohViewYear > 1 ? `Year ${fohViewYear} Statutory Table` : `Official Statutory Table Engine`}
                           </span>
                         </div>
                       </div>
@@ -2835,25 +3146,6 @@ export default function AssumptionsEditor({
                         <Eye className="w-3.5 h-3.5" />
                         {expandEmployeeHeadcount ? 'Group by Labor Position' : 'Expand All Staff'}
                       </button>
-
-                      {/* Year navigation selector */}
-                      <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                        <span className="text-[11px] font-semibold text-slate-500 px-1.5">Benefits Year:</span>
-                        {[1, 2, 3, 4, 5].map((yr) => (
-                          <button
-                            key={yr}
-                            type="button"
-                            onClick={() => setBenefitsViewYear(yr)}
-                            className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${
-                              benefitsViewYear === yr
-                                ? 'bg-emerald-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-                            }`}
-                          >
-                            Year {yr}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
 
@@ -2959,21 +3251,26 @@ export default function AssumptionsEditor({
                           <th className="py-3 px-3 w-48">Employee / Labor Role</th>
                           <th className="py-3 px-2 text-center w-24">Type</th>
                           <th className="py-3 px-2 text-center w-16">Staff</th>
-                          <th className="py-3 px-3 text-right w-32">Monthly Salary ({c})</th>
+                          <th className="py-3 px-3 text-right w-32">
+                            {fohViewYear > 1 ? `Monthly Salary (Yr ${fohViewYear}) (${c})` : `Monthly Salary (${c})`}
+                          </th>
                           <th className="py-3 px-3 text-right w-36 bg-indigo-50/50 text-indigo-950">
-                            SSS ER Share ({c})
+                            {fohViewYear > 1 ? `SSS ER Share (Yr ${fohViewYear}) (${c})` : `SSS ER Share (${c})`}
                           </th>
                           <th className="py-3 px-3 text-right w-32 bg-blue-50/50 text-blue-950">
-                            PhilHealth ER ({c})
+                            {fohViewYear > 1 ? `PhilHealth ER (Yr ${fohViewYear}) (${c})` : `PhilHealth ER (${c})`}
                           </th>
                           <th className="py-3 px-3 text-right w-32 bg-emerald-50/50 text-emerald-950">
-                            Pag-IBIG ER ({c})
+                            {fohViewYear > 1 ? `Pag-IBIG ER (Yr ${fohViewYear}) (${c})` : `Pag-IBIG ER (${c})`}
                           </th>
                           <th className="py-3 px-3 text-right w-32 font-bold text-slate-900">
-                            Monthly ER Total ({c})
+                            {fohViewYear > 1 ? `Monthly ER Total (Yr ${fohViewYear}) (${c})` : `Monthly ER Total (${c})`}
                           </th>
                           <th className="py-3 px-3 text-right w-36 font-bold text-emerald-950 bg-emerald-50/40">
-                            Annual ER Total ({c})
+                            {fohViewYear > 1 ? `Annual ER Total (Yr ${fohViewYear}) (${c})` : `Annual ER Total (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-36 font-bold text-purple-950 bg-purple-50/50">
+                            {fohViewYear > 1 ? `13th Month Pay (Yr ${fohViewYear}) (${c})` : `13th Month Pay (${c})`}
                           </th>
                           <th className="py-3 px-2 text-center w-12">Action</th>
                         </tr>
@@ -2981,7 +3278,7 @@ export default function AssumptionsEditor({
                       <tbody className="divide-y divide-slate-100">
                         {compiledProductionBenefits.records.length === 0 ? (
                           <tr>
-                            <td colSpan={10} className="text-center py-10 text-slate-400">
+                            <td colSpan={11} className="text-center py-10 text-slate-400">
                               <p className="font-semibold text-slate-600">No production employees found.</p>
                               <p className="text-xs text-slate-500 mt-1">
                                 Add Direct Labor and Indirect Labor positions in the Direct Labor and Indirect Labor tables above.
@@ -2998,191 +3295,356 @@ export default function AssumptionsEditor({
                             </td>
                           </tr>
                         ) : (
-                          compiledProductionBenefits.records
-                            .filter((r) => {
-                              if (benefitsClassificationFilter === 'direct') return r.classification === 'Direct Labor';
-                              if (benefitsClassificationFilter === 'indirect') return r.classification === 'Indirect Labor';
-                              return true;
-                            })
-                            .map((r) => {
-                              const isDirect = r.classification === 'Direct Labor';
-                              return (
-                                <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                                  {/* Employee / Role */}
-                                  <td className="py-2.5 px-3">
-                                    <span className="font-semibold text-slate-900 block">
-                                      {r.role}
-                                    </span>
-                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                      <span
-                                        className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                                          isDirect
-                                            ? 'bg-blue-100 text-blue-800'
-                                            : 'bg-amber-100 text-amber-800'
-                                        }`}
-                                      >
-                                        {r.classification}
-                                      </span>
-                                    </div>
-                                  </td>
+                          <>
+                            {/* 1. DIRECT LABOR SECTION */}
+                            {(benefitsClassificationFilter === 'all' || benefitsClassificationFilter === 'direct') && (
+                              <>
+                                {compiledProductionBenefits.directLaborRecords.length === 0 ? (
+                                  <tr className="text-slate-400 text-xs italic">
+                                    <td colSpan={11} className="py-3 px-3 text-center">
+                                      No direct labor positions added.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  compiledProductionBenefits.directLaborRecords.map((r) => {
+                                    return (
+                                      <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                                        {/* Employee / Role */}
+                                        <td className="py-2.5 px-3">
+                                          <span className="font-semibold text-slate-900 block">
+                                            {r.role}
+                                          </span>
+                                          <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-100 text-blue-800">
+                                              {r.classification}
+                                            </span>
+                                          </div>
+                                        </td>
 
-                                  {/* Classification */}
-                                  <td className="py-2.5 px-2 text-center">
-                                    <span
-                                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full inline-block ${
-                                        isDirect
-                                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                      }`}
-                                    >
-                                      {isDirect ? 'Direct' : 'Indirect'}
-                                    </span>
-                                  </td>
+                                        {/* Classification */}
+                                        <td className="py-2.5 px-2 text-center">
+                                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full inline-block bg-blue-50 text-blue-700 border border-blue-200">
+                                            Direct
+                                          </span>
+                                        </td>
 
-                                  {/* Headcount (read-only) */}
-                                  <td className="py-2.5 px-2 text-center font-financial font-semibold text-slate-800">
-                                    {expandEmployeeHeadcount ? '1' : r.headcount}
-                                  </td>
+                                        {/* Headcount (read-only) */}
+                                        <td className="py-2.5 px-2 text-center font-financial font-semibold text-slate-800">
+                                          {expandEmployeeHeadcount ? '1' : r.headcount}
+                                        </td>
 
-                                  {/* Monthly Salary (read-only, projected by year) */}
-                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-800">
-                                    {formatCurrency(r.monthlySalary, c)}
-                                  </td>
+                                        {/* Monthly Salary (read-only, projected by year) */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-800">
+                                          {formatCurrency(r.monthlySalary, c)}
+                                        </td>
 
-                                  {/* SSS Employer Share (Actual Table) */}
-                                  <td className="py-2.5 px-3 text-right bg-indigo-50/20 font-financial">
-                                    <span className="font-bold text-indigo-950 block" title={r.sss.bracketRange}>
-                                      {formatCurrency(r.sss.totalErTotalRole, c)}
-                                    </span>
-                                  </td>
+                                        {/* SSS Employer Share */}
+                                        <td className="py-2.5 px-3 text-right bg-indigo-50/20 font-financial">
+                                          <span className="font-bold text-indigo-950 block" title={r.sss.bracketRange}>
+                                            {formatCurrency(r.sss.totalErTotalRole, c)}
+                                          </span>
+                                        </td>
 
-                                  {/* PhilHealth Employer Share (Actual 2.5% computation) */}
-                                  <td className="py-2.5 px-3 text-right bg-blue-50/20 font-financial">
-                                    <span className="font-bold text-blue-950 block">
-                                      {formatCurrency(r.philHealth.monthlyErTotalRole, c)}
-                                    </span>
-                                  </td>
+                                        {/* PhilHealth Employer Share */}
+                                        <td className="py-2.5 px-3 text-right bg-blue-50/20 font-financial">
+                                          <span className="font-bold text-blue-950 block">
+                                            {formatCurrency(r.philHealth.monthlyErTotalRole, c)}
+                                          </span>
+                                        </td>
 
-                                  {/* Pag-IBIG Employer Share (Actual 2.0% computation up to ₱200 cap) */}
-                                  <td className="py-2.5 px-3 text-right bg-emerald-50/20 font-financial">
-                                    <span className="font-bold text-emerald-950 block">
-                                      {formatCurrency(r.pagIbig.monthlyErTotalRole, c)}
-                                    </span>
-                                  </td>
+                                        {/* Pag-IBIG Employer Share */}
+                                        <td className="py-2.5 px-3 text-right bg-emerald-50/20 font-financial">
+                                          <span className="font-bold text-emerald-950 block">
+                                            {formatCurrency(r.pagIbig.monthlyErTotalRole, c)}
+                                          </span>
+                                        </td>
 
-                                  {/* Monthly ER Total */}
+                                        {/* Monthly ER Total */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                                          {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
+                                        </td>
+
+                                        {/* Annual ER Total */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
+                                          {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
+                                        </td>
+
+                                        {/* 13th Month Pay */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-50/30">
+                                          {formatCurrency(r.thirteenthMonthPayTotalRole, c)}
+                                        </td>
+
+                                        {/* Action */}
+                                        <td className="py-2.5 px-2 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteEmployeeRole(r.sourceId, r.classification)}
+                                            className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition"
+                                            title={`Delete ${r.role} from ${r.classification}`}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+
+                                {/* Direct Labor Subtotal Row - Positioned immediately after Direct Labor roles */}
+                                <tr className="bg-blue-50/70 font-semibold text-slate-800 border-t-2 border-b-2 border-blue-200">
+                                  <td className="py-2.5 px-3 text-blue-900 font-bold" colSpan={2}>
+                                    Direct Labor Subtotal ({compiledProductionBenefits.summary.directLabor.headcount} {compiledProductionBenefits.summary.directLabor.headcount === 1 ? 'worker' : 'workers'})
+                                  </td>
+                                  <td className="py-2.5 px-2 text-center font-financial text-blue-900 font-bold">
+                                    {compiledProductionBenefits.summary.directLabor.headcount}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-financial text-blue-900 font-bold">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.monthlyBasicTotal, c)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-financial text-indigo-900 font-bold">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.sssErMonthlyTotal, c)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-financial text-blue-900 font-bold">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.philHealthErMonthlyTotal, c)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-financial text-emerald-900 font-bold">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.pagIbigErMonthlyTotal, c)}
+                                  </td>
                                   <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
-                                    {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.totalMonthlyBenefits, c)}
                                   </td>
-
-                                  {/* Annual ER Total */}
-                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
-                                    {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
+                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-blue-950 bg-blue-100/50">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.totalAnnualBenefits, c)}
                                   </td>
-
-                                  {/* Action */}
-                                  <td className="py-2.5 px-2 text-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteEmployeeRole(r.sourceId, r.classification)}
-                                      className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition"
-                                      title={`Delete ${r.role} from ${r.classification}`}
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-100/50">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.thirteenthMonthTotal, c)}
                                   </td>
+                                  <td></td>
                                 </tr>
-                              );
-                            })
+                              </>
+                            )}
+
+                            {/* 2. INDIRECT LABOR SECTION - Positioned STRICTLY in between Direct Labor Subtotal and Total Production Benefits */}
+                            {(benefitsClassificationFilter === 'all' || benefitsClassificationFilter === 'indirect') && (
+                              <>
+                                {compiledProductionBenefits.indirectLaborRecords.length === 0 ? (
+                                  <tr className="text-slate-400 text-xs italic">
+                                    <td colSpan={11} className="py-3 px-3 text-center">
+                                      No indirect labor positions added.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  compiledProductionBenefits.indirectLaborRecords.map((r) => {
+                                    return (
+                                      <tr key={r.id} className="hover:bg-amber-50/40 bg-amber-50/15 transition-colors">
+                                        {/* Employee / Role */}
+                                        <td className="py-2.5 px-3">
+                                          <span className="font-semibold text-slate-900 block">
+                                            {r.role}
+                                          </span>
+                                          <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                                              {r.classification}
+                                            </span>
+                                          </div>
+                                        </td>
+
+                                        {/* Classification */}
+                                        <td className="py-2.5 px-2 text-center">
+                                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full inline-block bg-amber-50 text-amber-700 border border-amber-200">
+                                            Indirect
+                                          </span>
+                                        </td>
+
+                                        {/* Headcount (read-only) */}
+                                        <td className="py-2.5 px-2 text-center font-financial font-semibold text-slate-800">
+                                          {expandEmployeeHeadcount ? '1' : r.headcount}
+                                        </td>
+
+                                        {/* Monthly Salary (read-only, projected by year) */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-800">
+                                          {formatCurrency(r.monthlySalary, c)}
+                                        </td>
+
+                                        {/* SSS Employer Share */}
+                                        <td className="py-2.5 px-3 text-right bg-indigo-50/20 font-financial">
+                                          <span className="font-bold text-indigo-950 block" title={r.sss.bracketRange}>
+                                            {formatCurrency(r.sss.totalErTotalRole, c)}
+                                          </span>
+                                        </td>
+
+                                        {/* PhilHealth Employer Share */}
+                                        <td className="py-2.5 px-3 text-right bg-blue-50/20 font-financial">
+                                          <span className="font-bold text-blue-950 block">
+                                            {formatCurrency(r.philHealth.monthlyErTotalRole, c)}
+                                          </span>
+                                        </td>
+
+                                        {/* Pag-IBIG Employer Share */}
+                                        <td className="py-2.5 px-3 text-right bg-emerald-50/20 font-financial">
+                                          <span className="font-bold text-emerald-950 block">
+                                            {formatCurrency(r.pagIbig.monthlyErTotalRole, c)}
+                                          </span>
+                                        </td>
+
+                                        {/* Monthly ER Total */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                                          {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
+                                        </td>
+
+                                        {/* Annual ER Total */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
+                                          {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
+                                        </td>
+
+                                        {/* 13th Month Pay */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-50/30">
+                                          {formatCurrency(r.thirteenthMonthPayTotalRole, c)}
+                                        </td>
+
+                                        {/* Action */}
+                                        <td className="py-2.5 px-2 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteEmployeeRole(r.sourceId, r.classification)}
+                                            className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition"
+                                            title={`Delete ${r.role} from ${r.classification}`}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+
+                                {/* Indirect Labor Subtotal Row (shown when there are multiple indirect labor records to avoid duplicate salary display if only 1 role) */}
+                                {compiledProductionBenefits.indirectLaborRecords.length > 1 && (
+                                  <tr className="bg-amber-50/70 font-semibold text-slate-800 border-t border-b border-amber-200">
+                                    <td className="py-2.5 px-3 text-amber-900 font-bold" colSpan={2}>
+                                      Indirect Labor / FOH Subtotal ({compiledProductionBenefits.summary.indirectLabor.headcount} {compiledProductionBenefits.summary.indirectLabor.headcount === 1 ? 'worker' : 'workers'})
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center font-financial text-amber-900 font-bold">
+                                      {compiledProductionBenefits.summary.indirectLabor.headcount}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial text-amber-900 font-bold">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.monthlyBasicTotal, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial text-indigo-900 font-bold">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.sssErMonthlyTotal, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial text-blue-900 font-bold">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.philHealthErMonthlyTotal, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial text-emerald-900 font-bold">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.pagIbigErMonthlyTotal, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalMonthlyBenefits, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial font-bold text-amber-950 bg-amber-100/50">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-100/50">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.thirteenthMonthTotal, c)}
+                                    </td>
+                                    <td></td>
+                                  </tr>
+                                )}
+                              </>
+                            )}
+                          </>
                         )}
                       </tbody>
 
                       {/* Subtotals & Grand Totals */}
                       {compiledProductionBenefits.records.length > 0 && (
-                        <tfoot className="border-t-2 border-slate-300 divide-y divide-slate-200">
-                          {/* Direct Labor Subtotal */}
-                          <tr className="bg-blue-50/60 font-semibold text-slate-800">
-                            <td className="py-2 px-3 text-blue-900 font-bold" colSpan={2}>
-                              Direct Labor Subtotal ({compiledProductionBenefits.summary.directLabor.headcount} workers)
-                            </td>
-                            <td className="py-2 px-2 text-center font-financial text-blue-900">
-                              {compiledProductionBenefits.summary.directLabor.headcount}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-blue-900">
-                              {formatCurrency(compiledProductionBenefits.summary.directLabor.monthlyBasicTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-bold">
-                              {formatCurrency(compiledProductionBenefits.summary.directLabor.sssErMonthlyTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-blue-900 font-bold">
-                              {formatCurrency(compiledProductionBenefits.summary.directLabor.philHealthErMonthlyTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-emerald-900 font-bold">
-                              {formatCurrency(compiledProductionBenefits.summary.directLabor.pagIbigErMonthlyTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial font-bold text-slate-900">
-                              {formatCurrency(compiledProductionBenefits.summary.directLabor.totalMonthlyBenefits, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial font-bold text-blue-950 bg-blue-100/50">
-                              {formatCurrency(compiledProductionBenefits.summary.directLabor.totalAnnualBenefits, c)}
-                            </td>
-                            <td></td>
-                          </tr>
-
-                          {/* Indirect Labor Subtotal */}
-                          <tr className="bg-amber-50/60 font-semibold text-slate-800">
-                            <td className="py-2 px-3 text-amber-900 font-bold" colSpan={2}>
-                              Indirect Labor / FOH Subtotal ({compiledProductionBenefits.summary.indirectLabor.headcount} workers)
-                            </td>
-                            <td className="py-2 px-2 text-center font-financial text-amber-900">
-                              {compiledProductionBenefits.summary.indirectLabor.headcount}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-amber-900">
-                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.monthlyBasicTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-bold">
-                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.sssErMonthlyTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-blue-900 font-bold">
-                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.philHealthErMonthlyTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial text-emerald-900 font-bold">
-                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.pagIbigErMonthlyTotal, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial font-bold text-slate-900">
-                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalMonthlyBenefits, c)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-financial font-bold text-amber-950 bg-amber-100/50">
-                              {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits, c)}
-                            </td>
-                            <td></td>
-                          </tr>
-
+                        <tfoot className="border-t-2 border-slate-300">
                           {/* Combined Grand Total Row */}
                           <tr className="bg-emerald-100/70 font-bold text-slate-900 text-sm">
                             <td className="py-3 px-3 text-emerald-950 font-black" colSpan={2}>
-                              Total Production Statutory Benefits (Year {benefitsViewYear})
+                              {benefitsClassificationFilter === 'direct'
+                                ? `Total Direct Labor Benefits & 13th Month (Year ${benefitsViewYear})`
+                                : benefitsClassificationFilter === 'indirect'
+                                ? `Total Indirect Labor Benefits & 13th Month (Year ${benefitsViewYear})`
+                                : `Total Production Benefits & 13th Month (Year ${benefitsViewYear})`}
                             </td>
                             <td className="py-3 px-2 text-center font-financial font-black text-emerald-950">
-                              {compiledProductionBenefits.summary.totalHeadcount}
+                              {benefitsClassificationFilter === 'direct'
+                                ? compiledProductionBenefits.summary.directLabor.headcount
+                                : benefitsClassificationFilter === 'indirect'
+                                ? compiledProductionBenefits.summary.indirectLabor.headcount
+                                : compiledProductionBenefits.summary.totalHeadcount}
                             </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-slate-900">
-                              {formatCurrency(compiledProductionBenefits.summary.totalMonthlyBasic, c)}
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.monthlyBasicTotal
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.monthlyBasicTotal
+                                  : compiledProductionBenefits.summary.totalMonthlyBasic,
+                                c
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-indigo-950">
-                              {formatCurrency(compiledProductionBenefits.summary.totalSssErMonthly, c)}
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.sssErMonthlyTotal
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.sssErMonthlyTotal
+                                  : compiledProductionBenefits.summary.totalSssErMonthly,
+                                c
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-blue-950">
-                              {formatCurrency(compiledProductionBenefits.summary.totalPhilHealthErMonthly, c)}
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.philHealthErMonthlyTotal
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.philHealthErMonthlyTotal
+                                  : compiledProductionBenefits.summary.totalPhilHealthErMonthly,
+                                c
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-emerald-950">
-                              {formatCurrency(compiledProductionBenefits.summary.totalPagIbigErMonthly, c)}
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.pagIbigErMonthlyTotal
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.pagIbigErMonthlyTotal
+                                  : compiledProductionBenefits.summary.totalPagIbigErMonthly,
+                                c
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-slate-950">
-                              {formatCurrency(compiledProductionBenefits.summary.totalStatutoryMonthly, c)}
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.totalMonthlyBenefits
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.totalMonthlyBenefits
+                                  : compiledProductionBenefits.summary.totalStatutoryMonthly,
+                                c
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-emerald-950 bg-emerald-200/60">
-                              {formatCurrency(compiledProductionBenefits.summary.totalStatutoryAnnual, c)}
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.totalAnnualBenefits
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits
+                                  : compiledProductionBenefits.summary.totalStatutoryAnnual,
+                                c
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-purple-950 bg-purple-200/60">
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.thirteenthMonthTotal
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.thirteenthMonthTotal
+                                  : compiledProductionBenefits.summary.totalThirteenthMonth,
+                                c
+                              )}
                             </td>
                             <td></td>
                           </tr>
@@ -3261,11 +3723,11 @@ export default function AssumptionsEditor({
                                   ...laborBenefitsList,
                                   {
                                     id: `ben-${Date.now()}`,
-                                    name: '13th Month Pay',
-                                    type: 'percentage',
-                                    rateOrAmount: 8.33,
+                                    name: 'Plant Welfare & PPE Allowance',
+                                    type: 'fixed_monthly_per_head',
+                                    rateOrAmount: 300,
                                     appliesTo: 'both',
-                                    notes: 'Statutory 1/12th annual basic wage',
+                                    notes: 'Monthly protective gear & welfare allowance for factory crew',
                                   },
                                 ])
                               }
@@ -3287,91 +3749,139 @@ export default function AssumptionsEditor({
                               <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                                 <tr>
                                   <th className="p-2">Benefit Particulars</th>
-                                  <th className="p-2 w-36">Calculation Mode</th>
+                                  <th className="p-2 w-44">Calculation Mode</th>
                                   <th className="p-2 text-right w-28">Rate / Amount</th>
                                   <th className="p-2 w-36">Applies To</th>
+                                  <th className="p-2 text-right w-36 text-emerald-800 bg-emerald-50/50">Capitalized in FOH ({c})</th>
                                   <th className="p-2 text-center w-12">Action</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
-                                {laborBenefitsList.map((b, idx) => (
-                                  <tr key={b.id} className="hover:bg-slate-50/50">
-                                    <td className="p-2">
-                                      <input
-                                        type="text"
-                                        value={b.name}
-                                        placeholder="Benefit Name"
-                                        onChange={(e) => {
-                                          const copy = [...laborBenefitsList];
-                                          copy[idx].name = e.target.value;
-                                          updateProductionLaborBenefits(copy);
-                                        }}
-                                        className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none"
-                                      />
-                                    </td>
-                                    <td className="p-2">
-                                      <select
-                                        value={b.type}
-                                        onChange={(e) => {
-                                          const copy = [...laborBenefitsList];
-                                          copy[idx].type = e.target.value as BenefitCalculationType;
-                                          updateProductionLaborBenefits(copy);
-                                        }}
-                                        className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
-                                      >
-                                        <option value="percentage">% of Basic Salary</option>
-                                        <option value="fixed_monthly_per_head">Monthly Fixed / Head</option>
-                                        <option value="fixed_annual">Annual Lump Sum</option>
-                                      </select>
-                                    </td>
-                                    <td className="p-2 text-right">
-                                      <div className="flex items-center justify-end gap-1">
+                                {laborBenefitsList.map((b, idx) => {
+                                  const capitalizedAmount = calculateLaborBenefitAmount(
+                                    b,
+                                    project.directLabor || [],
+                                    project.indirectLabor || [],
+                                    benefitsViewYear
+                                  );
+                                  return (
+                                    <tr key={b.id} className="hover:bg-slate-50/50">
+                                      <td className="p-2">
                                         <input
-                                          type="number"
-                                          step={b.type === 'percentage' ? '0.01' : '10'}
-                                          min="0"
-                                          value={b.rateOrAmount}
+                                          type="text"
+                                          value={b.name}
+                                          placeholder="Benefit Name"
                                           onChange={(e) => {
                                             const copy = [...laborBenefitsList];
-                                            copy[idx].rateOrAmount = parseFloat(e.target.value) || 0;
+                                            copy[idx].name = e.target.value;
                                             updateProductionLaborBenefits(copy);
                                           }}
-                                          className="w-20 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                          className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none"
                                         />
-                                        <span className="text-[11px] text-slate-500">
-                                          {b.type === 'percentage' ? '%' : b.type === 'fixed_monthly_per_head' ? '/mo' : c}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="p-2">
-                                      <select
-                                        value={b.appliesTo}
-                                        onChange={(e) => {
-                                          const copy = [...laborBenefitsList];
-                                          copy[idx].appliesTo = e.target.value as BenefitAppliesTo;
-                                          updateProductionLaborBenefits(copy);
-                                        }}
-                                        className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
-                                      >
-                                        <option value="both">Both (Direct & Indirect)</option>
-                                        <option value="direct_only">Direct Labor Only</option>
-                                        <option value="indirect_only">Indirect Labor Only</option>
-                                      </select>
-                                    </td>
-                                    <td className="p-2 text-center">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          updateProductionLaborBenefits(laborBenefitsList.filter((_, i) => i !== idx))
-                                        }
-                                        className="text-slate-400 hover:text-red-600 p-1"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
+                                      </td>
+                                      <td className="p-2">
+                                        <select
+                                          value={b.type}
+                                          onChange={(e) => {
+                                            const copy = [...laborBenefitsList];
+                                            const newType = e.target.value as BenefitCalculationType;
+                                            copy[idx].type = newType;
+                                            if (newType === 'one_month_salary' && !copy[idx].rateOrAmount) {
+                                              copy[idx].rateOrAmount = 1;
+                                            }
+                                            updateProductionLaborBenefits(copy);
+                                          }}
+                                          className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
+                                        >
+                                          <option value="one_month_salary">1 Month Salary (13th Month)</option>
+                                          <option value="percentage">% of Basic Salary</option>
+                                          <option value="fixed_monthly_per_head">Monthly Fixed / Head</option>
+                                          <option value="fixed_annual">Annual Lump Sum</option>
+                                        </select>
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        {b.type === 'one_month_salary' ? (
+                                          <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                            1 Mo. Salary
+                                          </span>
+                                        ) : (
+                                          <div className="flex items-center justify-end gap-1">
+                                            <input
+                                              type="number"
+                                              step={b.type === 'percentage' ? '0.01' : '10'}
+                                              min="0"
+                                              value={b.rateOrAmount}
+                                              onChange={(e) => {
+                                                const copy = [...laborBenefitsList];
+                                                copy[idx].rateOrAmount = parseFloat(e.target.value) || 0;
+                                                updateProductionLaborBenefits(copy);
+                                              }}
+                                              className="w-20 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                            />
+                                            <span className="text-[11px] text-slate-500">
+                                              {b.type === 'percentage' ? '%' : b.type === 'fixed_monthly_per_head' ? '/mo' : c}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="p-2">
+                                        <select
+                                          value={b.appliesTo}
+                                          onChange={(e) => {
+                                            const copy = [...laborBenefitsList];
+                                            copy[idx].appliesTo = e.target.value as BenefitAppliesTo;
+                                            updateProductionLaborBenefits(copy);
+                                          }}
+                                          className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
+                                        >
+                                          <option value="both">Both (Direct & Indirect)</option>
+                                          <option value="direct_only">Direct Labor Only</option>
+                                          <option value="indirect_only">Indirect Labor Only</option>
+                                        </select>
+                                      </td>
+                                      <td className="p-2 text-right font-financial font-bold text-emerald-700 bg-emerald-50/40">
+                                        {formatCurrency(capitalizedAmount, c)}
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            updateProductionLaborBenefits(laborBenefitsList.filter((_, i) => i !== idx))
+                                          }
+                                          className="text-slate-400 hover:text-red-600 p-1"
+                                          title="Remove Benefit"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
+                              <tfoot className="bg-slate-50 font-semibold border-t border-slate-200 text-slate-800">
+                                <tr>
+                                  <td colSpan={4} className="p-2.5 text-slate-700 font-bold">
+                                    Total Additional / Non-Statutory Benefits Capitalized into Factory Overhead (Year {benefitsViewYear})
+                                  </td>
+                                  <td className="p-2.5 text-right font-financial font-bold text-emerald-800 text-sm bg-emerald-100/50">
+                                    {formatCurrency(
+                                      laborBenefitsList.reduce(
+                                        (sum, b) =>
+                                          sum +
+                                          calculateLaborBenefitAmount(
+                                            b,
+                                            project.directLabor || [],
+                                            project.indirectLabor || [],
+                                            benefitsViewYear
+                                          ),
+                                        0
+                                      ),
+                                      c
+                                    )}
+                                  </td>
+                                  <td></td>
+                                </tr>
+                              </tfoot>
                             </table>
                           </div>
                         )}

@@ -88,6 +88,7 @@ export interface IndirectLaborItem {
 export interface ProductionUtilityItem {
   id: string;
   name: string;
+  monthlyAmount?: number;
   annualAmountYear1: number;
   annualGrowthRate: number;
 }
@@ -102,7 +103,7 @@ export interface FactorySupplyItem {
   notes?: string;
 }
 
-export type BenefitCalculationType = 'percentage' | 'fixed_monthly_per_head' | 'fixed_annual';
+export type BenefitCalculationType = 'one_month_salary' | 'percentage' | 'fixed_monthly_per_head' | 'fixed_annual';
 export type BenefitAppliesTo = 'both' | 'direct_only' | 'indirect_only';
 
 export interface LaborBenefitItem {
@@ -255,7 +256,9 @@ export interface YearFinancials {
   // Cost of Goods Sold / Cost of Sales
   directMaterials: number;
   directLabor: number;
-  factoryOverhead: number;
+  factoryOverhead: number; // Factory Overhead (Supplies & Utilities) reflecting Indirect Labor, Utilities Production, and Supplies & Misc
+  factoryOverheadSuppliesAndUtilities?: number; // Indirect Labor + Utilities Production + Supplies & Misc
+  totalFactoryOverhead?: number; // Total Factory Overhead (Production Benefits + Factory Overhead Supplies & Utilities + Depreciation)
   factoryLaborBenefits?: number;
   factoryDepreciation: number;
   totalCOGS: number;

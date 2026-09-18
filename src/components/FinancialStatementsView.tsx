@@ -191,10 +191,15 @@ export default function FinancialStatementsView({
                     </tr>
                   )}
                   <tr>
-                    <td className="py-1 pl-4 text-slate-600">Factory Overhead (Supplies & Utilities)</td>
+                    <td
+                      className="py-1 pl-4 text-slate-600"
+                      title="Reflects Indirect Labor, Production Utilities, and Supplies & Misc"
+                    >
+                      Factory Overhead (Supplies & Utilities)
+                    </td>
                     {years5.map((y) => (
                       <td key={y.year} className="py-1 text-right font-financial text-slate-600">
-                        {formatCurrency(y.factoryOverhead, c)}
+                        {formatCurrency(y.factoryOverheadSuppliesAndUtilities ?? y.factoryOverhead, c)}
                       </td>
                     ))}
                   </tr>
@@ -388,6 +393,10 @@ export default function FinancialStatementsView({
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px] text-slate-500 italic px-2">
+              * Note on Cost of Goods Sold: <strong>Factory Overhead (Supplies & Utilities)</strong> reflects Indirect Labor, Utilities Production, and Supplies & Misc. The sum of <em>Production Labor Benefits (Direct & Indirect)</em>, <em>Factory Overhead (Supplies & Utilities)</em>, and <em>Depreciation - Machinery & Plant</em> equals <strong>Total Factory Overhead</strong>.
             </div>
           </div>
         )}
