@@ -637,7 +637,7 @@ export default function SupportingSchedulesView({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                     <span className="font-bold text-indigo-900 block">SSS Employer Share</span>
                     <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
@@ -658,6 +658,20 @@ export default function SupportingSchedulesView({
                       {formatCurrency(statutoryBenefits.summary.totalPagIbigErAnnual, c)}
                     </span>
                   </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <span className="font-bold text-amber-900 block">13th Month Pay (Statutory)</span>
+                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                      {formatCurrency(statutoryBenefits.summary.totalThirteenthMonth, c)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900 font-medium">
+                  <span>Total Statutory Benefits (SSS + PhilHealth + Pag-IBIG + 13th Month Pay):</span>
+                  <span className="font-bold font-financial text-sm text-emerald-950">
+                    {formatCurrency(statutoryBenefits.summary.totalStatutoryAnnual, c)} /yr
+                  </span>
                 </div>
 
                 {benefits.length > 0 && (

@@ -403,11 +403,6 @@ export default function BankInterestAndLoanModal({
                     <h3 className="text-lg sm:text-xl font-bold tracking-tight">
                       Interest Inflows vs. Loan Outflows (5-Year Matrix)
                     </h3>
-                    <p className="text-xs text-slate-300 max-w-2xl">
-                      This schedule illustrates your cash interactions with banking institutions:
-                      the interest revenue earned on idle working capital deposits vs. the required debt service
-                      (split into capital principal repayments and borrowing interest expenses).
-                    </p>
                   </div>
 
                   <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10 text-right shrink-0">

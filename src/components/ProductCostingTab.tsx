@@ -31,25 +31,13 @@ import {
 interface ProductCostingTabProps {
   project: FeasibilityProject;
   onUpdateProject: (p: FeasibilityProject) => void;
-  onNavigateToTab: (
-    tab:
-      | 'capital'
-      | 'sales'
-      | 'costing'
-      | 'directCosts'
-      | 'factoryOverhead'
-      | 'nonManufacturing'
-      | 'opex'
-      | 'workingCapital'
-  ) => void;
+  onNavigateToTab?: (tab: any) => void;
 }
 
 const COMPONENT_CATEGORIES: CostComponentCategory[] = [
   'Raw Materials & Ingredients',
   'Packaging & Containers',
   'Direct Consumables & Supplies',
-  'Direct Overhead & Freight',
-  'Direct Labor Allocation',
 ];
 
 export default function ProductCostingTab({
@@ -706,43 +694,31 @@ export default function ProductCostingTab({
       {/* ---------------------------------------------------- */}
       {/* HEADER & CONTEXTUAL INTRO                            */}
       {/* ---------------------------------------------------- */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-indigo-50/70 via-white to-slate-50 border border-indigo-100 rounded-2xl p-4 sm:p-5 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-amber-50/70 via-white to-slate-50 border border-amber-200/70 rounded-2xl p-4 sm:p-5 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-indigo-600 text-white rounded-xl shadow-2xs">
-              <Calculator className="w-4 h-4" />
+            <span className="p-1.5 bg-amber-600 text-white rounded-xl shadow-2xs">
+              <Tag className="w-4 h-4" />
             </span>
             <h3 className="text-base font-bold text-slate-900">
-              Direct Materials Costing (Cost Per Unit Builder)
+              Direct Materials (Bill of Materials & Packaging)
             </h3>
           </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Itemize the raw materials, ingredients, containers, and packaging required to produce one unit of finished product.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleApplyDlToAllProducts}
-            className="px-3 py-1.5 text-xs bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-            title="Automatically distribute Direct Labor payroll across all products based on volume"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" /> Apply DL to All
-          </button>
-          <button
-            type="button"
-            onClick={handleApplyFohToAllProducts}
-            className="px-3 py-1.5 text-xs bg-white hover:bg-purple-50 text-purple-900 border border-purple-200 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-            title="Automatically distribute Factory Overhead across all products based on volume"
-          >
-            <Factory className="w-3.5 h-3.5 text-purple-600" /> Apply FOH to All
-          </button>
-          <button
-            type="button"
-            onClick={handleApplyFullCostingToAllProducts}
-            className="px-3 py-1.5 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-xl font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-            title="Apply both Direct Labor and Factory Overhead absorption costing to all products in one click"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-700" /> Apply Full Costing (DL + FOH)
-          </button>
+          {onNavigateToTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('costing')}
+              className="px-3 py-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+            >
+              <Calculator className="w-3.5 h-3.5 text-indigo-600" /> Go to Costing Matrix →
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCreateProduct}
@@ -803,111 +779,79 @@ export default function ProductCostingTab({
       {activeProduct && (
         <>
           {/* ---------------------------------------------------- */}
-          {/* TOP SUMMARY CARDS FOR ACTIVE PRODUCT (5 CARDS)       */}
+          {/* TOP SUMMARY CARDS FOR ACTIVE PRODUCT                 */}
           {/* ---------------------------------------------------- */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            {/* Card 1: Direct Materials */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Card 1: Direct Materials / Unit */}
+            <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-slate-500 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">1. Direct Materials</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px] text-amber-900">Direct Materials / Unit</span>
                 <span className="p-1 bg-amber-50 text-amber-700 rounded-md">
                   <Tag className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="text-xl font-bold font-financial text-slate-900">
+              <div className="text-2xl font-bold font-financial text-amber-800">
                 {formatCurrency(activeMaterialsSubtotal, c, 2)}
               </div>
               <p className="text-[11px] text-slate-500">
                 {activeMaterialsBreakdown.length > 0
-                  ? `${activeMaterialsBreakdown.length} component${activeMaterialsBreakdown.length > 1 ? 's' : ''}`
-                  : 'Direct base raw material'}
-                {activeTotalUnitCost > 0 && (
-                  <span className="text-amber-700 font-bold ml-1">
-                    ({((activeMaterialsSubtotal / activeTotalUnitCost) * 100).toFixed(0)}%)
-                  </span>
-                )}
+                  ? `${activeMaterialsBreakdown.length} component${activeMaterialsBreakdown.length > 1 ? 's' : ''} in bill of materials`
+                  : 'Base unit raw materials cost'}
               </p>
             </div>
 
-            {/* Card 2: Direct Labor */}
+            {/* Card 2: Year 1 Target Production */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-slate-500 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">2. Direct Labor</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Year 1 Target Volume</span>
                 <span className="p-1 bg-indigo-50 text-indigo-700 rounded-md">
-                  <Users className="w-3.5 h-3.5" />
+                  <Layers className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="text-xl font-bold font-financial text-indigo-700">
-                {formatCurrency(activeLaborSubtotal, c, 2)}
+              <div className="text-2xl font-bold font-financial text-slate-900">
+                {activeProduct.year1Volume.toLocaleString()}
+                <span className="text-xs font-normal text-slate-500 ml-1">units</span>
               </div>
               <p className="text-[11px] text-slate-500">
-                {totalDirectLaborHeadcount} staff wages
-                {activeTotalUnitCost > 0 && (
-                  <span className="text-indigo-700 font-bold ml-1">
-                    ({((activeLaborSubtotal / activeTotalUnitCost) * 100).toFixed(0)}%)
-                  </span>
-                )}
+                Target sales volume for Year 1
               </p>
             </div>
 
-            {/* Card 3: Factory Overhead (Requirement 1) */}
-            <div className="bg-white border border-purple-200 rounded-2xl p-4 shadow-2xs space-y-1">
+            {/* Card 3: Year 1 Materials Budget */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-slate-500 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px] text-purple-900">3. Factory Overhead</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Total Materials Budget (Yr 1)</span>
                 <span className="p-1 bg-purple-50 text-purple-700 rounded-md">
-                  <Factory className="w-3.5 h-3.5" />
-                </span>
-              </div>
-              <div className="text-xl font-bold font-financial text-purple-700">
-                {formatCurrency(activeFohSubtotal, c, 2)}
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Indirect plant cost
-                {activeTotalUnitCost > 0 && (
-                  <span className="text-purple-700 font-bold ml-1">
-                    ({((activeFohSubtotal / activeTotalUnitCost) * 100).toFixed(0)}%)
-                  </span>
-                )}
-              </p>
-            </div>
-
-            {/* Card 4: Total Cost / Unit (COGS) */}
-            <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white border border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
-              <div className="flex items-center justify-between text-indigo-200 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">Cost / Unit (COGS)</span>
-                <span className="p-1 bg-indigo-800/60 text-indigo-200 rounded-md">
                   <Calculator className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="text-2xl font-bold font-financial text-emerald-400">
-                {formatCurrency(activeTotalUnitCost, c, 2)}
+              <div className="text-xl font-bold font-financial text-slate-900">
+                {formatCurrency(activeMaterialsSubtotal * activeProduct.year1Volume, c)}
               </div>
-              <p className="text-[10px] text-indigo-200/80">
-                = DM + DL + FOH
+              <p className="text-[11px] text-slate-500">
+                Direct raw materials needed in Year 1
               </p>
             </div>
 
-            {/* Card 5: Selling Price & Margin */}
+            {/* Card 4: Selling Price & Material Ratio */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
               <div className="flex items-center justify-between text-slate-500 text-xs">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">Price & Margin</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px]">Selling Price ({c})</span>
                 <span className="p-1 bg-emerald-50 text-emerald-700 rounded-md">
                   <TrendingUp className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="text-xl font-bold font-financial text-slate-900 flex items-baseline gap-2">
-                <span>{formatCurrency(activeUnitPrice, c, 2)}</span>
-                <span
-                  className={`text-xs font-bold font-financial ${
-                    activeUnitMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'
-                  }`}
-                >
-                  +{formatCurrency(activeUnitMargin, c, 2)}
-                </span>
+              <div className="text-xl font-bold font-financial text-slate-900">
+                {formatCurrency(activeUnitPrice, c, 2)}
               </div>
               <p className="text-[11px] text-slate-500">
-                Margin: <strong className="text-emerald-700">{activeMarginPercent.toFixed(1)}%</strong>
-                {activeMarkupPercent > 0 && ` • Markup: ${activeMarkupPercent.toFixed(1)}%`}
+                Materials ratio:{' '}
+                <strong className="text-amber-800">
+                  {activeUnitPrice > 0
+                    ? `${((activeMaterialsSubtotal / activeUnitPrice) * 100).toFixed(1)}%`
+                    : '0%'}
+                </strong>{' '}
+                of selling price
               </p>
             </div>
           </div>
@@ -1184,619 +1128,6 @@ export default function ProductCostingTab({
                 </table>
               </div>
             )}
-          </div>
-
-          {/* ---------------------------------------------------- */}
-          {/* SECTION B: DIRECT LABOR COST ALLOCATION              */}
-          {/* ---------------------------------------------------- */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-indigo-100 text-indigo-800 rounded-lg">
-                    <Users className="w-4 h-4" />
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900">
-                    Step 2: Direct Labor Cost Allocation
-                  </h4>
-                  <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {formatCurrency(activeLaborSubtotal, c, 2)} / unit
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick Link to Tab 4 Direct Labor */}
-              <button
-                type="button"
-                onClick={() => onNavigateToTab('directCosts')}
-                className="px-3 py-1.5 text-xs bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-medium flex items-center gap-1.5 transition self-start sm:self-auto"
-              >
-                <Users className="w-3.5 h-3.5" /> Manage Labor Roles & Wages in Tab 4 →
-              </button>
-            </div>
-
-            {/* Direct Labor Source Information Banner */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-indigo-50/40 border border-indigo-100 rounded-xl p-3 text-xs">
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                  Direct Labor Payroll (Yr 1)
-                </span>
-                <span className="text-sm font-bold font-financial text-indigo-900">
-                  {formatCurrency(totalDirectLaborAnnual, c)}
-                </span>
-                <span className="text-[10px] text-slate-400 block">
-                  {totalDirectLaborHeadcount} staff across {project.directLabor.length} positions
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                  Total Production Volume
-                </span>
-                <span className="text-sm font-bold font-financial text-slate-900">
-                  {totalYear1Volume.toLocaleString()} units
-                </span>
-                <span className="text-[10px] text-slate-400 block">
-                  Across all {project.products.length} products
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                  Volume-Weighted DL Benchmark
-                </span>
-                <span className="text-sm font-bold font-financial text-emerald-700">
-                  {formatCurrency(volumeWeightedDlPerUnit, c, 2)}
-                  <span className="text-xs font-normal text-slate-500"> / unit</span>
-                </span>
-                <span className="text-[10px] text-slate-400 block">
-                  = Total Direct Labor ÷ Total Volume
-                </span>
-              </div>
-            </div>
-
-            {/* Allocation Method Selector */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Choose Direct Labor Allocation Method for {activeProduct.name}:
-              </label>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Option 1: Volume Share */}
-                <div
-                  onClick={() => handleUpdateLaborMode('volume_share')}
-                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
-                    (activeProduct.dlCostMode || 'volume_share') === 'volume_share'
-                      ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                      Volume-Weighted Share
-                    </span>
-                    {(activeProduct.dlCostMode || 'volume_share') === 'volume_share' && (
-                      <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    Distributes annual labor payroll evenly across all units produced. Standard method in undergraduate feasibility studies.
-                  </p>
-                  <div className="text-sm font-bold font-financial text-indigo-700">
-                    {formatCurrency(volumeWeightedDlPerUnit, c, 2)} / unit
-                  </div>
-                </div>
-
-                {/* Option 2: Custom Fixed Rate */}
-                <div
-                  onClick={() => handleUpdateLaborMode('custom', activeLaborSubtotal)}
-                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
-                    activeProduct.dlCostMode === 'custom'
-                      ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-indigo-600" />
-                      Custom Fixed Rate
-                    </span>
-                    {activeProduct.dlCostMode === 'custom' && (
-                      <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    Specify an exact direct labor peso rate per unit for this specific product.
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-400 font-bold">{c}</span>
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={activeProduct.directLaborCostPerUnit ?? activeLaborSubtotal}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        handleUpdateLaborMode('custom', val);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-24 font-financial font-bold text-xs text-slate-900 border border-slate-300 rounded-lg px-2 py-1 focus:outline-indigo-500 bg-white"
-                    />
-                    <span className="text-xs text-slate-500">/ unit</span>
-                  </div>
-                </div>
-
-                {/* Option 3: Time Study (Minutes x Hourly Rate) */}
-                <div
-                  onClick={() =>
-                    handleUpdateLaborMode(
-                      'hourly_time',
-                      undefined,
-                      activeProduct.laborMinutesPerUnit || 15,
-                      activeProduct.laborHourlyRate || 65
-                    )
-                  }
-                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
-                    activeProduct.dlCostMode === 'hourly_time'
-                      ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                      Time Study (Mins × Wage)
-                    </span>
-                    {activeProduct.dlCostMode === 'hourly_time' && (
-                      <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    Based on fabrication / preparation time (minutes) and labor hourly wage rate.
-                  </p>
-                  <div className="space-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Cycle Time:</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max="600"
-                          value={activeProduct.laborMinutesPerUnit || 15}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 1;
-                            handleUpdateLaborMode(
-                              'hourly_time',
-                              undefined,
-                              val,
-                              activeProduct.laborHourlyRate || 65
-                            );
-                          }}
-                          className="w-14 font-financial text-right border border-slate-300 rounded px-1 py-0.5"
-                        />
-                        <span>mins</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Hourly Rate:</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={activeProduct.laborHourlyRate || 65}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0;
-                            handleUpdateLaborMode(
-                              'hourly_time',
-                              undefined,
-                              activeProduct.laborMinutesPerUnit || 15,
-                              val
-                            );
-                          }}
-                          className="w-14 font-financial text-right border border-slate-300 rounded px-1 py-0.5"
-                        />
-                        <span>{c}/hr</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ---------------------------------------------------- */}
-          {/* STEP 3: FACTORY OVERHEAD ALLOCATION (Requirement 1)  */}
-          {/* ---------------------------------------------------- */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-purple-100 text-purple-800 rounded-lg">
-                    <Factory className="w-4 h-4" />
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900">
-                    Step 3: Factory Overhead Allocation (COGS / Unit)
-                  </h4>
-                  <span className="bg-purple-50 text-purple-800 border border-purple-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {formatCurrency(activeFohSubtotal, c, 2)} / unit
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Full Absorption Costing: Allocate indirect manufacturing overhead (utilities, plant supplies, indirect wages, plant depreciation) into finished goods unit cost.
-                </p>
-              </div>
-
-              {/* Quick Link to Tab 5 Factory Overhead */}
-              <button
-                type="button"
-                onClick={() => onNavigateToTab('factoryOverhead')}
-                className="px-3 py-1.5 text-xs bg-slate-50 hover:bg-purple-50 text-purple-700 border border-purple-200 rounded-xl font-medium flex items-center gap-1.5 transition self-start sm:self-auto cursor-pointer"
-              >
-                <Factory className="w-3.5 h-3.5" /> Manage Plant Overhead & Utilities in Tab 5 →
-              </button>
-            </div>
-
-            {/* Factory Overhead Source Information Banner */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-purple-50/40 border border-purple-100 rounded-xl p-3 text-xs">
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                  Factory Overhead Budget (Yr 1)
-                </span>
-                <span className="text-sm font-bold font-financial text-purple-900">
-                  {formatCurrency(totalFactoryOverheadAnnual, c)}
-                </span>
-                <span className="text-[10px] text-slate-400 block">
-                  Indirect Labor, Utilities, Supplies & Plant Depreciation
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                  Total Production Volume
-                </span>
-                <span className="text-sm font-bold font-financial text-slate-900">
-                  {totalYear1Volume.toLocaleString()} units
-                </span>
-                <span className="text-[10px] text-slate-400 block">
-                  Across all {project.products.length} products
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] uppercase font-semibold">
-                  Volume-Weighted FOH Benchmark
-                </span>
-                <span className="text-sm font-bold font-financial text-purple-700">
-                  {formatCurrency(volumeWeightedFohPerUnit, c, 2)}
-                  <span className="text-xs font-normal text-slate-500"> / unit</span>
-                </span>
-                <span className="text-[10px] text-slate-400 block">
-                  = Total Factory Overhead ÷ Total Volume
-                </span>
-              </div>
-            </div>
-
-            {/* Allocation Method Selector */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                  Choose Factory Overhead Allocation Method for {activeProduct.name}:
-                </label>
-                <button
-                  type="button"
-                  onClick={handleApplyFohToAllProducts}
-                  className="text-xs text-purple-700 hover:text-purple-900 font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> Apply this benchmark to all products
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Option 1: Volume Share */}
-                <div
-                  onClick={() => handleUpdateFohMode('volume_share')}
-                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
-                    (activeProduct.fohCostMode || 'volume_share') === 'volume_share'
-                      ? 'border-purple-600 bg-purple-50/50 ring-1 ring-purple-600'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-purple-600" />
-                      Volume-Weighted Share (Standard Absorption Costing)
-                    </span>
-                    {(activeProduct.fohCostMode || 'volume_share') === 'volume_share' && (
-                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    Distributes total annual plant overhead evenly across all units manufactured. Standard textbook methodology for feasibility defense.
-                  </p>
-                  <div className="text-sm font-bold font-financial text-purple-700">
-                    {formatCurrency(volumeWeightedFohPerUnit, c, 2)} / unit
-                  </div>
-                </div>
-
-                {/* Option 2: Custom Fixed Rate */}
-                <div
-                  onClick={() => handleUpdateFohMode('custom', activeFohSubtotal)}
-                  className={`border rounded-xl p-3.5 cursor-pointer transition relative ${
-                    activeProduct.fohCostMode === 'custom'
-                      ? 'border-purple-600 bg-purple-50/50 ring-1 ring-purple-600'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-purple-600" />
-                      Custom Fixed FOH Rate
-                    </span>
-                    {activeProduct.fohCostMode === 'custom' && (
-                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    Specify an exact factory overhead peso amount per finished unit for this product.
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-400 font-bold">{c}</span>
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={activeProduct.factoryOverheadCostPerUnit ?? activeFohSubtotal}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        handleUpdateFohMode('custom', val);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-24 font-financial font-bold text-xs text-slate-900 border border-slate-300 rounded-lg px-2 py-1 focus:outline-purple-500 bg-white"
-                    />
-                    <span className="text-xs text-slate-500">/ unit</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ---------------------------------------------------- */}
-          {/* SECTION C: COST ROLLUP & UNIT ECONOMICS SHEET        */}
-          {/* ---------------------------------------------------- */}
-          <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 sm:p-6 shadow-md space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-800">
-              <div>
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-emerald-400" />
-                  Unit Cost Synthesis: {activeProduct.name}
-                </h4>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Academic Cost of Goods Sold (COGS) Schedule per finished unit under Full Absorption Costing (DM + DL + FOH).
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    showFeedback(`Synced ${activeProduct.name} unit cost to statements!`);
-                  }}
-                  className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
-                >
-                  <Check className="w-3.5 h-3.5" /> Synchronized with Financials
-                </button>
-              </div>
-            </div>
-
-            {/* Accounting Cost Sheet Table */}
-            <div className="max-w-2xl bg-slate-800/60 border border-slate-700/80 rounded-xl overflow-hidden text-xs">
-              <table className="w-full text-left">
-                <thead className="bg-slate-800/90 text-slate-300 font-semibold border-b border-slate-700">
-                  <tr>
-                    <th className="p-3">Cost Element</th>
-                    <th className="p-3 text-right">Cost per Unit</th>
-                    <th className="p-3 text-right">% of Total Cost</th>
-                    <th className="p-3 text-right">Annual (Yr 1)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700/60">
-                  <tr>
-                    <td className="p-3 font-medium text-slate-200">
-                      1. Direct Materials & Packaging
-                    </td>
-                    <td className="p-3 text-right font-financial font-bold text-amber-300">
-                      {formatCurrency(activeMaterialsSubtotal, c, 2)}
-                    </td>
-                    <td className="p-3 text-right font-financial text-slate-400">
-                      {activeTotalUnitCost > 0
-                        ? `${((activeMaterialsSubtotal / activeTotalUnitCost) * 100).toFixed(1)}%`
-                        : '0%'}
-                    </td>
-                    <td className="p-3 text-right font-financial text-slate-300">
-                      {formatCurrency(activeMaterialsSubtotal * activeProduct.year1Volume, c)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-medium text-slate-200">
-                      2. Direct Labor Cost
-                    </td>
-                    <td className="p-3 text-right font-financial font-bold text-indigo-300">
-                      {formatCurrency(activeLaborSubtotal, c, 2)}
-                    </td>
-                    <td className="p-3 text-right font-financial text-slate-400">
-                      {activeTotalUnitCost > 0
-                        ? `${((activeLaborSubtotal / activeTotalUnitCost) * 100).toFixed(1)}%`
-                        : '0%'}
-                    </td>
-                    <td className="p-3 text-right font-financial text-slate-300">
-                      {formatCurrency(activeLaborSubtotal * activeProduct.year1Volume, c)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-medium text-slate-200">
-                      3. Factory Overhead (FOH)
-                    </td>
-                    <td className="p-3 text-right font-financial font-bold text-purple-300">
-                      {formatCurrency(activeFohSubtotal, c, 2)}
-                    </td>
-                    <td className="p-3 text-right font-financial text-slate-400">
-                      {activeTotalUnitCost > 0
-                        ? `${((activeFohSubtotal / activeTotalUnitCost) * 100).toFixed(1)}%`
-                        : '0%'}
-                    </td>
-                    <td className="p-3 text-right font-financial text-slate-300">
-                      {formatCurrency(activeFohSubtotal * activeProduct.year1Volume, c)}
-                    </td>
-                  </tr>
-                </tbody>
-                <tfoot className="bg-slate-900 border-t-2 border-slate-600 font-bold">
-                  <tr>
-                    <td className="p-3 text-white">Total Cost of Goods Sold / Unit (COGS)</td>
-                    <td className="p-3 text-right font-financial text-emerald-400 text-sm">
-                      {formatCurrency(activeTotalUnitCost, c, 2)}
-                    </td>
-                    <td className="p-3 text-right font-financial text-emerald-400">100.0%</td>
-                    <td className="p-3 text-right font-financial text-emerald-400 text-sm">
-                      {formatCurrency(activeTotalUnitCost * activeProduct.year1Volume, c)}
-                    </td>
-                  </tr>
-                  <tr className="border-t border-slate-700/50 text-slate-300 font-normal">
-                    <td className="p-3 text-slate-300">Target Selling Price per Unit</td>
-                    <td className="p-3 text-right font-financial font-bold text-white">
-                      {formatCurrency(activeUnitPrice, c, 2)}
-                    </td>
-                    <td colSpan={2} className="p-3 text-right text-[11px] text-slate-400">
-                      Gross Margin: <strong className="text-emerald-400 font-financial">{formatCurrency(activeUnitMargin, c, 2)}</strong> ({activeMarginPercent.toFixed(1)}%)
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
-          {/* ---------------------------------------------------- */}
-          {/* SECTION D: MASTER PRODUCT COSTING SUMMARY (ALL)      */}
-          {/* ---------------------------------------------------- */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-100">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  All Products Costing & Margin Comparative Matrix
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Full absorption costing overview of all products in the study: Direct Materials + Direct Labor + Factory Overhead = Total Cost of Goods Sold.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onNavigateToTab('sales')}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 transition self-start sm:self-auto cursor-pointer"
-              >
-                <span>Edit Selling Prices & Volumes in Tab 2</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3">Product Name</th>
-                    <th className="p-3 text-right">Selling Price</th>
-                    <th className="p-3 text-right">Direct Materials</th>
-                    <th className="p-3 text-right">Direct Labor</th>
-                    <th className="p-3 text-right">Factory Overhead</th>
-                    <th className="p-3 text-right font-bold text-slate-900">Total Unit Cost</th>
-                    <th className="p-3 text-right">Unit Margin</th>
-                    <th className="p-3 text-right">Margin %</th>
-                    <th className="p-3 text-right">Yr 1 Volume</th>
-                    <th className="p-3 text-right font-bold text-slate-900">Yr 1 Total COGS</th>
-                    <th className="p-3 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {project.products.map((p) => {
-                    const dl = getProductDlPerUnit(p);
-                    const foh = getProductFohPerUnit(p);
-                    const dm =
-                      p.rawMaterialsCostPerUnit !== undefined
-                        ? p.rawMaterialsCostPerUnit
-                        : p.directLaborCostPerUnit !== undefined
-                        ? Math.max(0, p.unitCost - p.directLaborCostPerUnit - (p.factoryOverheadCostPerUnit || 0))
-                        : p.unitCost;
-                    const totalCost = Math.round((dm + dl + foh) * 100) / 100;
-                    const margin = p.unitPrice - totalCost;
-                    const marginPct = p.unitPrice > 0 ? (margin / p.unitPrice) * 100 : 0;
-                    const totalCogs = totalCost * p.year1Volume;
-                    const isCurrent = activeProduct?.id === p.id;
-
-                    return (
-                      <tr
-                        key={p.id}
-                        className={`hover:bg-slate-50/70 transition ${
-                          isCurrent ? 'bg-indigo-50/40 font-medium' : ''
-                        }`}
-                      >
-                        <td className="p-3 font-semibold text-slate-900">
-                          {p.name || 'Unnamed Product'}
-                          {isCurrent && (
-                            <span className="ml-2 text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded-full font-bold">
-                              Active
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 text-right font-financial font-semibold text-slate-900">
-                          {formatCurrency(p.unitPrice, c, 2)}
-                        </td>
-                        <td className="p-3 text-right font-financial text-amber-800">
-                          {formatCurrency(dm, c, 2)}
-                        </td>
-                        <td className="p-3 text-right font-financial text-indigo-700">
-                          {formatCurrency(dl, c, 2)}
-                        </td>
-                        <td className="p-3 text-right font-financial text-purple-700">
-                          {formatCurrency(foh, c, 2)}
-                        </td>
-                        <td className="p-3 text-right font-financial font-bold text-slate-900">
-                          {formatCurrency(totalCost, c, 2)}
-                        </td>
-                        <td
-                          className={`p-3 text-right font-financial font-semibold ${
-                            margin >= 0 ? 'text-emerald-700' : 'text-rose-600'
-                          }`}
-                        >
-                          {formatCurrency(margin, c, 2)}
-                        </td>
-                        <td className="p-3 text-right font-financial text-slate-600">
-                          {marginPct.toFixed(1)}%
-                        </td>
-                        <td className="p-3 text-right font-financial text-slate-600">
-                          {p.year1Volume.toLocaleString()}
-                        </td>
-                        <td className="p-3 text-right font-financial font-bold text-slate-900">
-                          {formatCurrency(totalCogs, c)}
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProductId(p.id)}
-                            className="px-2.5 py-1 text-[11px] bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-lg font-semibold transition cursor-pointer"
-                          >
-                            Cost Sheet
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
           </div>
         </>
       )}

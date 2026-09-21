@@ -246,21 +246,55 @@ export default function FinancialStatementsView({
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-1 pl-4 text-slate-600">Administrative Expenses</td>
+                    <td className="py-1 pl-4 text-slate-600">Salaries</td>
                     {years5.map((y) => (
                       <td key={y.year} className="py-1 text-right font-financial text-slate-600">
-                        {formatCurrency(y.adminExpenses, c)}
+                        {formatCurrency(y.opexSalaries ?? 0, c)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="py-1 pl-4 text-slate-600">Selling & Marketing Expenses</td>
+                    <td className="py-1 pl-4 text-slate-600">SSS</td>
                     {years5.map((y) => (
                       <td key={y.year} className="py-1 text-right font-financial text-slate-600">
-                        {formatCurrency(y.sellingExpenses, c)}
+                        {formatCurrency(y.opexSss ?? 0, c)}
                       </td>
                     ))}
                   </tr>
+                  <tr>
+                    <td className="py-1 pl-4 text-slate-600">Philhealth</td>
+                    {years5.map((y) => (
+                      <td key={y.year} className="py-1 text-right font-financial text-slate-600">
+                        {formatCurrency(y.opexPhilhealth ?? 0, c)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-1 pl-4 text-slate-600">Pag-ibig</td>
+                    {years5.map((y) => (
+                      <td key={y.year} className="py-1 text-right font-financial text-slate-600">
+                        {formatCurrency(y.opexPagibig ?? 0, c)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-1 pl-4 text-slate-600">13th Month Pay</td>
+                    {years5.map((y) => (
+                      <td key={y.year} className="py-1 text-right font-financial text-slate-600">
+                        {formatCurrency(y.opex13thMonthPay ?? 0, c)}
+                      </td>
+                    ))}
+                  </tr>
+                  {(years5.some((y) => (y.opexNonStatutoryBenefits ?? 0) > 0) || ((project.nonManufacturingLaborBenefits || []).length > 0)) && (
+                    <tr>
+                      <td className="py-1 pl-4 text-slate-600">Non-Statutory Benefits</td>
+                      {years5.map((y) => (
+                        <td key={y.year} className="py-1 text-right font-financial text-slate-600">
+                          {formatCurrency(y.opexNonStatutoryBenefits ?? 0, c)}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
                   <tr>
                     <td className="py-1 pl-4 text-slate-600">Store / Office Rent & Utilities</td>
                     {years5.map((y) => (

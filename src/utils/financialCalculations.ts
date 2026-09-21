@@ -6,7 +6,10 @@ import {
   FeasibilityMetrics,
   LaborBenefitItem,
 } from '../types';
-import { compileProductionEmployeeBenefits } from './philippineBenefits';
+import {
+  compileProductionEmployeeBenefits,
+  compileNonManufacturingEmployeeBenefits,
+} from './philippineBenefits';
 
 /**
  * Calculates the annual cost of an additional/non-statutory labor benefit item.
@@ -274,6 +277,12 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     utilitiesAndRent: 0,
     otherOpex: 0,
     opexDepreciation: 0,
+    opexSalaries: 0,
+    opexSss: 0,
+    opexPhilhealth: 0,
+    opexPagibig: 0,
+    opex13thMonthPay: 0,
+    opexNonStatutoryBenefits: 0,
     totalOpex: totalPreOperating,
     ebit: -totalPreOperating,
     interestIncome: 0,
@@ -426,8 +435,7 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
         projectedIdl
       );
       productionStatutoryBenefits = statSummary.totalStatutoryAnnual;
-      const thirteenthMonthPay = statSummary.totalThirteenthMonth;
-      factoryLaborBenefits += productionStatutoryBenefits + thirteenthMonthPay;
+      factoryLaborBenefits += productionStatutoryBenefits;
 
       // Add any additional non-statutory benefits (Uniforms, Allowances, etc.)
       const inflationFactor = Math.pow(1 + project.inflationRatePercent / 100, yr - 1);
@@ -521,41 +529,93 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     const grossProfitMargin = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
 
     // 4. Operating Expenses
-    let adminExpenses = 0;
-    let sellingExpenses = 0;
     let utilitiesAndRent = 0;
     let otherOpex = 0;
+    let opexSalaries = 0;
+    let opexSss = 0;
+    let opexPhilhealth = 0;
+    let opexPagibig = 0;
+    let opex13thMonthPay = 0;
+    let opexNonStatutoryBenefits = 0;
 
-    // Non-Manufacturing personnel (Administrative & Selling Staff)
+    // Non-Manufacturing personnel
     if (project.nonManufacturingLabor && project.nonManufacturingLabor.length > 0) {
-      project.nonManufacturingLabor.forEach((emp) => {
-        const wageYr = calculateLaborMonthlyWageForYear(
+      const projectedNonMfg = project.nonManufacturingLabor.map((emp) => ({
+        ...emp,
+        monthlyWage: calculateLaborMonthlyWageForYear(
           emp.monthlyWage,
           yr,
           emp.annualSalaryIncreaseType,
           emp.annualSalaryIncreaseValue,
           project.inflationRatePercent
-        );
-        const annualWage = wageYr * (emp.monthsPerYear || 12) * (emp.headcount || 1);
-        if (emp.category === 'Selling & Marketing') {
-          sellingExpenses += annualWage;
-        } else {
-          adminExpenses += annualWage;
-        }
+        ),
+      }));
+
+      // 1. Basic Salaries (Account: Salaries)
+      projectedNonMfg.forEach((emp) => {
+        const months = Math.min(12, emp.monthsPerYear || 12);
+        const annualWage = emp.monthlyWage * months * (emp.headcount || 1);
+        opexSalaries += annualWage;
       });
+
+      // 2. Non-Manufacturing Statutory Benefits (Accounts: SSS, Philhealth, Pag-ibig, 13th Month Pay)
+      const nonMfgStat = compileNonManufacturingEmployeeBenefits(projectedNonMfg);
+      opexSss = nonMfgStat.summary.totalSssErAnnual;
+      opexPhilhealth = nonMfgStat.summary.totalPhilHealthErAnnual;
+      opexPagibig = nonMfgStat.summary.totalPagIbigErAnnual;
+      opex13thMonthPay = nonMfgStat.summary.totalThirteenthMonth;
+
+      // 3. Additional / Non-Statutory Benefits for Non-Manufacturing Personnel (Account: Non-Statutory Benefits)
+      if (project.nonManufacturingLaborBenefits && project.nonManufacturingLaborBenefits.length > 0) {
+        const totalBasic = projectedNonMfg.reduce((sum, e) => sum + (e.monthlyWage || 0) * (e.headcount || 1), 0);
+        const totalHead = projectedNonMfg.reduce((sum, e) => sum + (e.headcount || 1), 0);
+        const nmlInflation = Math.pow(1 + (project.inflationRatePercent || 0) / 100, yr - 1);
+
+        project.nonManufacturingLaborBenefits.forEach((b) => {
+          if (b.type === 'percentage') {
+            const rate = (b.rateOrAmount || 0) / 100;
+            opexNonStatutoryBenefits += totalBasic * 12 * rate;
+          } else if (b.type === 'fixed_monthly_per_head') {
+            const monthly = (b.rateOrAmount || 0) * nmlInflation;
+            opexNonStatutoryBenefits += monthly * 12 * totalHead;
+          } else if (b.type === 'fixed_annual') {
+            const annual = (b.rateOrAmount || 0) * nmlInflation;
+            opexNonStatutoryBenefits += annual;
+          } else if (b.type === 'one_month_salary') {
+            const multiplier = b.rateOrAmount || 1;
+            opexNonStatutoryBenefits += totalBasic * multiplier;
+          }
+        });
+      }
     }
 
     project.operatingExpenses.forEach((opex) => {
       const growth = Math.pow(1 + opex.annualGrowthRate / 100, yr - 1);
       const amount = opex.annualAmountYear1 * growth;
-      if (opex.category === 'Administrative') adminExpenses += amount;
-      else if (opex.category === 'Selling & Marketing') sellingExpenses += amount;
-      else if (opex.category === 'Utilities & Rent') utilitiesAndRent += amount;
+      if (opex.category === 'Utilities & Rent') utilitiesAndRent += amount;
       else otherOpex += amount;
     });
 
     const totalOpex =
-      adminExpenses + sellingExpenses + utilitiesAndRent + otherOpex + opexDepreciation;
+      opexSalaries +
+      opexSss +
+      opexPhilhealth +
+      opexPagibig +
+      opex13thMonthPay +
+      opexNonStatutoryBenefits +
+      utilitiesAndRent +
+      otherOpex +
+      opexDepreciation;
+
+    const adminExpenses =
+      opexSalaries +
+      opexSss +
+      opexPhilhealth +
+      opexPagibig +
+      opex13thMonthPay +
+      opexNonStatutoryBenefits +
+      otherOpex;
+    const sellingExpenses = 0;
     const ebit = grossProfit - totalOpex;
 
     // 5. Financing, Interest Income & Tax
@@ -674,6 +734,12 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       utilitiesAndRent,
       otherOpex,
       opexDepreciation,
+      opexSalaries,
+      opexSss,
+      opexPhilhealth,
+      opexPagibig,
+      opex13thMonthPay,
+      opexNonStatutoryBenefits,
       totalOpex,
       ebit,
       interestIncome,
@@ -1043,7 +1109,6 @@ export function calculateFactoryOverheadForYear(
 
     factoryLaborBenefitsAnnual =
       productionStatutoryBenefitsAnnual +
-      productionThirteenthMonthPayAnnual +
       additionalNonStatutoryBenefitsAnnual;
   }
 

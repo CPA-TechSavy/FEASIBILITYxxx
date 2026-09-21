@@ -69,8 +69,10 @@ import {
 import { LOCAL_BANKS, DEPRECIATION_METHODS } from '../data/bankList';
 import { SAMPLE_BOM_PRESETS } from '../data/bomPresets';
 import ProductCostingTab from './ProductCostingTab';
+import CostingTab from './CostingTab';
 import {
   compileProductionEmployeeBenefits,
+  compileNonManufacturingEmployeeBenefits,
   getSssEmployerShare,
   getPhilHealthEmployerShare,
   getPagIbigEmployerShare,
@@ -87,6 +89,7 @@ type TabKey =
   | 'capital'
   | 'sales'
   | 'costing'
+  | 'directMaterials'
   | 'directCosts'
   | 'factoryOverhead'
   | 'nonManufacturing'
@@ -168,12 +171,13 @@ export default function AssumptionsEditor({
   }[] = [
     { key: 'capital', label: '1. Capital Outlay & Debt', icon: Coins },
     { key: 'sales', label: '2. Products & Sales Volume', icon: Package },
-    { key: 'costing', label: '3. Direct Materials Costing', icon: Calculator },
-    { key: 'directCosts', label: '4. Direct Labor', icon: Users },
-    { key: 'factoryOverhead', label: '5. Factory Overhead', icon: Factory },
-    { key: 'nonManufacturing', label: '6. Non-Manufacturing', icon: UserCheck },
-    { key: 'opex', label: '7. Operating Expenses (SG&A)', icon: Briefcase },
-    { key: 'workingCapital', label: '8. Working Capital Policy', icon: Layers },
+    { key: 'costing', label: '3. Costing', icon: Calculator },
+    { key: 'directMaterials', label: '4. Direct Materials', icon: Tag },
+    { key: 'directCosts', label: '5. Direct Labor', icon: Users },
+    { key: 'factoryOverhead', label: '6. Factory Overhead', icon: Factory },
+    { key: 'nonManufacturing', label: '7. Non-Manufacturing', icon: UserCheck },
+    { key: 'opex', label: '8. Operating Expenses (SG&A)', icon: Briefcase },
+    { key: 'workingCapital', label: '9. Working Capital Policy', icon: Layers },
   ];
 
   const c = project.currency;
@@ -247,6 +251,10 @@ export default function AssumptionsEditor({
     onUpdateProject({ ...project, productionLaborBenefits: newBenefits });
   };
 
+  const updateNonManufacturingLaborBenefits = (newBenefits: LaborBenefitItem[]) => {
+    onUpdateProject({ ...project, nonManufacturingLaborBenefits: newBenefits });
+  };
+
   const toggleIncludeLaborBenefitsInCOGS = (include: boolean) => {
     onUpdateProject({ ...project, includeLaborBenefitsInCOGS: include });
   };
@@ -259,6 +267,14 @@ export default function AssumptionsEditor({
       updateProductionLaborBenefits(filtered);
     }
   }, [project.productionLaborBenefits]);
+
+  useEffect(() => {
+    const list = project.nonManufacturingLaborBenefits || [];
+    const filtered = list.filter((b) => !(b.name || '').toLowerCase().includes('13th'));
+    if (filtered.length !== list.length) {
+      updateNonManufacturingLaborBenefits(filtered);
+    }
+  }, [project.nonManufacturingLaborBenefits]);
 
   const [showSuppliesList, setShowSuppliesList] = useState<boolean>(false);
   const [suppliesSyncFeedback, setSuppliesSyncFeedback] = useState<string | null>(null);
@@ -273,6 +289,10 @@ export default function AssumptionsEditor({
   const [dlViewYear, setDlViewYear] = useState<number>(1);
   const [fohViewYear, setFohViewYear] = useState<number>(1);
   const benefitsViewYear = fohViewYear;
+  const [nonMfgBenefitsCategoryFilter, setNonMfgBenefitsCategoryFilter] = useState<'all' | 'admin' | 'selling'>('all');
+  const [expandNonMfgEmployeeHeadcount, setExpandNonMfgEmployeeHeadcount] = useState<boolean>(false);
+  const [showNonMfgCustomBenefits, setShowNonMfgCustomBenefits] = useState<boolean>(false);
+  const [nonMfgViewYear, setNonMfgViewYear] = useState<number>(1);
 
   const selectedDlYearSummary = useMemo(() => {
     const annual = (project.directLabor || []).reduce((sum, lab) => {
@@ -747,13 +767,96 @@ export default function AssumptionsEditor({
   // Non-Manufacturing Personnel Metrics
   const nonMfgEmployees = project.nonManufacturingLabor || [];
   const totalNonMfgHeadcount = nonMfgEmployees.reduce((sum, e) => sum + (e.headcount || 0), 0);
-  const totalNonMfgAdminAnnual = nonMfgEmployees
-    .filter((e) => e.category !== 'Selling & Marketing')
-    .reduce((sum, e) => sum + (e.monthlyWage || 0) * (e.monthsPerYear || 12) * (e.headcount || 1), 0);
-  const totalNonMfgSellingAnnual = nonMfgEmployees
-    .filter((e) => e.category === 'Selling & Marketing')
-    .reduce((sum, e) => sum + (e.monthlyWage || 0) * (e.monthsPerYear || 12) * (e.headcount || 1), 0);
-  const totalNonMfgAnnual = totalNonMfgAdminAnnual + totalNonMfgSellingAnnual;
+  const totalNonMfgMonthly = nonMfgEmployees.reduce(
+    (sum, e) => sum + (e.monthlyWage || 0) * (e.headcount || 1),
+    0
+  );
+  const totalNonMfgAnnual = nonMfgEmployees.reduce(
+    (sum, e) => sum + (e.monthlyWage || 0) * (e.monthsPerYear || 12) * (e.headcount || 1),
+    0
+  );
+
+  const nonMfgLaborBenefitsList = project.nonManufacturingLaborBenefits || [];
+
+  const projectedNonMfgList = useMemo(() => {
+    return (project.nonManufacturingLabor || []).map((emp) => ({
+      ...emp,
+      monthlyWage: calculateLaborMonthlyWageForYear(
+        emp.monthlyWage,
+        nonMfgViewYear,
+        emp.annualSalaryIncreaseType,
+        emp.annualSalaryIncreaseValue,
+        project.inflationRatePercent
+      ),
+    }));
+  }, [project.nonManufacturingLabor, nonMfgViewYear, project.inflationRatePercent]);
+
+  const compiledNonMfgBenefits = useMemo(() => {
+    return compileNonManufacturingEmployeeBenefits(
+      projectedNonMfgList,
+      expandNonMfgEmployeeHeadcount
+    );
+  }, [projectedNonMfgList, expandNonMfgEmployeeHeadcount]);
+
+  const totalNonMfgAdditionalBenefits = useMemo(() => {
+    const totalBasic = projectedNonMfgList.reduce((sum, e) => sum + (e.monthlyWage || 0) * (e.headcount || 1), 0);
+    const totalHead = projectedNonMfgList.reduce((sum, e) => sum + (e.headcount || 1), 0);
+    const nmlInflation = Math.pow(1 + (project.inflationRatePercent || 0) / 100, nonMfgViewYear - 1);
+
+    let totalCustom = 0;
+
+    nonMfgLaborBenefitsList.forEach((b) => {
+      if (b.type === 'percentage') {
+        const rate = (b.rateOrAmount || 0) / 100;
+        totalCustom += totalBasic * 12 * rate;
+      } else if (b.type === 'fixed_monthly_per_head') {
+        const monthly = (b.rateOrAmount || 0) * nmlInflation;
+        totalCustom += monthly * 12 * totalHead;
+      } else if (b.type === 'fixed_annual') {
+        const annual = (b.rateOrAmount || 0) * nmlInflation;
+        totalCustom += annual;
+      } else if (b.type === 'one_month_salary') {
+        const multiplier = b.rateOrAmount || 1;
+        totalCustom += totalBasic * multiplier;
+      }
+    });
+
+    return {
+      adminCustom: totalCustom,
+      sellingCustom: 0,
+      totalCustom,
+    };
+  }, [projectedNonMfgList, nonMfgLaborBenefitsList, nonMfgViewYear, project.inflationRatePercent]);
+
+  const loadStandardNonMfgBenefitsPresets = () => {
+    const presets: LaborBenefitItem[] = [
+      {
+        id: `nml-ben-uniform-${Date.now()}`,
+        name: 'Office Uniform & Attire Allowance',
+        type: 'fixed_annual',
+        rateOrAmount: 6000,
+        appliesTo: 'both',
+        notes: 'Annual clothing / uniform allowance per non-manufacturing employee (Tax-exempt de minimis)',
+      },
+      {
+        id: `nml-ben-comm-${Date.now() + 1}`,
+        name: 'Communication & Mobile Allowance',
+        type: 'fixed_monthly_per_head',
+        rateOrAmount: 1000,
+        appliesTo: 'both',
+        notes: 'Monthly phone and data connectivity allowance for non-manufacturing staff',
+      },
+      {
+        id: `nml-ben-meal-${Date.now() + 2}`,
+        name: 'De Minimis Rice Subsidy & Meal Allowance',
+        type: 'fixed_monthly_per_head',
+        rateOrAmount: 2000,
+        appliesTo: 'both',
+        notes: 'Monthly rice subsidy / meal stipend for non-manufacturing staff',
+      },
+    ];
+    updateNonManufacturingLaborBenefits([...(project.nonManufacturingLaborBenefits || []), ...presets]);
+  };
 
   // Total Year 1 Production Volume
   const totalYear1Volume = project.products.reduce((sum, p) => sum + (p.year1Volume || 0), 0);
@@ -1476,9 +1579,17 @@ export default function AssumptionsEditor({
                       type="button"
                       onClick={() => setActiveTab('costing')}
                       className="px-2.5 py-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-semibold flex items-center gap-1 transition border border-indigo-200"
-                      title="Open Tab 3 Direct Materials Costing to compute direct materials and packaging"
+                      title="Open Tab 3 Costing to review Selling Prices, Unit Costs, and 5-Year Revenue Projections"
                     >
-                      <Calculator className="w-3.5 h-3.5 text-indigo-600" /> Direct Materials Costing Sheet
+                      <Calculator className="w-3.5 h-3.5 text-indigo-600" /> Costing Breakdown
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('directMaterials')}
+                      className="px-2.5 py-1.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg font-semibold flex items-center gap-1 transition border border-amber-200"
+                      title="Open Tab 4 Direct Materials to manage Bill of Materials and packaging"
+                    >
+                      <Tag className="w-3.5 h-3.5 text-amber-600" /> Direct Materials BOM
                     </button>
                     <button
                       type="button"
@@ -1633,8 +1744,17 @@ export default function AssumptionsEditor({
               </div>
             )}
 
-            {/* TAB 3: COSTING (DIRECT MATERIALS & DIRECT LABOR PER UNIT) */}
+            {/* TAB 3: COSTING (SELLING PRICE, UNIT COST BREAKDOWN DM/DL/FOH, 5-YR REVENUE) */}
             {activeTab === 'costing' && (
+              <CostingTab
+                project={project}
+                onUpdateProject={onUpdateProject}
+                onNavigateToTab={setActiveTab}
+              />
+            )}
+
+            {/* TAB 4: DIRECT MATERIALS (BILL OF MATERIALS & PACKAGING) */}
+            {activeTab === 'directMaterials' && (
               <ProductCostingTab
                 project={project}
                 onUpdateProject={onUpdateProject}
@@ -4103,10 +4223,10 @@ export default function AssumptionsEditor({
                         {
                           id: `nml-${Date.now()}`,
                           role: 'Administrative Officer',
-                          category: 'Administrative',
+                          account: 'Salary',
                           headcount: 1,
                           monthlyWage: 20000,
-                          monthsPerYear: 13,
+                          monthsPerYear: 12,
                         },
                       ])
                     }
@@ -4128,23 +4248,23 @@ export default function AssumptionsEditor({
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">
-                      Administrative Payroll
+                      Monthly Salary Payroll
                     </span>
                     <span className="text-base font-bold font-financial text-blue-700">
-                      {formatCurrency(totalNonMfgAdminAnnual, c)}
+                      {formatCurrency(totalNonMfgMonthly, c)}
                     </span>
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">
-                      Selling & Marketing Payroll
+                      Annual Basic Salary (12 Mos)
                     </span>
-                    <span className="text-base font-bold font-financial text-emerald-700">
-                      {formatCurrency(totalNonMfgSellingAnnual, c)}
+                    <span className="text-base font-bold font-financial text-indigo-700">
+                      {formatCurrency(totalNonMfgMonthly * 12, c)}
                     </span>
                   </div>
                   <div className="bg-white p-3 rounded-xl border border-blue-200 bg-blue-50/20 shadow-2xs">
                     <span className="text-[10px] uppercase tracking-wider text-blue-900 font-bold block">
-                      Total Annual Payroll (Yr 1)
+                      Total Annual Cost (Yr 1)
                     </span>
                     <span className="text-base font-bold font-financial text-blue-900">
                       {formatCurrency(totalNonMfgAnnual, c)}
@@ -4158,8 +4278,8 @@ export default function AssumptionsEditor({
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                         <tr>
-                          <th className="p-3">Department / Category</th>
                           <th className="p-3">Position / Role Title</th>
+                          <th className="p-3">Account</th>
                           <th className="p-3 text-right">Headcount</th>
                           <th className="p-3 text-right">Monthly Salary / Wage ({c})</th>
                           <th className="p-3 text-center">Annual Salary Increase</th>
@@ -4172,7 +4292,7 @@ export default function AssumptionsEditor({
                         {(!project.nonManufacturingLabor || project.nonManufacturingLabor.length === 0) ? (
                           <tr>
                             <td colSpan={8} className="text-center py-8 text-slate-400">
-                              No non-manufacturing personnel added yet. Click "Add Non-Manufacturing Employee" above to add administrative or sales staff.
+                              No non-manufacturing personnel added yet. Click "Add Non-Manufacturing Employee" above to add staff.
                             </td>
                           </tr>
                         ) : (
@@ -4182,24 +4302,6 @@ export default function AssumptionsEditor({
                             const incVal = emp.annualSalaryIncreaseValue ?? 0;
                             return (
                               <tr key={emp.id} className="hover:bg-slate-50/50">
-                                <td className="p-2.5">
-                                  <select
-                                    value={emp.category}
-                                    onChange={(e) => {
-                                      const copy = [...(project.nonManufacturingLabor || [])];
-                                      copy[idx].category = e.target.value as 'Administrative' | 'Selling & Marketing';
-                                      updateNonManufacturingLabor(copy);
-                                    }}
-                                    className={`text-xs rounded-lg px-2 py-1 font-semibold border ${
-                                      emp.category === 'Selling & Marketing'
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                        : 'bg-blue-50 border-blue-200 text-blue-800'
-                                    }`}
-                                  >
-                                    <option value="Administrative">Administrative</option>
-                                    <option value="Selling & Marketing">Selling & Marketing</option>
-                                  </select>
-                                </td>
                                 <td className="p-2.5">
                                   <input
                                     type="text"
@@ -4212,6 +4314,11 @@ export default function AssumptionsEditor({
                                     }}
                                     className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none"
                                   />
+                                </td>
+                                <td className="p-2.5">
+                                  <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                    {emp.account || 'Salary'}
+                                  </span>
                                 </td>
                                 <td className="p-2.5 text-right">
                                   <input
@@ -4310,8 +4417,11 @@ export default function AssumptionsEditor({
                       {(project.nonManufacturingLabor && project.nonManufacturingLabor.length > 0) && (
                         <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold text-slate-800">
                           <tr>
-                            <td colSpan={2} className="p-2.5">
+                            <td className="p-2.5">
                               Total Non-Manufacturing Personnel
+                            </td>
+                            <td className="p-2.5">
+                              <span className="text-xs text-slate-500 font-normal">Account: Salary</span>
                             </td>
                             <td className="p-2.5 text-right font-financial font-bold text-blue-700">
                               {totalNonMfgHeadcount} pax
@@ -4330,8 +4440,460 @@ export default function AssumptionsEditor({
                   </div>
 
                   <p className="text-[11px] text-slate-400 italic">
-                    * Accounting note: Administrative salaries flow into Administrative Expenses; Selling & Marketing salaries flow into Selling & Marketing Expenses under Operating Expenses (SG&A).
+                    * Accounting note: Non-manufacturing personnel salaries flow directly into the "Salaries" account under Operating Expenses in the Financial Statements.
                   </p>
+                </div>
+
+                {/* SECTION: NON-MANUFACTURING EMPLOYEE BENEFITS SCHEDULE (STATUTORY BENEFITS) */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs space-y-4">
+                  {/* Header & Controls */}
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-3 border-b border-slate-200">
+                    <div className="flex items-start gap-2.5">
+                      <span className="p-2 bg-emerald-100 text-emerald-800 rounded-xl shadow-2xs shrink-0">
+                        <ShieldCheck className="w-5 h-5 text-emerald-700" />
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-bold text-slate-900">
+                            Employee Benefits Schedule (Non-Manufacturing Staff) {nonMfgViewYear > 1 ? `(Year ${nonMfgViewYear} Escalated)` : `(Year 1)`}
+                          </h4>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Statutory & 13th Month Pay
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Calculates employer statutory contributions (SSS, PhilHealth, Pag-IBIG) and mandatory 13th Month Pay (PD 851) reflected as Operating Expense accounts in Financial Statements.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                      {/* View Year Selector */}
+                      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                        <span className="text-[11px] font-semibold text-slate-600 px-1.5">Year:</span>
+                        {[1, 2, 3, 4, 5].map((yr) => (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={() => setNonMfgViewYear(yr)}
+                            className={`px-2 py-0.5 rounded font-semibold text-xs transition ${
+                              nonMfgViewYear === yr
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            Y{yr}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowSssTableModal(true)}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1.5 transition shadow-2xs"
+                        title="Open Official SSS Contribution Table & MSC Brackets (RA 11199)"
+                      >
+                        <Table className="w-3.5 h-3.5 text-indigo-600" />
+                        View Official SSS Table
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setExpandNonMfgEmployeeHeadcount(!expandNonMfgEmployeeHeadcount)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition shadow-2xs flex items-center gap-1.5 ${
+                          expandNonMfgEmployeeHeadcount
+                            ? 'bg-slate-800 text-white border-slate-900'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                        title="Toggle between grouped by role or itemized individual staff members"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        {expandNonMfgEmployeeHeadcount ? 'Group by Labor Position' : 'Expand All Staff'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        SSS (Account: SSS)
+                      </span>
+                      <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledNonMfgBenefits.summary.totalSssErAnnual, c)}
+                        <span className="text-xs font-normal text-slate-500"> /yr</span>
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        Philhealth (Account: Philhealth)
+                      </span>
+                      <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledNonMfgBenefits.summary.totalPhilHealthErAnnual, c)}
+                        <span className="text-xs font-normal text-slate-500"> /yr</span>
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">
+                        Pag-ibig (Account: Pag-ibig)
+                      </span>
+                      <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledNonMfgBenefits.summary.totalPagIbigErAnnual, c)}
+                        <span className="text-xs font-normal text-slate-500"> /yr</span>
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-amber-800 uppercase tracking-wider font-bold block">
+                        13th Month Pay
+                      </span>
+                      <span className="text-base font-bold text-amber-900 font-financial block mt-0.5">
+                        {formatCurrency(compiledNonMfgBenefits.summary.totalThirteenthMonth, c)}
+                        <span className="text-xs font-normal text-amber-700"> /yr</span>
+                      </span>
+                    </div>
+
+                    <div className="bg-emerald-50/80 p-3 rounded-xl border border-emerald-200 col-span-2 sm:col-span-1">
+                      <span className="text-[10px] text-emerald-800 uppercase tracking-wider font-bold block">
+                        Total Statutory Benefits
+                      </span>
+                      <span className="text-base font-bold text-emerald-950 font-financial block mt-0.5">
+                        {formatCurrency(compiledNonMfgBenefits.summary.totalStatutoryAnnual, c)}
+                        <span className="text-xs font-semibold text-emerald-800"> /yr</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Header Row info */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-700">
+                        All Non-Manufacturing Personnel ({compiledNonMfgBenefits.records.length} roles)
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        (Flows into SSS, Philhealth, Pag-ibig, and 13th Month Pay in Operating Expenses)
+                      </span>
+                    </div>
+
+                    <span className="text-xs text-slate-500 font-financial">
+                      Total Staff: <strong className="text-slate-800">{compiledNonMfgBenefits.summary.totalHeadcount} pax</strong>
+                    </span>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200">
+                        <tr>
+                          <th className="py-3 px-3 w-56">Position / Role Title</th>
+                          <th className="py-3 px-2 text-center w-16">Staff</th>
+                          <th className="py-3 px-3 text-right w-32">
+                            {nonMfgViewYear > 1 ? `Monthly Salary (Yr ${nonMfgViewYear}) (${c})` : `Monthly Salary (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-36 bg-indigo-50/50 text-indigo-950">
+                            {nonMfgViewYear > 1 ? `SSS ER (Yr ${nonMfgViewYear}) (${c})` : `SSS ER (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-32 bg-blue-50/50 text-blue-950">
+                            {nonMfgViewYear > 1 ? `PhilHealth ER (Yr ${nonMfgViewYear}) (${c})` : `PhilHealth ER (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-32 bg-emerald-50/50 text-emerald-950">
+                            {nonMfgViewYear > 1 ? `Pag-IBIG ER (Yr ${nonMfgViewYear}) (${c})` : `Pag-IBIG ER (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-32 font-bold text-slate-900">
+                            {nonMfgViewYear > 1 ? `Monthly ER Total (Yr ${nonMfgViewYear}) (${c})` : `Monthly ER Total (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-36 font-bold text-amber-950 bg-amber-50/50">
+                            {nonMfgViewYear > 1 ? `13th Month Pay (Yr ${nonMfgViewYear}) (${c})` : `13th Month Pay (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-36 font-bold text-emerald-950 bg-emerald-50/40">
+                            {nonMfgViewYear > 1 ? `Total Statutory (Yr ${nonMfgViewYear}) (${c})` : `Total Statutory (${c})`}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {compiledNonMfgBenefits.records.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="text-center py-8 text-slate-400">
+                              No non-manufacturing employees found. Add personnel in the table above.
+                            </td>
+                          </tr>
+                        ) : (
+                          compiledNonMfgBenefits.records.map((r) => (
+                            <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-2.5 px-3 font-semibold text-slate-900">{r.role}</td>
+                              <td className="py-2.5 px-2 text-center font-financial font-semibold text-slate-800">
+                                {expandNonMfgEmployeeHeadcount ? '1' : r.headcount}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-800">
+                                {formatCurrency(r.monthlySalary, c)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right bg-indigo-50/20 font-financial">
+                                <span className="font-bold text-indigo-950 block" title={r.sss.bracketRange}>
+                                  {formatCurrency(r.sss.totalErTotalRole, c)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right bg-blue-50/20 font-financial">
+                                <span className="font-bold text-blue-950 block">
+                                  {formatCurrency(r.philHealth.monthlyErTotalRole, c)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right bg-emerald-50/20 font-financial">
+                                <span className="font-bold text-emerald-950 block">
+                                  {formatCurrency(r.pagIbig.monthlyErTotalRole, c)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                                {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right bg-amber-50/20 font-financial font-bold text-amber-900">
+                                {formatCurrency(r.thirteenthMonthPayTotalRole, c)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-900 bg-emerald-50/30">
+                                {formatCurrency(r.totalStatutoryAnnualAll, c)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                      {compiledNonMfgBenefits.records.length > 0 && (
+                        <tfoot className="bg-slate-50/90 border-t-2 border-slate-200 font-semibold text-slate-800">
+                          <tr>
+                            <td className="py-2.5 px-3 text-slate-700 font-bold">
+                              Grand Total Statutory Benefits & 13th Month Pay (Year {nonMfgViewYear})
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-financial font-bold text-slate-900">
+                              {compiledNonMfgBenefits.summary.totalHeadcount} pax
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalMonthlySalary, c)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-indigo-950 bg-indigo-50/40">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalSssErMonthly, c)}/mo
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-blue-950 bg-blue-50/40">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalPhilHealthErMonthly, c)}/mo
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/40">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalPagIbigErMonthly, c)}/mo
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalStatutoryMonthly, c)}/mo
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-amber-900 bg-amber-50/40">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalThirteenthMonth, c)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-100/50 text-sm">
+                              {formatCurrency(compiledNonMfgBenefits.summary.totalStatutoryAnnual, c)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <span>
+                      * Accounting note: Non-manufacturing employee benefits reflect directly in the Financial Statements under Operating Expenses as separate accounts: <strong>SSS</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalSssErAnnual, c)}/yr), <strong>Philhealth</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalPhilHealthErAnnual, c)}/yr), <strong>Pag-ibig</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalPagIbigErAnnual, c)}/yr), and <strong>13th Month Pay</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalThirteenthMonth, c)}/yr).
+                    </span>
+                  </div>
+
+                  {/* SECTION: ADDITIONAL / NON-STATUTORY BENEFITS (ACCORDION) */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowNonMfgCustomBenefits(!showNonMfgCustomBenefits)}
+                      className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-semibold text-slate-800 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <HeartHandshake className="w-4 h-4 text-emerald-600" />
+                        <span>Additional / Non-Statutory Benefits (Uniforms, Allowances, De Minimis, Incentives)</span>
+                        <span className="text-[11px] font-normal text-slate-500">
+                          ({nonMfgLaborBenefitsList.length} configured)
+                        </span>
+                      </div>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-500 transition-transform ${
+                          showNonMfgCustomBenefits ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {showNonMfgCustomBenefits && (
+                      <div className="p-4 space-y-3 border-t border-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <p className="text-xs text-slate-600">
+                            Configure supplemental benefits for non-manufacturing staff beyond statutory contributions. These reflect under the <strong>Non-Statutory Benefits</strong> account in Operating Expenses.
+                          </p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={loadStandardNonMfgBenefitsPresets}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            >
+                              Load Preset Rows
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateNonManufacturingLaborBenefits([
+                                  ...nonMfgLaborBenefitsList,
+                                  {
+                                    id: `nml-ben-${Date.now()}`,
+                                    name: 'Staff Allowance / Subsidy',
+                                    type: 'fixed_monthly_per_head',
+                                    rateOrAmount: 1000,
+                                    appliesTo: 'both',
+                                    notes: 'Monthly allowance for non-manufacturing personnel',
+                                  },
+                                ])
+                              }
+                              className="px-2.5 py-1 text-xs bg-slate-900 text-white hover:bg-slate-800 rounded-lg font-semibold flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Add Custom Benefit
+                            </button>
+                          </div>
+                        </div>
+
+                        {nonMfgLaborBenefitsList.length === 0 ? (
+                          <div className="text-center py-5 text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                            No additional non-statutory benefits configured. Statutory SSS, PhilHealth, Pag-IBIG, and 13th Month Pay are already included in the schedule above.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                                <tr>
+                                  <th className="p-2">Benefit Particulars</th>
+                                  <th className="p-2 w-48">Calculation Mode</th>
+                                  <th className="p-2 text-right w-36">Rate / Amount</th>
+                                  <th className="p-2 text-right w-44 text-emerald-800 bg-emerald-50/50">
+                                    Non-Statutory Benefits ({c})
+                                  </th>
+                                  <th className="p-2 text-center w-12">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {nonMfgLaborBenefitsList.map((b, idx) => {
+                                  const totalBasic = projectedNonMfgList.reduce((sum, e) => sum + (e.monthlyWage || 0) * (e.headcount || 1), 0);
+                                  const totalHead = projectedNonMfgList.reduce((sum, e) => sum + (e.headcount || 1), 0);
+                                  const nmlInflation = Math.pow(1 + (project.inflationRatePercent || 0) / 100, nonMfgViewYear - 1);
+
+                                  let itemCost = 0;
+                                  if (b.type === 'percentage') {
+                                    const rate = (b.rateOrAmount || 0) / 100;
+                                    itemCost = totalBasic * 12 * rate;
+                                  } else if (b.type === 'fixed_monthly_per_head') {
+                                    const monthly = (b.rateOrAmount || 0) * nmlInflation;
+                                    itemCost = monthly * 12 * totalHead;
+                                  } else if (b.type === 'fixed_annual') {
+                                    const annual = (b.rateOrAmount || 0) * nmlInflation;
+                                    itemCost = annual;
+                                  } else if (b.type === 'one_month_salary') {
+                                    const mult = b.rateOrAmount || 1;
+                                    itemCost = totalBasic * mult;
+                                  }
+
+                                  return (
+                                    <tr key={b.id} className="hover:bg-slate-50/50">
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={b.name}
+                                          placeholder="e.g. Rice Subsidy, Clothing Allowance"
+                                          onChange={(e) => {
+                                            const copy = [...nonMfgLaborBenefitsList];
+                                            copy[idx].name = e.target.value;
+                                            updateNonManufacturingLaborBenefits(copy);
+                                          }}
+                                          className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <select
+                                          value={b.type}
+                                          onChange={(e) => {
+                                            const copy = [...nonMfgLaborBenefitsList];
+                                            const newType = e.target.value as BenefitCalculationType;
+                                            copy[idx].type = newType;
+                                            if (newType === 'one_month_salary' && !copy[idx].rateOrAmount) {
+                                              copy[idx].rateOrAmount = 1;
+                                            }
+                                            updateNonManufacturingLaborBenefits(copy);
+                                          }}
+                                          className="w-full text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none"
+                                        >
+                                          <option value="fixed_monthly_per_head">Monthly Fixed / Head</option>
+                                          <option value="fixed_annual">Annual Lump Sum</option>
+                                          <option value="percentage">% of Basic Salary</option>
+                                          <option value="one_month_salary">1 Month Salary</option>
+                                        </select>
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        {b.type === 'one_month_salary' ? (
+                                          <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                            1 Mo. Salary
+                                          </span>
+                                        ) : (
+                                          <div className="flex items-center justify-end gap-1">
+                                            <input
+                                              type="number"
+                                              step={b.type === 'percentage' ? '0.01' : '10'}
+                                              min="0"
+                                              value={b.rateOrAmount}
+                                              onChange={(e) => {
+                                                const copy = [...nonMfgLaborBenefitsList];
+                                                copy[idx].rateOrAmount = parseFloat(e.target.value) || 0;
+                                                updateNonManufacturingLaborBenefits(copy);
+                                              }}
+                                              className="w-20 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
+                                            />
+                                            <span className="text-[11px] text-slate-500">
+                                              {b.type === 'percentage' ? '%' : b.type === 'fixed_monthly_per_head' ? '/mo' : c}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="p-2 text-right font-financial font-bold text-emerald-700 bg-emerald-50/40">
+                                        {formatCurrency(itemCost, c)}
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            updateNonManufacturingLaborBenefits(
+                                              nonMfgLaborBenefitsList.filter((_, i) => i !== idx)
+                                            )
+                                          }
+                                          className="text-slate-400 hover:text-red-600 p-1"
+                                          title="Remove Benefit"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot className="bg-slate-50 font-semibold border-t border-slate-200 text-slate-800">
+                                <tr>
+                                  <td colSpan={3} className="p-2.5 text-slate-700 font-bold">
+                                    Total Non-Statutory Benefits in Operating Expenses (Year {nonMfgViewYear})
+                                  </td>
+                                  <td className="p-2.5 text-right font-financial font-bold text-emerald-800 text-sm bg-emerald-100/50">
+                                    {formatCurrency(totalNonMfgAdditionalBenefits.totalCustom, c)}
+                                  </td>
+                                  <td></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

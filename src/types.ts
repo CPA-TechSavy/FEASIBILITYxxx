@@ -24,9 +24,7 @@ export interface FixedAssetItem {
 export type CostComponentCategory =
   | 'Raw Materials & Ingredients'
   | 'Packaging & Containers'
-  | 'Direct Consumables & Supplies'
-  | 'Direct Labor Allocation'
-  | 'Direct Overhead & Freight';
+  | 'Direct Consumables & Supplies';
 
 export interface ProductCostComponent {
   id: string;
@@ -104,7 +102,12 @@ export interface FactorySupplyItem {
 }
 
 export type BenefitCalculationType = 'one_month_salary' | 'percentage' | 'fixed_monthly_per_head' | 'fixed_annual';
-export type BenefitAppliesTo = 'both' | 'direct_only' | 'indirect_only';
+export type BenefitAppliesTo =
+  | 'both'
+  | 'direct_only'
+  | 'indirect_only'
+  | 'admin_only'
+  | 'selling_only';
 
 export interface LaborBenefitItem {
   id: string;
@@ -118,7 +121,8 @@ export interface LaborBenefitItem {
 export interface NonManufacturingLaborItem {
   id: string;
   role: string;
-  category: 'Administrative' | 'Selling & Marketing';
+  account?: string; // Account title e.g. 'Salary'
+  category?: 'Administrative' | 'Selling & Marketing';
   headcount: number;
   monthlyWage: number;
   monthsPerYear: number;
@@ -236,6 +240,7 @@ export interface FeasibilityProject {
   factoryOverheadGrowthRate: number;
   nonManufacturingLabor?: NonManufacturingLaborItem[];
   nonManufacturingSalaryIncreaseStartYear?: number; // Default start year for non-mfg salary increases (e.g. 2)
+  nonManufacturingLaborBenefits?: LaborBenefitItem[]; // Non-manufacturing statutory & supplemental benefits
   operatingExpenses: OperatingExpenseItem[];
   salesDiscountsPercent: number; // % of gross sales
 
@@ -266,6 +271,12 @@ export interface YearFinancials {
   grossProfitMargin: number;
 
   // Operating Expenses
+  opexSalaries?: number; // Non-Manufacturing Salaries
+  opexSss?: number; // Non-Manufacturing SSS Employer Share
+  opexPhilhealth?: number; // Non-Manufacturing PhilHealth Employer Share
+  opexPagibig?: number; // Non-Manufacturing Pag-IBIG Employer Share
+  opex13thMonthPay?: number; // Non-Manufacturing 13th Month Pay
+  opexNonStatutoryBenefits?: number; // Non-Manufacturing Non-Statutory Benefits
   adminExpenses: number;
   sellingExpenses: number;
   utilitiesAndRent: number;
