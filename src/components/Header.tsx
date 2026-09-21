@@ -74,9 +74,7 @@ export default function Header({
                       <span className="hidden sm:inline px-1.5 py-0.2 rounded text-[10px] bg-indigo-900/90 text-indigo-200 border border-indigo-700/50">
                         {project.companyAccount.classification === 'Sole Proprietorship'
                           ? 'Sole Pro'
-                          : project.companyAccount.classification === 'Partnership'
-                          ? 'Partnership'
-                          : 'Corporation'}
+                          : 'Partnership'}
                       </span>
                     </>
                   ) : (

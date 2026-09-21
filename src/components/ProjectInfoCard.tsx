@@ -174,8 +174,6 @@ export default function ProjectInfoCard({
                   `Owner's Capital: ${formatCurrency(project.companyAccount.soleProprietorship?.ownerCapital || project.financing.equityContribution, project.currency)}`}
                 {project.companyAccount.classification === 'Partnership' &&
                   `Partners' Equity: ${formatCurrency(project.companyAccount.partnership?.totalPartnersCapital || project.financing.equityContribution, project.currency)} (${project.companyAccount.partnership?.partners.length || 0} partners)`}
-                {project.companyAccount.classification === 'Corporation' &&
-                  `Authorized: ${formatCurrency(project.companyAccount.corporation?.authorizedCapital || 0, project.currency)} | Paid-up: ${formatCurrency(project.companyAccount.corporation?.paidUpCapital || project.financing.equityContribution, project.currency)}`}
               </span>
             </div>
 
@@ -195,7 +193,7 @@ export default function ProjectInfoCard({
             <div className="flex items-center gap-2 text-amber-900">
               <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                <strong>Company Account:</strong> Define entity name, legal classification (Sole Pro, Partnership, Corporation), and initial equity structure.
+                <strong>Company Account:</strong> Define entity name, legal classification (Sole Proprietorship or Partnership), and initial equity structure.
               </span>
             </div>
             <button

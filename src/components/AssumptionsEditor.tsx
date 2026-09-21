@@ -293,6 +293,8 @@ export default function AssumptionsEditor({
   const [expandNonMfgEmployeeHeadcount, setExpandNonMfgEmployeeHeadcount] = useState<boolean>(false);
   const [showNonMfgCustomBenefits, setShowNonMfgCustomBenefits] = useState<boolean>(false);
   const [nonMfgViewYear, setNonMfgViewYear] = useState<number>(1);
+  const [opexViewYear, setOpexViewYear] = useState<number>(1);
+  const [show5YearOpexSchedule, setShow5YearOpexSchedule] = useState<boolean>(false);
 
   const selectedDlYearSummary = useMemo(() => {
     const annual = (project.directLabor || []).reduce((sum, lab) => {
@@ -939,6 +941,43 @@ export default function AssumptionsEditor({
     });
   };
 
+  // OPEX Year Navigation Calculation Helper
+  const getOpexAmountForYear = useCallback((opex: OperatingExpenseItem, year: number): number => {
+    if (opex.customYearAmounts && opex.customYearAmounts[year] !== undefined) {
+      return opex.customYearAmounts[year];
+    }
+    const growth = Math.pow(1 + (opex.annualGrowthRate || 0) / 100, year - 1);
+    return Math.round((opex.annualAmountYear1 || 0) * growth);
+  }, []);
+
+  const selectedYearOpexSummary = useMemo(() => {
+    const expenses = project.operatingExpenses || [];
+    const currentYearTotal = expenses.reduce((sum, o) => sum + getOpexAmountForYear(o, opexViewYear), 0);
+    const prevYearTotal =
+      opexViewYear > 1
+        ? expenses.reduce((sum, o) => sum + getOpexAmountForYear(o, opexViewYear - 1), 0)
+        : currentYearTotal;
+    const yoyDiff = currentYearTotal - prevYearTotal;
+    const yoyPct = prevYearTotal > 0 ? (yoyDiff / prevYearTotal) * 100 : 0;
+
+    // 5-year schedules
+    const fiveYearTotals: { [year: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (let y = 1; y <= 5; y++) {
+      fiveYearTotals[y] = expenses.reduce((sum, o) => sum + getOpexAmountForYear(o, y), 0);
+    }
+    const grandTotal5Years = Object.values(fiveYearTotals).reduce((sum, v) => sum + v, 0);
+
+    return {
+      currentYearTotal,
+      currentYearMonthly: Math.round((currentYearTotal / 12) * 100) / 100,
+      prevYearTotal,
+      yoyDiff,
+      yoyPct,
+      fiveYearTotals,
+      grandTotal5Years,
+    };
+  }, [project.operatingExpenses, opexViewYear, getOpexAmountForYear]);
+
   // Capital sums
   const totalPreOp = project.preOperatingExpenses.reduce((sum, item) => sum + item.amount, 0);
   const totalFixedAssets = project.fixedAssets.reduce((sum, item) => sum + item.cost, 0);
@@ -1045,9 +1084,6 @@ export default function AssumptionsEditor({
                         <h3 className="text-sm font-bold text-slate-800">
                           Pre-Operating Expenses (Year 0)
                         </h3>
-                        <p className="text-xs text-slate-500">
-                          Permits, feasibility research, licenses, and trial operations.
-                        </p>
                       </div>
                       <button
                         onClick={() =>
@@ -1250,9 +1286,6 @@ export default function AssumptionsEditor({
                       <h3 className="text-sm font-bold text-indigo-950 mb-0.5">
                         Financing Mix & Initial Working Capital Buffer
                       </h3>
-                      <p className="text-xs text-slate-500">
-                        Equity, bank debt financing, and liquidity buffer allocation between cash in vault and depository bank.
-                      </p>
                     </div>
 
                     {onOpenBankModal && (
@@ -1278,9 +1311,6 @@ export default function AssumptionsEditor({
                           <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                             Initial Working Capital Buffer Breakdown
                           </h4>
-                          <p className="text-[11px] text-slate-500">
-                            Cash on Hand (physical register/petty cash) & Cash in Bank (interest-bearing depository account)
-                          </p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -1570,9 +1600,6 @@ export default function AssumptionsEditor({
                     <h3 className="text-sm font-bold text-slate-800">
                       Revenue Streams & Product Assumptions
                     </h3>
-                    <p className="text-xs text-slate-500">
-                      Selling prices, unit direct costs, Year 1 expected sales volume, and annual growth %.
-                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -2064,9 +2091,6 @@ export default function AssumptionsEditor({
                       <span className="text-sm font-bold font-financial text-indigo-700">
                         {formatCurrency(selectedDlYearSummary.annualTotal, c)}
                       </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        {formatCurrency(selectedDlYearSummary.monthlyTotal, c)} / mo • {totalDirectLaborHeadcount} staff across {project.directLabor.length} positions
-                      </span>
                     </div>
 
                     <div>
@@ -2075,9 +2099,6 @@ export default function AssumptionsEditor({
                       </span>
                       <span className="text-sm font-bold font-financial text-slate-900">
                         {selectedDlYearSummary.volume.toLocaleString()} units
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        Across {project.products.length} products defined
                       </span>
                     </div>
 
@@ -2088,9 +2109,6 @@ export default function AssumptionsEditor({
                       <span className="text-sm font-bold font-financial text-emerald-700">
                         {formatCurrency(selectedDlYearSummary.costPerUnit, c)}
                         <span className="text-xs font-normal text-slate-500"> / unit</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        = Total Direct Labor ÷ Total Volume
                       </span>
                     </div>
                   </div>
@@ -2240,9 +2258,6 @@ export default function AssumptionsEditor({
                           Factory Support
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Supervisors, quality control / assurance (QA/QC), plant maintenance, warehouse crew, and factory hygiene staff.
-                      </p>
                     </div>
                     <button
                       type="button"
@@ -2470,9 +2485,6 @@ export default function AssumptionsEditor({
                           Factory Utilities
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Electricity, power, water, steam, boiler fuel, and process utilities consumed directly on the factory floor or kitchen processing lines.
-                      </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -2647,9 +2659,6 @@ export default function AssumptionsEditor({
                         <h4 className="text-sm font-bold text-slate-900">
                           3. Depreciation Expense Attributed to Production
                         </h4>
-                        <p className="text-xs text-slate-500">
-                          Depreciation of manufacturing plant, heavy machinery, processing equipment, and production tools capitalized into Cost of Goods Sold.
-                        </p>
                       </div>
                     </div>
 
@@ -2895,9 +2904,6 @@ export default function AssumptionsEditor({
                         <Boxes className="w-4 h-4 text-indigo-600" />
                         Other Factory Supplies & Miscellaneous Overhead
                       </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Consumable plant items, lubricants, sanitizers, gloves, and minor manufacturing indirect expenses.
-                      </p>
                     </div>
 
                     {/* Button to list/itemize indirect supplies */}
@@ -3400,9 +3406,6 @@ export default function AssumptionsEditor({
                           <tr>
                             <td colSpan={11} className="text-center py-10 text-slate-400">
                               <p className="font-semibold text-slate-600">No production employees found.</p>
-                              <p className="text-xs text-slate-500 mt-1">
-                                Add Direct Labor and Indirect Labor positions in the Direct Labor and Indirect Labor tables above.
-                              </p>
                               <div className="mt-3 flex items-center justify-center gap-2">
                                 <button
                                   type="button"
@@ -4438,10 +4441,6 @@ export default function AssumptionsEditor({
                       )}
                     </table>
                   </div>
-
-                  <p className="text-[11px] text-slate-400 italic">
-                    * Accounting note: Non-manufacturing personnel salaries flow directly into the "Salaries" account under Operating Expenses in the Financial Statements.
-                  </p>
                 </div>
 
                 {/* SECTION: NON-MANUFACTURING EMPLOYEE BENEFITS SCHEDULE (STATUTORY BENEFITS) */}
@@ -4461,9 +4460,6 @@ export default function AssumptionsEditor({
                             Statutory & 13th Month Pay
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Calculates employer statutory contributions (SSS, PhilHealth, Pag-IBIG) and mandatory 13th Month Pay (PD 851) reflected as Operating Expense accounts in Financial Statements.
-                        </p>
                       </div>
                     </div>
 
@@ -4693,12 +4689,6 @@ export default function AssumptionsEditor({
                     </table>
                   </div>
 
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <span>
-                      * Accounting note: Non-manufacturing employee benefits reflect directly in the Financial Statements under Operating Expenses as separate accounts: <strong>SSS</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalSssErAnnual, c)}/yr), <strong>Philhealth</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalPhilHealthErAnnual, c)}/yr), <strong>Pag-ibig</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalPagIbigErAnnual, c)}/yr), and <strong>13th Month Pay</strong> ({formatCurrency(compiledNonMfgBenefits.summary.totalThirteenthMonth, c)}/yr).
-                    </span>
-                  </div>
-
                   {/* SECTION: ADDITIONAL / NON-STATUTORY BENEFITS (ACCORDION) */}
                   <div className="border border-slate-200 rounded-xl overflow-hidden bg-white mt-4">
                     <button
@@ -4900,118 +4890,459 @@ export default function AssumptionsEditor({
 
             {/* TAB 4: OPERATING EXPENSES (SG&A) */}
             {activeTab === 'opex' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="space-y-5">
+                {/* Header with quick stats & add actions */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-800">
-                      Selling, General & Administrative (SG&A) Expenses
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>Operating Expenses (SG&A) Schedule</span>
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                        Account Titles presented in Financial Statements
+                      </span>
                     </h3>
-                    <p className="text-xs text-slate-500">
-                      Management salaries, store/office rental, utilities, marketing campaigns, and licenses.
-                    </p>
                   </div>
-                  <button
-                    onClick={() =>
-                      updateOpex([
-                        ...project.operatingExpenses,
-                        {
-                          id: `opex-${Date.now()}`,
-                          category: 'Administrative',
-                          name: 'New Operating Expense',
-                          annualAmountYear1: 36000,
-                          annualGrowthRate: 5,
-                        },
-                      ])
-                    }
-                    className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium flex items-center gap-1 transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add OPEX Item
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShow5YearOpexSchedule(!show5YearOpexSchedule)}
+                      className={`px-3 py-1.5 text-xs rounded-lg font-medium border flex items-center gap-1.5 transition ${
+                        show5YearOpexSchedule
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                      title="Toggle 5-Year Operating Expenses matrix schedule"
+                    >
+                      <Table className="w-3.5 h-3.5" />
+                      <span>{show5YearOpexSchedule ? 'Hide 5-Year Schedule' : 'View 5-Year Schedule'}</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        updateOpex([
+                          ...project.operatingExpenses,
+                          {
+                            id: `opex-${Date.now()}`,
+                            name: 'Office Rental & Occupancy',
+                            annualAmountYear1: 36000,
+                            annualGrowthRate: 5,
+                          },
+                        ])
+                      }
+                      className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-1.5 shadow-sm transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Expense Account
+                    </button>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                {/* Quick Add Presets for Standard SG&A Accounting Accounts */}
+                <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 text-xs">
+                  <span className="font-semibold text-slate-700 block mb-1.5 text-[11px] uppercase tracking-wider">
+                    Quick Add Standard Account Titles:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { name: 'Office / Store Space Rental', amount: 60000, growth: 5 },
+                      { name: 'Telecommunications & Internet', amount: 18000, growth: 4 },
+                      { name: 'Marketing, Promotions & Advertising', amount: 24000, growth: 5 },
+                      { name: 'Office Supplies & Stationeries', amount: 12000, growth: 4 },
+                      { name: 'Business Permits, Licenses & Local Taxes', amount: 15000, growth: 5 },
+                      { name: 'Accounting, Audit & Legal Fees', amount: 20000, growth: 5 },
+                      { name: 'Travel, Transportation & Freight', amount: 15000, growth: 4 },
+                      { name: 'Repairs & Office Facility Maintenance', amount: 12000, growth: 5 },
+                      { name: 'Representation & Public Relations', amount: 10000, growth: 4 },
+                      { name: 'Insurance Expense', amount: 12000, growth: 4 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.name}
+                        onClick={() => {
+                          if (project.operatingExpenses.some((o) => o.name.toLowerCase() === preset.name.toLowerCase())) {
+                            return;
+                          }
+                          updateOpex([
+                            ...project.operatingExpenses,
+                            {
+                              id: `opex-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+                              name: preset.name,
+                              annualAmountYear1: preset.amount,
+                              annualGrowthRate: preset.growth,
+                            },
+                          ]);
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-200 rounded-lg text-[11px] font-medium transition flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3 text-slate-400" />
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Year Navigation Bar */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-3.5 rounded-xl text-white shadow-sm flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-indigo-400" />
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider block text-indigo-200">
+                        Year-by-Year OPEX Navigation
+                      </span>
+                      <span className="text-xs text-slate-300">
+                        Viewing <span className="font-bold text-white">Year {opexViewYear}</span> Projected Operating Expenses
+                        {opexViewYear === 1 ? ' (Baseline Year)' : ` (${project.inflationRatePercent}% base escalation)`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 rounded-lg border border-slate-700/60">
+                    <button
+                      onClick={() => setOpexViewYear((prev) => Math.max(1, prev - 1))}
+                      disabled={opexViewYear === 1}
+                      className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition"
+                      title="Previous Year"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    {[1, 2, 3, 4, 5].map((yr) => (
+                      <button
+                        key={yr}
+                        onClick={() => setOpexViewYear(yr)}
+                        className={`px-3 py-1 rounded text-xs font-bold transition ${
+                          opexViewYear === yr
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                        }`}
+                      >
+                        Year {yr}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setOpexViewYear((prev) => Math.min(5, prev + 1))}
+                      disabled={opexViewYear === 5}
+                      className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition"
+                      title="Next Year"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selected Year Summary Metric Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      Year {opexViewYear} Total OPEX
+                    </span>
+                    <span className="text-base font-bold font-financial text-slate-900 block mt-0.5">
+                      {formatCurrency(selectedYearOpexSummary.currentYearTotal, c)}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Annual sum for Year {opexViewYear}</span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      Year {opexViewYear} Monthly Run Rate
+                    </span>
+                    <span className="text-base font-bold font-financial text-indigo-700 block mt-0.5">
+                      {formatCurrency(selectedYearOpexSummary.currentYearMonthly, c)}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Average monthly outlay</span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      YoY Change ({opexViewYear === 1 ? 'Base' : `vs Year ${opexViewYear - 1}`})
+                    </span>
+                    <span className="text-base font-bold font-financial text-slate-900 block mt-0.5">
+                      {opexViewYear === 1
+                        ? '– (Baseline)'
+                        : `${selectedYearOpexSummary.yoyDiff >= 0 ? '+' : ''}${formatCurrency(selectedYearOpexSummary.yoyDiff, c)}`}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {opexViewYear === 1
+                        ? 'Initial projection year'
+                        : `${selectedYearOpexSummary.yoyPct >= 0 ? '+' : ''}${selectedYearOpexSummary.yoyPct.toFixed(1)}% growth`}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      Active Accounts
+                    </span>
+                    <span className="text-base font-bold font-financial text-slate-900 block mt-0.5">
+                      {project.operatingExpenses.length} Account Titles
+                    </span>
+                    <span className="text-[10px] text-slate-500">Presented on Income Statement</span>
+                  </div>
+                </div>
+
+                {/* 5-Year Schedule View (collapsible) */}
+                {show5YearOpexSchedule && (
+                  <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <Table className="w-4 h-4 text-indigo-600" />
+                        <span>5-Year Schedule of Operating Expenses (SG&A Matrix)</span>
+                      </h4>
+                      <span className="text-[11px] text-slate-500 italic">
+                        Click on any year header to jump to that year
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto bg-white rounded-lg border border-slate-200">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-100/75 border-b border-slate-200 text-slate-700 font-semibold">
+                          <tr>
+                            <th className="p-2.5 pl-3">Account Title (Income Statement Row)</th>
+                            {[1, 2, 3, 4, 5].map((yr) => (
+                              <th
+                                key={yr}
+                                onClick={() => setOpexViewYear(yr)}
+                                className={`p-2.5 text-right font-financial cursor-pointer transition ${
+                                  opexViewYear === yr
+                                    ? 'bg-indigo-100/70 text-indigo-900 font-bold underline decoration-indigo-500'
+                                    : 'hover:bg-slate-200/60'
+                                }`}
+                                title={`Click to navigate to Year ${yr}`}
+                              >
+                                Year {yr} ({c})
+                              </th>
+                            ))}
+                            <th className="p-2.5 text-right font-financial pr-3 bg-slate-100">
+                              5-Yr Total ({c})
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {project.operatingExpenses.map((opex) => {
+                            let itemTotal5Y = 0;
+                            return (
+                              <tr key={opex.id} className="hover:bg-slate-50/60">
+                                <td className="p-2 pl-3 font-medium text-slate-900">{opex.name}</td>
+                                {[1, 2, 3, 4, 5].map((yr) => {
+                                  const amt = getOpexAmountForYear(opex, yr);
+                                  itemTotal5Y += amt;
+                                  return (
+                                    <td
+                                      key={yr}
+                                      className={`p-2 text-right font-financial ${
+                                        opexViewYear === yr ? 'bg-indigo-50/50 font-semibold text-slate-900' : 'text-slate-700'
+                                      }`}
+                                    >
+                                      {formatCurrency(amt, c)}
+                                    </td>
+                                  );
+                                })}
+                                <td className="p-2 text-right font-financial font-bold text-slate-900 pr-3 bg-slate-50/50">
+                                  {formatCurrency(itemTotal5Y, c)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-slate-100/90 font-bold border-t border-slate-200 text-slate-900">
+                          <tr>
+                            <td className="p-2.5 pl-3 uppercase text-[11px] font-bold">Total Operating Expenses</td>
+                            {[1, 2, 3, 4, 5].map((yr) => (
+                              <td
+                                key={yr}
+                                className={`p-2.5 text-right font-financial ${
+                                  opexViewYear === yr ? 'bg-indigo-100/80 text-indigo-950 text-sm' : ''
+                                }`}
+                              >
+                                {formatCurrency(selectedYearOpexSummary.fiveYearTotals[yr], c)}
+                              </td>
+                            ))}
+                            <td className="p-2.5 text-right font-financial text-sm pr-3 bg-slate-200/70 text-indigo-950">
+                              {formatCurrency(selectedYearOpexSummary.grandTotal5Years, c)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main Operating Expenses Table - No Category Column, Only Account Title */}
+                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                       <tr>
-                        <th className="p-3">Category</th>
-                        <th className="p-3">Expense Name</th>
-                        <th className="p-3 text-right">Year 1 Annual ({c})</th>
-                        <th className="p-3 text-right">Annual Growth %</th>
-                        <th className="p-3 text-center">Action</th>
+                        <th className="p-3 pl-4 min-w-[220px]">
+                          <span>Account Title (Expense Name)</span>
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            Presented on Projected Income Statement
+                          </span>
+                        </th>
+                        <th className="p-3 text-right min-w-[140px]">
+                          <span>Year {opexViewYear} Annual ({c})</span>
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            {opexViewYear === 1 ? 'Base Annual Outlay' : 'Custom or Escalated'}
+                          </span>
+                        </th>
+                        <th className="p-3 text-right min-w-[120px]">
+                          <span>Monthly ({c})</span>
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            Year {opexViewYear} Monthly Rate
+                          </span>
+                        </th>
+                        <th className="p-3 text-right min-w-[130px]">
+                          <span>Annual Growth %</span>
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            Annual Escalation
+                          </span>
+                        </th>
+                        <th className="p-3 text-right min-w-[130px]">
+                          <span>YoY Change</span>
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            vs Prior Year
+                          </span>
+                        </th>
+                        <th className="p-3 text-center w-16">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {project.operatingExpenses.map((opex, idx) => (
-                        <tr key={opex.id} className="hover:bg-slate-50/50">
-                          <td className="p-2.5">
-                            <select
-                              value={opex.category}
-                              onChange={(e) => {
-                                const copy = [...project.operatingExpenses];
-                                copy[idx].category = e.target.value as any;
-                                updateOpex(copy);
-                              }}
-                              className="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 font-medium text-slate-700"
-                            >
-                              <option value="Administrative">Administrative</option>
-                              <option value="Selling & Marketing">Selling & Marketing</option>
-                              <option value="Utilities & Rent">Utilities & Rent</option>
-                              <option value="Other OPEX">Other OPEX</option>
-                            </select>
-                          </td>
-                          <td className="p-2.5">
-                            <input
-                              type="text"
-                              value={opex.name}
-                              onChange={(e) => {
-                                const copy = [...project.operatingExpenses];
-                                copy[idx].name = e.target.value;
-                                updateOpex(copy);
-                              }}
-                              className="w-full font-medium text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none"
-                            />
-                          </td>
-                          <td className="p-2.5 text-right">
-                            <input
-                              type="number"
-                              value={opex.annualAmountYear1}
-                              onChange={(e) => {
-                                const copy = [...project.operatingExpenses];
-                                copy[idx].annualAmountYear1 = parseFloat(e.target.value) || 0;
-                                updateOpex(copy);
-                              }}
-                              className="w-28 font-financial font-semibold text-right border border-slate-200 rounded px-1.5 py-0.5"
-                            />
-                          </td>
-                          <td className="p-2.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={opex.annualGrowthRate}
-                                onChange={(e) => {
-                                  const copy = [...project.operatingExpenses];
-                                  copy[idx].annualGrowthRate = parseFloat(e.target.value) || 0;
-                                  updateOpex(copy);
-                                }}
-                                className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-0.5"
-                              />
-                              <span>%</span>
-                            </div>
-                          </td>
-                          <td className="p-2.5 text-center">
-                            <button
-                              onClick={() => {
-                                updateOpex(project.operatingExpenses.filter((_, i) => i !== idx));
-                              }}
-                              className="text-slate-400 hover:text-red-600 p-1 transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                      {project.operatingExpenses.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-slate-400 text-xs">
+                            No operating expense accounts configured. Click "+ Add Expense Account" or select standard preset account titles above.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        project.operatingExpenses.map((opex, idx) => {
+                          const currentAmount = getOpexAmountForYear(opex, opexViewYear);
+                          const prevAmount = opexViewYear > 1 ? getOpexAmountForYear(opex, opexViewYear - 1) : currentAmount;
+                          const diff = currentAmount - prevAmount;
+                          const hasCustomOverride =
+                            opexViewYear > 1 &&
+                            opex.customYearAmounts &&
+                            opex.customYearAmounts[opexViewYear] !== undefined;
+
+                          return (
+                            <tr key={opex.id} className="hover:bg-slate-50/60 transition">
+                              <td className="p-3 pl-4">
+                                <input
+                                  type="text"
+                                  value={opex.name}
+                                  placeholder="e.g. Office Rental & Utilities"
+                                  onChange={(e) => {
+                                    const copy = [...project.operatingExpenses];
+                                    copy[idx].name = e.target.value;
+                                    updateOpex(copy);
+                                  }}
+                                  className="w-full font-semibold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none bg-transparent py-0.5"
+                                />
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <input
+                                    type="number"
+                                    value={currentAmount}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const copy = [...project.operatingExpenses];
+                                      if (opexViewYear === 1) {
+                                        copy[idx].annualAmountYear1 = val;
+                                        if (copy[idx].customYearAmounts) {
+                                          copy[idx].customYearAmounts![1] = val;
+                                        }
+                                      } else {
+                                        if (!copy[idx].customYearAmounts) {
+                                          copy[idx].customYearAmounts = {};
+                                        }
+                                        copy[idx].customYearAmounts![opexViewYear] = val;
+                                      }
+                                      updateOpex(copy);
+                                    }}
+                                    className="w-28 font-financial font-semibold text-right border border-slate-200 rounded px-2 py-1 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                                  />
+                                  {hasCustomOverride && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1">
+                                        Custom
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          const copy = [...project.operatingExpenses];
+                                          if (copy[idx].customYearAmounts) {
+                                            delete copy[idx].customYearAmounts![opexViewYear];
+                                          }
+                                          updateOpex(copy);
+                                        }}
+                                        className="text-[10px] text-indigo-600 hover:underline"
+                                        title="Reset to calculated growth rate amount"
+                                      >
+                                        Reset
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-right font-financial text-slate-600">
+                                {formatCurrency(Math.round((currentAmount / 12) * 100) / 100, c)}
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    value={opex.annualGrowthRate}
+                                    onChange={(e) => {
+                                      const copy = [...project.operatingExpenses];
+                                      copy[idx].annualGrowthRate = parseFloat(e.target.value) || 0;
+                                      updateOpex(copy);
+                                    }}
+                                    className="w-16 font-financial text-right border border-slate-200 rounded px-1.5 py-1 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                                  />
+                                  <span className="text-slate-500">%</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-right font-financial text-slate-600">
+                                {opexViewYear === 1 ? (
+                                  <span className="text-slate-400 italic text-[11px]">Base Year</span>
+                                ) : (
+                                  <span className={diff >= 0 ? 'text-emerald-700 font-medium' : 'text-slate-600'}>
+                                    {diff >= 0 ? '+' : ''}{formatCurrency(diff, c)}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                <button
+                                  onClick={() => {
+                                    updateOpex(project.operatingExpenses.filter((_, i) => i !== idx));
+                                  }}
+                                  className="text-slate-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition"
+                                  title="Delete operating expense account"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
+                    {project.operatingExpenses.length > 0 && (
+                      <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-slate-900">
+                        <tr>
+                          <td className="p-3 pl-4 uppercase text-[11px]">
+                            Total Year {opexViewYear} Operating Expenses
+                          </td>
+                          <td className="p-3 text-right font-financial text-sm text-indigo-900">
+                            {formatCurrency(selectedYearOpexSummary.currentYearTotal, c)}
+                          </td>
+                          <td className="p-3 text-right font-financial text-slate-700">
+                            {formatCurrency(selectedYearOpexSummary.currentYearMonthly, c)}
+                          </td>
+                          <td className="p-3 text-right text-slate-500 text-[11px]">
+                            Avg {((project.operatingExpenses.reduce((s, o) => s + (o.annualGrowthRate || 0), 0)) / Math.max(1, project.operatingExpenses.length)).toFixed(1)}%
+                          </td>
+                          <td className="p-3 text-right font-financial text-slate-700">
+                            {opexViewYear === 1
+                              ? '–'
+                              : `${selectedYearOpexSummary.yoyDiff >= 0 ? '+' : ''}${formatCurrency(selectedYearOpexSummary.yoyDiff, c)}`}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               </div>
@@ -5019,25 +5350,91 @@ export default function AssumptionsEditor({
 
             {/* TAB 5: WORKING CAPITAL POLICY */}
             {activeTab === 'workingCapital' && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">
+                  <h3 className="text-sm font-bold text-slate-900">
                     Working Capital Policies & Cash Management
                   </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    Determines Accounts Receivable, Target Inventory, and Accounts Payable on the Balance Sheet.
-                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                    <label className="text-xs font-bold text-slate-800 block mb-1">
-                      Accounts Receivable Policy
-                    </label>
-                    <p className="text-[11px] text-slate-500 mb-2">
-                      Percentage of annual sales uncollected at year-end (credit sales).
-                    </p>
-                    <div className="flex items-center gap-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* 1. Discounts & Allowances Policy */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-900">
+                          Discounts & Allowances Policy
+                        </label>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                          Revenue Deduction
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max="50"
+                          value={
+                            project.workingCapital.discountsAndAllowancesPercent !== undefined
+                              ? project.workingCapital.discountsAndAllowancesPercent
+                              : project.salesDiscountsPercent || 0
+                          }
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            onUpdateProject({
+                              ...project,
+                              salesDiscountsPercent: val,
+                              workingCapital: {
+                                ...project.workingCapital,
+                                discountsAndAllowancesPercent: val,
+                              },
+                            });
+                          }}
+                          className="w-20 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-financial font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                        <span className="text-xs font-semibold text-slate-700">% of Gross Sales</span>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-slate-500 block mb-0.5">
+                          Credit Terms / Settlement Terms:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 2/10, n/30 prompt settlement"
+                          value={project.workingCapital.discountsAndAllowancesTerms || ''}
+                          onChange={(e) =>
+                            onUpdateProject({
+                              ...project,
+                              workingCapital: {
+                                ...project.workingCapital,
+                                discountsAndAllowancesTerms: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Accounts Receivable Policy */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-900">
+                          Accounts Receivable Policy
+                        </label>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
+                          Current Asset
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="number"
                         step="0.5"
@@ -5053,20 +5450,26 @@ export default function AssumptionsEditor({
                             },
                           })
                         }
-                        className="w-20 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-financial font-semibold"
+                        className="w-20 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-financial font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
                       />
                       <span className="text-xs font-semibold text-slate-700">% of Net Sales</span>
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                    <label className="text-xs font-bold text-slate-800 block mb-1">
-                      Ending Inventory Policy
-                    </label>
-                    <p className="text-[11px] text-slate-500 mb-2">
-                      Safety stock buffer maintained as a percentage of annual COGS.
-                    </p>
-                    <div className="flex items-center gap-1">
+                  {/* 3. Ending Inventory Policy */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-900">
+                          Ending Inventory Policy
+                        </label>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          Current Asset
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="number"
                         step="0.5"
@@ -5082,20 +5485,26 @@ export default function AssumptionsEditor({
                             },
                           })
                         }
-                        className="w-20 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-financial font-semibold"
+                        className="w-20 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-financial font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
                       />
                       <span className="text-xs font-semibold text-slate-700">% of COGS</span>
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                    <label className="text-xs font-bold text-slate-800 block mb-1">
-                      Accounts Payable Policy
-                    </label>
-                    <p className="text-[11px] text-slate-500 mb-2">
-                      Credit from raw material and direct inventory suppliers at year-end.
-                    </p>
-                    <div className="flex items-center gap-1">
+                  {/* 4. Accounts Payable Policy */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-900">
+                          Accounts Payable Policy
+                        </label>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">
+                          Current Liability
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="number"
                         step="0.5"
@@ -5111,11 +5520,88 @@ export default function AssumptionsEditor({
                             },
                           })
                         }
-                        className="w-20 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-financial font-semibold"
+                        className="w-20 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-financial font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
                       />
                       <span className="text-xs font-semibold text-slate-700">% of Direct Materials</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Working Capital Policy Impact Live Preview */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-indigo-600" />
+                      <span>Year 1 Working Capital Policy Computed Impact</span>
+                    </h4>
+                    <span className="text-[11px] text-slate-500">
+                      Calculated automatically from Year 1 product pricing and sales volume
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const grossY1 = (project.products || []).reduce(
+                      (sum, p) => sum + (p.year1Volume || 0) * (p.unitPrice || 0),
+                      0
+                    );
+                    const discRate =
+                      project.workingCapital.discountsAndAllowancesPercent !== undefined
+                        ? project.workingCapital.discountsAndAllowancesPercent
+                        : project.salesDiscountsPercent || 0;
+                    const discountsY1 = grossY1 * (discRate / 100);
+                    const netSalesY1 = grossY1 - discountsY1;
+                    const arY1 = netSalesY1 * ((project.workingCapital.accountsReceivablePercentOfSales || 0) / 100);
+
+                    const dmY1 = (project.products || []).reduce(
+                      (sum, p) =>
+                        sum +
+                        (p.year1Volume || 0) *
+                          (p.rawMaterialsCostPerUnit !== undefined ? p.rawMaterialsCostPerUnit : p.unitCost || 0),
+                      0
+                    );
+                    const apY1 = dmY1 * ((project.workingCapital.accountsPayablePercentOfPurchases || 0) / 100);
+
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                          <span className="text-[11px] text-slate-500 block">Gross Sales (Yr 1)</span>
+                          <span className="font-bold font-financial text-slate-900 block mt-0.5">
+                            {formatCurrency(grossY1, c)}
+                          </span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-amber-200 bg-amber-50/30">
+                          <span className="text-[11px] text-amber-800 font-medium block">
+                            Discounts & Allowances ({discRate}%)
+                          </span>
+                          <span className="font-bold font-financial text-amber-900 block mt-0.5">
+                            –{formatCurrency(discountsY1, c)}
+                          </span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                          <span className="text-[11px] text-slate-500 block">Net Sales (Yr 1)</span>
+                          <span className="font-bold font-financial text-emerald-700 block mt-0.5">
+                            {formatCurrency(netSalesY1, c)}
+                          </span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                          <span className="text-[11px] text-slate-500 block">
+                            Accounts Receivable ({project.workingCapital.accountsReceivablePercentOfSales}%)
+                          </span>
+                          <span className="font-bold font-financial text-blue-700 block mt-0.5">
+                            {formatCurrency(arY1, c)}
+                          </span>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                          <span className="text-[11px] text-slate-500 block">
+                            Accounts Payable ({project.workingCapital.accountsPayablePercentOfPurchases}%)
+                          </span>
+                          <span className="font-bold font-financial text-purple-700 block mt-0.5">
+                            {formatCurrency(apY1, c)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

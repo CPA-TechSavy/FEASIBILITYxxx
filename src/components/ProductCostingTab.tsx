@@ -664,12 +664,9 @@ export default function ProductCostingTab({
           <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-100">
             <Calculator className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-bold text-slate-900 mb-1">
+          <h3 className="text-base font-bold text-slate-900 mb-4">
             No Products or Services Defined Yet
           </h3>
-          <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-            Costing computes the cost per unit starting from itemized Direct Materials (Bill of Materials) and Direct Labor wages. Add your first product to begin.
-          </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={handleCreateProduct}

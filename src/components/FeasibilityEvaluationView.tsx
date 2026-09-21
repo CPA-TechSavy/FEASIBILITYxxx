@@ -1,20 +1,24 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { FeasibilityProject, YearFinancials, FeasibilityMetrics } from '../types';
 import { formatCurrency, formatPercent } from '../utils/financialCalculations';
 import {
   Award,
   TrendingUp,
   Target,
-  Percent,
   Clock,
   ShieldCheck,
   Zap,
-  Activity,
-  BarChart3,
-  SlidersHorizontal,
   CheckCircle,
   AlertTriangle,
+  Droplets,
+  Scale,
+  Percent,
+  Activity,
+  HelpCircle,
+  Sparkles,
 } from 'lucide-react';
+import BreakEvenUnitsTable from './BreakEvenUnitsTable';
+import FinancialRatioDetailsModal, { RatioKey } from './FinancialRatioDetailsModal';
 
 interface FeasibilityEvaluationViewProps {
   project: FeasibilityProject;
@@ -27,44 +31,9 @@ export default function FeasibilityEvaluationView({
   financials,
   metrics,
 }: FeasibilityEvaluationViewProps) {
-  const [scenario, setScenario] = useState<'base' | 'optimistic' | 'pessimistic'>('base');
   const c = project.currency;
-  const years5 = financials.slice(1);
-
-  // Scenario multipliers
-  let salesMult = 1.0;
-  let costMult = 1.0;
-  if (scenario === 'optimistic') {
-    salesMult = 1.10; // +10% sales
-    costMult = 0.95; // -5% costs
-  } else if (scenario === 'pessimistic') {
-    salesMult = 0.85; // -15% sales
-    costMult = 1.08; // +8% costs
-  }
-
-  // Adjust metrics based on scenario
-  const adjustedNPV =
-    scenario === 'base'
-      ? metrics.npv
-      : scenario === 'optimistic'
-      ? metrics.npv * 1.35 + 45000
-      : metrics.npv * 0.55 - 60000;
-
-  const adjustedIRR =
-    scenario === 'base'
-      ? metrics.irr
-      : scenario === 'optimistic'
-      ? metrics.irr * 1.25
-      : Math.max(0, metrics.irr * 0.65);
-
-  const adjustedPayback =
-    scenario === 'base'
-      ? metrics.paybackPeriodYears
-      : scenario === 'optimistic'
-      ? Math.max(1.2, metrics.paybackPeriodYears * 0.82)
-      : Math.min(5.0, metrics.paybackPeriodYears * 1.28);
-
-  const isScenarioFeasible = adjustedNPV > 0 && adjustedIRR > project.discountRatePercent;
+  const years5 = financials && financials.length > 1 ? financials.slice(1) : [];
+  const [selectedRatioKey, setSelectedRatioKey] = useState<RatioKey | null>(null);
 
   return (
     <div className="space-y-6 mb-6">
@@ -201,355 +170,456 @@ export default function FeasibilityEvaluationView({
         </div>
       </div>
 
-      {/* 3. SENSITIVITY & SCENARIO STRESS TESTING (Defense Feature) */}
-      <section className="no-print bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      {/* 2. BREAK-EVEN POINT (BEP) IN UNITS TABLE */}
+      <BreakEvenUnitsTable project={project} financials={financials} />
+
+      {/* INTERACTIVE RATIO EXPLORATION BANNER */}
+      <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
           <div>
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-                Sensitivity & Scenario Stress Testing (Oral Defense Preparation)
-              </h3>
+            <div className="text-xs sm:text-sm font-bold text-indigo-950">
+              Interactive Financial Ratio Analysis & Meaning
             </div>
-          </div>
-
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-            <button
-              onClick={() => setScenario('pessimistic')}
-              className={`px-3 py-1 rounded font-medium transition ${
-                scenario === 'pessimistic'
-                  ? 'bg-rose-600 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Worst Case (-15% Sales, +8% Cost)
-            </button>
-            <button
-              onClick={() => setScenario('base')}
-              className={`px-3 py-1 rounded font-medium transition ${
-                scenario === 'base'
-                  ? 'bg-indigo-600 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Base Case (100%)
-            </button>
-            <button
-              onClick={() => setScenario('optimistic')}
-              className={`px-3 py-1 rounded font-medium transition ${
-                scenario === 'optimistic'
-                  ? 'bg-emerald-600 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Best Case (+10% Sales, -5% Cost)
-            </button>
+            <p className="text-xs text-indigo-800/90 mt-0.5">
+              Click any specific ratio row below to view a detailed popup explaining what that ratio means, its formula, benchmark standards, and the financial meaning behind the numbers for each projection year.
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-          <div>
-            <span className="text-xs text-slate-500 block">Scenario Mode</span>
-            <span className="text-sm font-bold text-slate-900 capitalize">
-              {scenario} Case
-            </span>
-            <span className="text-xs text-slate-500 block mt-0.5">
-              {scenario === 'base'
-                ? 'Standard study operating model'
-                : scenario === 'optimistic'
-                ? 'High customer adoption & supply chain efficiencies'
-                : 'Economic downturn, inflation & supplier price hikes'}
-            </span>
-          </div>
-
-          <div>
-            <span className="text-xs text-slate-500 block">Adjusted NPV</span>
-            <span
-              className={`text-base font-bold font-financial ${
-                adjustedNPV > 0 ? 'text-emerald-700' : 'text-rose-600'
-              }`}
-            >
-              {formatCurrency(adjustedNPV, c)}
-            </span>
-            <span className="text-xs text-slate-500 block mt-0.5">
-              Hurdle Rate: {project.discountRatePercent}%
-            </span>
-          </div>
-
-          <div>
-            <span className="text-xs text-slate-500 block">Adjusted IRR & Payback</span>
-            <span className="text-base font-bold font-financial text-slate-900">
-              IRR: {adjustedIRR.toFixed(1)}% | Payback: {adjustedPayback.toFixed(2)} Yrs
-            </span>
-            <span className="text-xs text-slate-500 block mt-0.5">
-              Status: {isScenarioFeasible ? 'Passes Panel Benchmark' : 'Fails Hurdle Rate'}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. BREAK-EVEN ANALYSIS (BEP) */}
+      {/* 3. LIQUIDITY RATIOS */}
       <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
-        <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-indigo-600" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+              <Droplets className="w-4 h-4" />
+            </div>
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Break-Even Analysis (BEP) & Margin of Safety
+              Liquidity Ratios
             </h3>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Decomposition of Fixed Costs vs. Variable Costs, Contribution Margin Ratio, and Minimum Sales required to break even.
-          </p>
+          <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 w-fit">
+            Short-Term Solvency
+          </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
-                <th className="py-2 text-left w-1/3">Break-Even Metric ({c})</th>
-                <th className="py-2 text-right font-financial">Year 1</th>
-                <th className="py-2 text-right font-financial">Year 2</th>
-                <th className="py-2 text-right font-financial">Year 3</th>
-                <th className="py-2 text-right font-financial">Year 4</th>
-                <th className="py-2 text-right font-financial">Year 5</th>
+                <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden sm:table-cell w-1/4">Formula</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden lg:table-cell">Standard Benchmark</th>
+                <th className="py-2.5 text-right font-financial">Year 1</th>
+                <th className="py-2.5 text-right font-financial">Year 2</th>
+                <th className="py-2.5 text-right font-financial">Year 3</th>
+                <th className="py-2.5 text-right font-financial">Year 4</th>
+                <th className="py-2.5 text-right font-financial">Year 5</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
-              <tr>
-                <td className="py-1.5 pl-1">Net Sales Revenue</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial">
-                    {formatCurrency(y.netSales, c)}
-                  </td>
-                ))}
+              {/* Current Ratio */}
+              <tr
+                onClick={() => setSelectedRatioKey('current_ratio')}
+                className="hover:bg-blue-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-blue-700 transition-colors">Current Ratio</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Total Current Assets ÷ Total Current Liabilities
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 1.50x</td>
+                {years5.map((y) => {
+                  const val = y.totalCurrentLiabilities > 0 ? y.totalCurrentAssets / y.totalCurrentLiabilities : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-blue-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
               </tr>
-              <tr>
-                <td className="py-1.5 pl-1 text-slate-600">Less: Total Variable Costs</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial text-slate-600">
-                    {formatCurrency(-y.variableCosts, c)}
-                  </td>
-                ))}
+
+              {/* Quick Ratio (Acid-Test Ratio) */}
+              <tr
+                onClick={() => setSelectedRatioKey('quick_ratio')}
+                className="hover:bg-blue-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-blue-700 transition-colors">Quick Ratio (Acid-Test Ratio)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Cash + Accounts Receivable) ÷ Total Current Liabilities
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 1.00x</td>
+                {years5.map((y) => {
+                  const quickAssets = y.cash + y.accountsReceivable;
+                  const val = y.totalCurrentLiabilities > 0 ? quickAssets / y.totalCurrentLiabilities : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-blue-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
               </tr>
-              <tr className="acc-subtotal font-semibold bg-slate-50/50">
-                <td className="py-1.5 pl-1">Total Contribution Margin</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial font-semibold">
-                    {formatCurrency(y.contributionMargin, c)}
-                  </td>
-                ))}
+
+              {/* Cash Ratio */}
+              <tr
+                onClick={() => setSelectedRatioKey('cash_ratio')}
+                className="hover:bg-blue-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-blue-700 transition-colors">Cash Ratio</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Cash & Cash Equivalents ÷ Total Current Liabilities
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 0.50x</td>
+                {years5.map((y) => {
+                  const val = y.totalCurrentLiabilities > 0 ? y.cash / y.totalCurrentLiabilities : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-blue-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
               </tr>
-              <tr className="text-xs text-slate-500 italic">
-                <td className="py-1 pl-4">Contribution Margin Ratio %</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1 text-right font-financial">
-                    {formatPercent(y.contributionMarginRatio)}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-1 text-slate-600">Total Fixed Costs (OPEX + Fixed Labor + Depr. + Interest)</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial text-slate-600">
-                    {formatCurrency(y.fixedCosts, c)}
-                  </td>
-                ))}
-              </tr>
-              <tr className="acc-subtotal font-bold bg-amber-50/50 text-amber-950">
-                <td className="py-2 pl-1">BREAK-EVEN SALES VALUE</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-2 text-right font-financial font-bold">
-                    {formatCurrency(y.breakEvenSales, c)}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-1">Margin of Safety ({c})</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial text-emerald-700 font-medium">
-                    {formatCurrency(y.marginOfSafety, c)}
-                  </td>
-                ))}
-              </tr>
-              <tr className="acc-total font-semibold text-slate-900 bg-emerald-50/30">
-                <td className="py-2 pl-1">MARGIN OF SAFETY RATIO (%)</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-2 text-right font-financial font-bold text-emerald-900">
-                    {formatPercent(y.marginOfSafetyRatio)}
-                  </td>
-                ))}
+
+              {/* Operating Cash Flow Ratio */}
+              <tr
+                onClick={() => setSelectedRatioKey('ocf_ratio')}
+                className="hover:bg-blue-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-blue-700 transition-colors">Operating Cash Flow Ratio</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Operating Cash Flow ÷ Total Current Liabilities
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 1.00x</td>
+                {years5.map((y) => {
+                  const val = y.totalCurrentLiabilities > 0 ? y.operatingCashFlow / y.totalCurrentLiabilities : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-blue-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* 5. COMPREHENSIVE FINANCIAL RATIO ANALYSIS (The Defense Gold Standard!) */}
+      {/* 4. LEVERAGE & SOLVENCY RATIOS */}
       <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
-        <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-indigo-600" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+              <Scale className="w-4 h-4" />
+            </div>
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Financial Ratio Analysis (Liquidity, Solvency, Profitability & Efficiency)
+              Leverage & Solvency Ratios
             </h3>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Standard accounting ratios evaluated by undergraduate thesis panels and financial analysts.
-          </p>
+          <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 w-fit">
+            Capital Structure & Long-Term Solvency
+          </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
-                <th className="py-2 text-left w-1/3">Financial Ratio</th>
-                <th className="py-2 text-left text-slate-500 text-xs hidden sm:table-cell">Standard Benchmark</th>
-                <th className="py-2 text-right font-financial">Year 1</th>
-                <th className="py-2 text-right font-financial">Year 2</th>
-                <th className="py-2 text-right font-financial">Year 3</th>
-                <th className="py-2 text-right font-financial">Year 4</th>
-                <th className="py-2 text-right font-financial">Year 5</th>
+                <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden sm:table-cell w-1/4">Formula</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden lg:table-cell">Standard Benchmark</th>
+                <th className="py-2.5 text-right font-financial">Year 1</th>
+                <th className="py-2.5 text-right font-financial">Year 2</th>
+                <th className="py-2.5 text-right font-financial">Year 3</th>
+                <th className="py-2.5 text-right font-financial">Year 4</th>
+                <th className="py-2.5 text-right font-financial">Year 5</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
-              {/* Liquidity */}
-              <tr className="bg-slate-50/60 font-semibold">
-                <td colSpan={7} className="py-1.5 pl-1 text-slate-900">
-                  I. LIQUIDITY RATIOS
+              {/* Debt-to-Equity (D/E) Ratio */}
+              <tr
+                onClick={() => setSelectedRatioKey('debt_to_equity')}
+                className="hover:bg-indigo-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-indigo-700 transition-colors">Debt-to-Equity (D/E) Ratio</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
                 </td>
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Current Ratio</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 1.50 : 1.00</td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Total Liabilities ÷ Total Equity
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≤ 1.50x</td>
                 {years5.map((y) => {
-                  const cr = y.totalCurrentLiabilities > 0 ? y.totalCurrentAssets / y.totalCurrentLiabilities : 0;
+                  const val = y.totalEquity > 0 ? y.totalLiabilities / y.totalEquity : 0;
                   return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {cr.toFixed(2)}x
-                    </td>
-                  );
-                })}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Quick / Acid-Test Ratio</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 1.00 : 1.00</td>
-                {years5.map((y) => {
-                  const quick = y.cash + y.accountsReceivable;
-                  const qr = y.totalCurrentLiabilities > 0 ? quick / y.totalCurrentLiabilities : 0;
-                  return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {qr.toFixed(2)}x
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-indigo-950">
+                      {val.toFixed(2)}x
                     </td>
                   );
                 })}
               </tr>
 
-              {/* Solvency */}
-              <tr className="bg-slate-50/60 font-semibold pt-2">
-                <td colSpan={7} className="py-1.5 pl-1 text-slate-900">
-                  II. SOLVENCY / LEVERAGE RATIOS
+              {/* Debt-to-Assets Ratio */}
+              <tr
+                onClick={() => setSelectedRatioKey('debt_to_assets')}
+                className="hover:bg-indigo-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-indigo-700 transition-colors">Debt-to-Assets Ratio</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
                 </td>
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Debt to Equity Ratio (D/E)</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≤ 1.50 : 1.00</td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Total Liabilities ÷ Total Assets) × 100%
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≤ 50.0%</td>
                 {years5.map((y) => {
-                  const de = y.totalEquity > 0 ? y.totalLiabilities / y.totalEquity : 0;
+                  const val = y.totalAssets > 0 ? (y.totalLiabilities / y.totalAssets) * 100 : 0;
                   return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {de.toFixed(2)}x
-                    </td>
-                  );
-                })}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Debt to Total Assets Ratio</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≤ 0.50 (50%)</td>
-                {years5.map((y) => {
-                  const da = y.totalAssets > 0 ? (y.totalLiabilities / y.totalAssets) * 100 : 0;
-                  return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {da.toFixed(1)}%
-                    </td>
-                  );
-                })}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Times Interest Earned (TIE)</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 3.0x</td>
-                {years5.map((y) => {
-                  const tie = y.interestExpense > 0 ? y.ebit / y.interestExpense : 99;
-                  return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {y.interestExpense > 0 ? `${tie.toFixed(1)}x` : 'N/A'}
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-indigo-950">
+                      {formatPercent(val)}
                     </td>
                   );
                 })}
               </tr>
 
-              {/* Profitability */}
-              <tr className="bg-slate-50/60 font-semibold pt-2">
-                <td colSpan={7} className="py-1.5 pl-1 text-slate-900">
-                  III. PROFITABILITY RATIOS
+              {/* Interest Coverage Ratio */}
+              <tr
+                onClick={() => setSelectedRatioKey('interest_coverage')}
+                className="hover:bg-indigo-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-indigo-700 transition-colors">Interest Coverage Ratio</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
                 </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  EBIT (Operating Income) ÷ Interest Expense
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 3.0x</td>
+                {years5.map((y) => {
+                  const tie = y.interestExpense > 0 ? y.ebit / y.interestExpense : null;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-indigo-950">
+                      {tie !== null ? `${tie.toFixed(1)}x` : 'N/A (No Debt)'}
+                    </td>
+                  );
+                })}
               </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Gross Profit Margin</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">Industry dependent</td>
+
+              {/* Equity Multiplier */}
+              <tr
+                onClick={() => setSelectedRatioKey('equity_multiplier')}
+                className="hover:bg-indigo-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-indigo-700 transition-colors">Equity Multiplier</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Total Assets ÷ Total Equity
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≤ 2.00x</td>
+                {years5.map((y) => {
+                  const val = y.totalEquity > 0 ? y.totalAssets / y.totalEquity : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-indigo-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 5. PROFITABILITY RATIOS */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+              <Percent className="w-4 h-4" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              Profitability Ratios
+            </h3>
+          </div>
+          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 w-fit">
+            Operating Margins & Capital Returns
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
+                <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden sm:table-cell w-1/4">Formula</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden lg:table-cell">Standard Benchmark</th>
+                <th className="py-2.5 text-right font-financial">Year 1</th>
+                <th className="py-2.5 text-right font-financial">Year 2</th>
+                <th className="py-2.5 text-right font-financial">Year 3</th>
+                <th className="py-2.5 text-right font-financial">Year 4</th>
+                <th className="py-2.5 text-right font-financial">Year 5</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
+              {/* Gross Profit Margin */}
+              <tr
+                onClick={() => setSelectedRatioKey('gross_profit_margin')}
+                className="hover:bg-emerald-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-emerald-700 transition-colors">Gross Profit Margin</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Gross Profit ÷ Net Sales) × 100%
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 30.0%</td>
                 {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial font-medium">
+                  <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-emerald-950">
                     {formatPercent(y.grossProfitMargin)}
                   </td>
                 ))}
               </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Net Profit Margin</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 10% - 15%</td>
-                {years5.map((y) => (
-                  <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                    {formatPercent(y.netProfitMargin)}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Return on Total Assets (ROA)</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 10%</td>
+
+              {/* Operating Profit Margin */}
+              <tr
+                onClick={() => setSelectedRatioKey('operating_profit_margin')}
+                className="hover:bg-emerald-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-emerald-700 transition-colors">Operating Profit Margin</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Operating Income [EBIT] ÷ Net Sales) × 100%
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 15.0%</td>
                 {years5.map((y) => {
-                  const roa = y.totalAssets > 0 ? (y.netIncome / y.totalAssets) * 100 : 0;
+                  const val = y.netSales > 0 ? (y.ebit / y.netSales) * 100 : 0;
                   return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {formatPercent(roa)}
-                    </td>
-                  );
-                })}
-              </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Return on Equity (ROE)</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 15%</td>
-                {years5.map((y) => {
-                  const roe = y.totalEquity > 0 ? (y.netIncome / y.totalEquity) * 100 : 0;
-                  return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {formatPercent(roe)}
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-emerald-950">
+                      {formatPercent(val)}
                     </td>
                   );
                 })}
               </tr>
 
-              {/* Efficiency */}
-              <tr className="bg-slate-50/60 font-semibold pt-2">
-                <td colSpan={7} className="py-1.5 pl-1 text-slate-900">
-                  IV. EFFICIENCY / ACTIVITY RATIOS
+              {/* Net Profit Margin */}
+              <tr
+                onClick={() => setSelectedRatioKey('net_profit_margin')}
+                className="hover:bg-emerald-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-emerald-700 transition-colors">Net Profit Margin</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
                 </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Net Income After Tax ÷ Net Sales) × 100%
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 10.0%</td>
+                {years5.map((y) => (
+                  <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-emerald-950">
+                    {formatPercent(y.netProfitMargin)}
+                  </td>
+                ))}
               </tr>
-              <tr>
-                <td className="py-1.5 pl-4 font-medium">Total Asset Turnover</td>
-                <td className="py-1.5 text-xs text-slate-500 hidden sm:table-cell">≥ 1.0x</td>
+
+              {/* Return on Assets */}
+              <tr
+                onClick={() => setSelectedRatioKey('roa')}
+                className="hover:bg-emerald-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-emerald-700 transition-colors">Return on Assets (ROA)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Net Income ÷ Total Assets) × 100%
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 10.0%</td>
                 {years5.map((y) => {
-                  const tato = y.totalAssets > 0 ? y.netSales / y.totalAssets : 0;
+                  const val = y.totalAssets > 0 ? (y.netIncome / y.totalAssets) * 100 : 0;
                   return (
-                    <td key={y.year} className="py-1.5 text-right font-financial font-medium">
-                      {tato.toFixed(2)}x
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-emerald-950">
+                      {formatPercent(val)}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Return on Equity */}
+              <tr
+                onClick={() => setSelectedRatioKey('roe')}
+                className="hover:bg-emerald-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-emerald-700 transition-colors">Return on Equity (ROE)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Net Income ÷ Total Equity) × 100%
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 15.0%</td>
+                {years5.map((y) => {
+                  const val = y.totalEquity > 0 ? (y.netIncome / y.totalEquity) * 100 : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-emerald-950">
+                      {formatPercent(val)}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Return on Invested Capital */}
+              <tr
+                onClick={() => setSelectedRatioKey('roic')}
+                className="hover:bg-emerald-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-emerald-700 transition-colors">Return on Invested Capital (ROIC)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  NOPAT [EBIT × (1 - Tax Rate)] ÷ (Total Debt + Total Equity)
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 12.0%</td>
+                {years5.map((y) => {
+                  const nopat = y.ebit * (1 - project.taxRatePercent / 100);
+                  const totalDebt = y.longTermDebt + y.currentPortionOfDebt;
+                  const capital = y.totalEquity + totalDebt;
+                  const val = capital > 0 ? (nopat / capital) * 100 : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-emerald-950">
+                      {formatPercent(val)}
                     </td>
                   );
                 })}
@@ -558,6 +628,305 @@ export default function FeasibilityEvaluationView({
           </table>
         </div>
       </section>
+
+      {/* 6. OPERATIONAL EFFICIENCY / ACTIVITY RATIOS */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+              <Activity className="w-4 h-4" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              Operational Efficiency / Activity Ratios
+            </h3>
+          </div>
+          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 w-fit">
+            Asset Turnover & Working Capital Velocity
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
+                <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden sm:table-cell w-1/4">Formula</th>
+                <th className="py-2.5 text-left text-xs text-slate-500 font-medium hidden lg:table-cell">Standard Benchmark</th>
+                <th className="py-2.5 text-right font-financial">Year 1</th>
+                <th className="py-2.5 text-right font-financial">Year 2</th>
+                <th className="py-2.5 text-right font-financial">Year 3</th>
+                <th className="py-2.5 text-right font-financial">Year 4</th>
+                <th className="py-2.5 text-right font-financial">Year 5</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
+              {/* Total Asset Turnover */}
+              <tr
+                onClick={() => setSelectedRatioKey('total_asset_turnover')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Total Asset Turnover</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Net Sales ÷ Total Assets
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 1.00x</td>
+                {years5.map((y) => {
+                  const val = y.totalAssets > 0 ? y.netSales / y.totalAssets : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Fixed Asset Turnover */}
+              <tr
+                onClick={() => setSelectedRatioKey('fixed_asset_turnover')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Fixed Asset Turnover</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Net Sales ÷ Net PPE
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 2.50x</td>
+                {years5.map((y) => {
+                  const val = y.netPPE > 0 ? y.netSales / y.netPPE : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Inventory Turnover */}
+              <tr
+                onClick={() => setSelectedRatioKey('inventory_turnover')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Inventory Turnover</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Cost of Goods Sold (COGS) ÷ Ending Inventory
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 6.00x</td>
+                {years5.map((y) => {
+                  const val = y.inventory > 0 ? y.totalCOGS / y.inventory : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Days Sales of Inventory (DSI) */}
+              <tr
+                onClick={() => setSelectedRatioKey('dsi')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Days Sales of Inventory (DSI)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Ending Inventory ÷ COGS) × 365 Days
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≤ 60.0 Days</td>
+                {years5.map((y) => {
+                  const invTurn = y.inventory > 0 ? y.totalCOGS / y.inventory : 0;
+                  const val = invTurn > 0 ? 365 / invTurn : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(1)} Days
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Accounts Receivable Turnover */}
+              <tr
+                onClick={() => setSelectedRatioKey('ar_turnover')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Accounts Receivable Turnover</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Net Sales ÷ Accounts Receivable
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 8.00x</td>
+                {years5.map((y) => {
+                  const val = y.accountsReceivable > 0 ? y.netSales / y.accountsReceivable : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Days Sales Outstanding (DSO) */}
+              <tr
+                onClick={() => setSelectedRatioKey('dso')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Days Sales Outstanding (DSO)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Accounts Receivable ÷ Net Sales) × 365 Days
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≤ 45.0 Days</td>
+                {years5.map((y) => {
+                  const arTurn = y.accountsReceivable > 0 ? y.netSales / y.accountsReceivable : 0;
+                  const val = arTurn > 0 ? 365 / arTurn : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(1)} Days
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Accounts Payable Turnover */}
+              <tr
+                onClick={() => setSelectedRatioKey('ap_turnover')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Accounts Payable Turnover</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Direct Purchases (Materials) ÷ Accounts Payable
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">6.0x - 12.0x</td>
+                {years5.map((y) => {
+                  const purchases = y.directMaterials > 0 ? y.directMaterials : y.totalCOGS * 0.6;
+                  const val = y.accountsPayable > 0 ? purchases / y.accountsPayable : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Days Payable Outstanding (DPO) */}
+              <tr
+                onClick={() => setSelectedRatioKey('dpo')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Days Payable Outstanding (DPO)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  (Accounts Payable ÷ Direct Purchases) × 365 Days
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">30.0 - 60.0 Days</td>
+                {years5.map((y) => {
+                  const purchases = y.directMaterials > 0 ? y.directMaterials : y.totalCOGS * 0.6;
+                  const apTurn = y.accountsPayable > 0 ? purchases / y.accountsPayable : 0;
+                  const val = apTurn > 0 ? 365 / apTurn : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(1)} Days
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Cash Conversion Cycle (CCC) */}
+              <tr
+                onClick={() => setSelectedRatioKey('ccc')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Cash Conversion Cycle (CCC)</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  DSO + DSI - DPO
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">Shorter is optimal</td>
+                {years5.map((y) => {
+                  const invTurn = y.inventory > 0 ? y.totalCOGS / y.inventory : 0;
+                  const dsi = invTurn > 0 ? 365 / invTurn : 0;
+
+                  const arTurn = y.accountsReceivable > 0 ? y.netSales / y.accountsReceivable : 0;
+                  const dso = arTurn > 0 ? 365 / arTurn : 0;
+
+                  const purchases = y.directMaterials > 0 ? y.directMaterials : y.totalCOGS * 0.6;
+                  const apTurn = y.accountsPayable > 0 ? purchases / y.accountsPayable : 0;
+                  const dpo = apTurn > 0 ? 365 / apTurn : 0;
+
+                  const ccc = dso + dsi - dpo;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {ccc.toFixed(1)} Days
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Working Capital Turnover */}
+              <tr
+                onClick={() => setSelectedRatioKey('working_capital_turnover')}
+                className="hover:bg-amber-50/70 cursor-pointer transition-colors group"
+                title="Click for full definition and year-by-year analysis"
+              >
+                <td className="py-2.5 pl-2 font-medium text-slate-900 flex items-center gap-1.5">
+                  <span className="group-hover:text-amber-800 transition-colors">Working Capital Turnover</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 font-mono hidden sm:table-cell">
+                  Net Sales ÷ (Current Assets - Current Liabilities)
+                </td>
+                <td className="py-2.5 text-xs text-slate-500 hidden lg:table-cell">≥ 2.00x</td>
+                {years5.map((y) => {
+                  const nwc = y.totalCurrentAssets - y.totalCurrentLiabilities;
+                  const val = nwc > 0 ? y.netSales / nwc : 0;
+                  return (
+                    <td key={y.year} className="py-2.5 text-right font-financial font-medium text-slate-900 group-hover:text-amber-950">
+                      {val.toFixed(2)}x
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* RATIO DETAILS POPUP MODAL */}
+      <FinancialRatioDetailsModal
+        ratioKey={selectedRatioKey}
+        onClose={() => setSelectedRatioKey(null)}
+        project={project}
+        financials={financials}
+      />
     </div>
   );
 }

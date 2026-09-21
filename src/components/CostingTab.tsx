@@ -284,9 +284,6 @@ export default function CostingTab({
               Costing (Unit Cost Breakdown & 5-Year Revenue Schedule)
             </h3>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-            Detailed breakdown of target Selling Prices and Manufacturing Costs per unit (Direct Materials, Direct Labor, Factory Overhead) alongside 5-Year Annual Units Sold, Escalation Rates, and Projected Revenue.
-          </p>
         </div>
 
         {/* Global Synchronization Buttons */}
@@ -431,9 +428,6 @@ export default function CostingTab({
                 1. Selling Price & Unit Cost Breakdown (Full Absorption Costing)
               </h4>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Shows the target Selling Price and Cost per Unit decomposed into Direct Materials, Direct Labor, and Factory Overhead, alongside resulting Unit Gross Margins.
-            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -692,9 +686,6 @@ export default function CostingTab({
                 2. 5-Year Projected Sales & Revenue Schedule (by Escalation Rate)
               </h4>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Annual unit volumes compound across Year 1 through Year 5 based on each product's annual escalation/growth rate: Volume(t) = Volume(1) × (1 + Growth%)^(t - 1). Revenue equals Units Sold × Selling Price.
-            </p>
           </div>
 
           <div className="flex items-center gap-2">

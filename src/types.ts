@@ -133,10 +133,11 @@ export interface NonManufacturingLaborItem {
 
 export interface OperatingExpenseItem {
   id: string;
-  category: 'Administrative' | 'Selling & Marketing' | 'Utilities & Rent' | 'Other OPEX';
-  name: string;
+  name: string; // Account title used in Financial Statements
   annualAmountYear1: number;
   annualGrowthRate: number; // In percent e.g. 5 for 5%
+  customYearAmounts?: { [year: number]: number }; // Optional custom annual amount override for Year 1-5
+  category?: string; // Optional for backward compatibility with existing saved data
 }
 
 export interface FinancingAssumptions {
@@ -158,9 +159,11 @@ export interface WorkingCapitalPolicy {
   inventoryPercentOfCOGS: number; // e.g. 8% of COGS
   accountsPayablePercentOfPurchases: number; // e.g. 6% of direct materials
   minimumCashBalance: number; // Buffer
+  discountsAndAllowancesPercent?: number; // Discounts & Allowances Policy (% of Gross Sales)
+  discountsAndAllowancesTerms?: string; // Policy terms / description (e.g. "2/10, n/30" or trade discount rate)
 }
 
-export type EntityClassification = 'Sole Proprietorship' | 'Partnership' | 'Corporation';
+export type EntityClassification = 'Sole Proprietorship' | 'Partnership';
 
 export interface PartnerContribution {
   id: string;
@@ -277,6 +280,7 @@ export interface YearFinancials {
   opexPagibig?: number; // Non-Manufacturing Pag-IBIG Employer Share
   opex13thMonthPay?: number; // Non-Manufacturing 13th Month Pay
   opexNonStatutoryBenefits?: number; // Non-Manufacturing Non-Statutory Benefits
+  itemizedOpex?: { id: string; name: string; amount: number }[]; // Account Title itemized operating expenses
   adminExpenses: number;
   sellingExpenses: number;
   utilitiesAndRent: number;

@@ -121,7 +121,7 @@ export default function App() {
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>Feasibility & Capital Budgeting (NPV / IRR / BEP)</span>
+            <span>Financial Ratios</span>
           </button>
 
           <button
@@ -185,6 +185,7 @@ export default function App() {
             project={project}
             financials={financials}
             onOpenBankModal={() => setIsBankModalOpen(true)}
+            onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
           />
         )}
 

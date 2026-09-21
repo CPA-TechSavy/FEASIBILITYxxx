@@ -69,12 +69,6 @@ export default function CompanyAccountModal({
     { id: 'p-2', name: 'Partner 2', capitalContribution: 250000, profitSharePercent: 50 },
   ]);
 
-  // Step 2 Form States - Corporation
-  const [authorizedCapital, setAuthorizedCapital] = useState<number>(2000000);
-  const [paidUpCapital, setPaidUpCapital] = useState<number>(500000);
-  const [parValuePerShare, setParValuePerShare] = useState<number>(100);
-  const [subscribedCapital, setSubscribedCapital] = useState<number>(500000);
-
   // Error validation messages
   const [step1Error, setStep1Error] = useState<string | null>(null);
   const [step2Error, setStep2Error] = useState<string | null>(null);
@@ -84,7 +78,7 @@ export default function CompanyAccountModal({
     if (project.companyAccount) {
       const ca = project.companyAccount;
       setEntityName(ca.entityName || project.title || '');
-      setClassification(ca.classification || 'Sole Proprietorship');
+      setClassification(ca.classification === 'Partnership' ? 'Partnership' : 'Sole Proprietorship');
       setPurposeOfEntity(ca.purposeOfEntity || '');
 
       const isPreset = NATURE_PRESETS.includes(ca.natureOfCompany);
@@ -95,7 +89,7 @@ export default function CompanyAccountModal({
         setNatureOfCompany('Other');
         setCustomNature(ca.natureOfCompany);
       } else {
-        setNatureOfCompany(NATURE_PRESETS[0]);
+        setNatureOfCompany('');
         setCustomNature('');
       }
 
@@ -111,32 +105,21 @@ export default function CompanyAccountModal({
       if (ca.partnership && ca.partnership.partners.length > 0) {
         setPartners(ca.partnership.partners);
       }
-
-      if (ca.corporation) {
-        setAuthorizedCapital(ca.corporation.authorizedCapital || 2000000);
-        setPaidUpCapital(ca.corporation.paidUpCapital || project.financing.equityContribution || 500000);
-        setParValuePerShare(ca.corporation.parValuePerShare || 100);
-        setSubscribedCapital(ca.corporation.subscribedCapital || ca.corporation.paidUpCapital || 500000);
-      }
     } else {
       // Defaults from current project
       setEntityName(project.title || '');
-      setNatureOfCompany(NATURE_PRESETS[0]);
+      setClassification('Sole Proprietorship');
+      setNatureOfCompany('');
+      setCustomNature('');
       setOwnerName(project.proponents || '');
       setOwnerCapital(project.financing.equityContribution || 500000);
-      setPurposeOfEntity(
-        'To establish a competitive, sustainable, and socially responsible enterprise delivering high-quality goods and services to the target market while generating attractive economic returns for the stakeholders.'
-      );
+      setPurposeOfEntity('');
     }
   }, [project, isOpen]);
 
   // Calculations for Step 2
   const totalPartnersCapital = partners.reduce((sum, p) => sum + (Number(p.capitalContribution) || 0), 0);
   const totalProfitSharePercent = partners.reduce((sum, p) => sum + (Number(p.profitSharePercent) || 0), 0);
-
-  const authorizedShares = parValuePerShare > 0 ? Math.floor(authorizedCapital / parValuePerShare) : 0;
-  const paidUpShares = parValuePerShare > 0 ? Math.floor(paidUpCapital / parValuePerShare) : 0;
-  const paidUpPercentOfAuthorized = authorizedCapital > 0 ? (paidUpCapital / authorizedCapital) * 100 : 0;
 
   // Handlers for Step 1 Validation
   const handleProceedToStep2 = () => {
@@ -239,32 +222,6 @@ export default function CompanyAccountModal({
         totalPartnersCapital,
       };
       equityContribution = totalPartnersCapital;
-    } else if (classification === 'Corporation') {
-      if (authorizedCapital <= 0) {
-        setStep2Error('Authorized Capital Stock must be greater than zero.');
-        return;
-      }
-      if (parValuePerShare <= 0) {
-        setStep2Error('Par Value per Share must be greater than zero (e.g., ₱100.00).');
-        return;
-      }
-      if (paidUpCapital <= 0) {
-        setStep2Error('Paid-up Capital must be greater than zero.');
-        return;
-      }
-      if (paidUpCapital > authorizedCapital) {
-        setStep2Error('Paid-up Capital cannot exceed Authorized Capital Stock.');
-        return;
-      }
-      companyAccountData.corporation = {
-        authorizedCapital,
-        paidUpCapital,
-        parValuePerShare,
-        authorizedShares,
-        subscribedCapital: subscribedCapital || paidUpCapital,
-        paidUpShares,
-      };
-      equityContribution = paidUpCapital;
     }
 
     // Update project
@@ -313,9 +270,6 @@ export default function CompanyAccountModal({
                   Legal & Capital Setup
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Define the entity classification, business nature, primary purpose, and opening capital structure.
-              </p>
             </div>
           </div>
 
@@ -368,7 +322,6 @@ export default function CompanyAccountModal({
                 <div className="text-[10px] font-normal text-slate-300 truncate">
                   {classification === 'Sole Proprietorship' && "Owner's Capital"}
                   {classification === 'Partnership' && 'Partners Contribution & Sharing'}
-                  {classification === 'Corporation' && 'Authorized, Paid-up & Par'}
                 </div>
               </div>
             </button>
@@ -398,12 +351,9 @@ export default function CompanyAccountModal({
                   type="text"
                   value={entityName}
                   onChange={(e) => setEntityName(e.target.value)}
-                  placeholder="e.g. EcoWash Commercial Laundry Services, Apex Manufacturing Corp."
+                  placeholder="e.g. EcoWash Commercial Laundry Services, Apex Trading"
                   className="w-full px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-300 focus:border-indigo-600 rounded-xl outline-hidden font-medium text-slate-900 transition shadow-2xs"
                 />
-                <p className="text-[11px] text-slate-500 mt-1">
-                  The official registered business or trade name as recorded in government regulatory filings.
-                </p>
               </div>
 
               {/* 2. Classification of the Entity */}
@@ -411,7 +361,7 @@ export default function CompanyAccountModal({
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
                   2. Classification of the Entity <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Sole Proprietorship */}
                   <button
                     type="button"
@@ -431,9 +381,6 @@ export default function CompanyAccountModal({
                       )}
                     </div>
                     <div className="font-bold text-sm text-slate-900">Sole Proprietorship</div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                      Owned by one individual; capital is contributed solely by the proprietor.
-                    </p>
                   </button>
 
                   {/* Partnership */}
@@ -455,33 +402,6 @@ export default function CompanyAccountModal({
                       )}
                     </div>
                     <div className="font-bold text-sm text-slate-900">Partnership</div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                      Two or more partners contribute money or property and share profits & losses.
-                    </p>
-                  </button>
-
-                  {/* Corporation */}
-                  <button
-                    type="button"
-                    onClick={() => setClassification('Corporation')}
-                    className={`p-3.5 rounded-xl border text-left transition relative cursor-pointer ${
-                      classification === 'Corporation'
-                        ? 'bg-purple-50/80 border-purple-600 ring-2 ring-purple-500/20 shadow-xs'
-                        : 'bg-white border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
-                        <Building2 className="w-4 h-4" />
-                      </div>
-                      {classification === 'Corporation' && (
-                        <CheckCircle2 className="w-4 h-4 text-purple-600" />
-                      )}
-                    </div>
-                    <div className="font-bold text-sm text-slate-900">Corporation</div>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                      Separate legal entity with authorized capital stock, paid-up capital, and par value shares.
-                    </p>
                   </button>
                 </div>
               </div>
@@ -496,6 +416,9 @@ export default function CompanyAccountModal({
                   onChange={(e) => setNatureOfCompany(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-300 focus:border-indigo-600 rounded-xl outline-hidden text-slate-900 font-medium"
                 >
+                  <option value="" disabled>
+                    -- Select Nature of Company --
+                  </option>
                   {NATURE_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>
                       {preset}
@@ -529,9 +452,6 @@ export default function CompanyAccountModal({
                   placeholder="State the primary business purpose, operational objective, or mandate of the organization..."
                   className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 focus:border-indigo-600 rounded-xl outline-hidden text-slate-900 font-medium"
                 />
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  As typically framed in Chapter 1 & 2 of undergraduate feasibility studies or Articles of Incorporation.
-                </p>
               </div>
             </div>
           )}
@@ -768,120 +688,6 @@ export default function CompanyAccountModal({
                     💡 <strong>Partnership Accounting:</strong> Total partners contribution ({formatCurrency(totalPartnersCapital, c)})
                     will be distributed across individual capital accounts in the <strong>Statement of Changes in Partners' Equity</strong>,
                     with yearly net profit allocated according to the agreed profit/loss sharing ratios.
-                  </div>
-                </div>
-              )}
-
-              {/* -------------------------------------------------- */}
-              {/* IF CORPORATION */}
-              {/* -------------------------------------------------- */}
-              {classification === 'Corporation' && (
-                <div className="space-y-4 bg-purple-50/40 border border-purple-100 rounded-2xl p-4 sm:p-5">
-                  <div className="flex items-center gap-2 text-purple-950 font-bold text-sm border-b border-purple-100 pb-2">
-                    <Building2 className="w-4 h-4 text-purple-600" />
-                    <span>Corporation Capital Stock Structure</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Authorized Capital */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Authorized Capital Stock ({c}) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="50000"
-                        value={authorizedCapital || ''}
-                        onChange={(e) => setAuthorizedCapital(parseFloat(e.target.value) || 0)}
-                        placeholder="e.g. 2000000"
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg outline-hidden font-financial font-semibold text-slate-900"
-                      />
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        {formatCurrency(authorizedCapital, c)}
-                      </p>
-                    </div>
-
-                    {/* Par Value Per Share */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Par Value Per Share ({c}) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={parValuePerShare || ''}
-                        onChange={(e) => setParValuePerShare(parseFloat(e.target.value) || 100)}
-                        placeholder="e.g. 100"
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg outline-hidden font-financial font-semibold text-slate-900"
-                      />
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Standard par: ₱100.00 or ₱10.00 / share
-                      </p>
-                    </div>
-
-                    {/* Paid-up Capital */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Paid-up Capital Stock ({c}) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={paidUpCapital || ''}
-                        onChange={(e) => setPaidUpCapital(parseFloat(e.target.value) || 0)}
-                        placeholder="e.g. 500000"
-                        className="w-full px-3 py-2 text-sm bg-white border border-purple-400 rounded-lg outline-hidden font-financial font-bold text-purple-950 text-base"
-                      />
-                      <p className="text-[11px] text-purple-700 mt-1 font-semibold">
-                        Actual Capital Inflow: {formatCurrency(paidUpCapital, c)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Corporate Capital Metrics Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-purple-200 text-xs">
-                    <div>
-                      <span className="text-slate-500 block">Authorized Shares:</span>
-                      <span className="font-bold text-slate-900 text-sm">
-                        {authorizedShares.toLocaleString()} shares
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        @ {formatCurrency(parValuePerShare, c)} par
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 block">Paid-up Shares Issued:</span>
-                      <span className="font-bold text-purple-900 text-sm">
-                        {paidUpShares.toLocaleString()} shares
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        Outstanding common shares
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-500 block">Paid-up % of Authorized:</span>
-                      <span
-                        className={`font-bold text-sm ${
-                          paidUpPercentOfAuthorized >= 25 ? 'text-emerald-700' : 'text-amber-600'
-                        }`}
-                      >
-                        {paidUpPercentOfAuthorized.toFixed(1)}%
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        {paidUpPercentOfAuthorized >= 25 ? 'Complies with SEC standard' : 'Under 25% minimum guideline'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-purple-100/60 rounded-xl text-xs text-purple-950 leading-relaxed">
-                    💡 <strong>Corporate Accounting Treatment:</strong> Paid-up Capital ({formatCurrency(paidUpCapital, c)})
-                    is presented as <strong>Common Stock / Paid-in Capital</strong> in the Balance Sheet and Statement of
-                    Stockholders' Equity, backed by {paidUpShares.toLocaleString()} common shares.
                   </div>
                 </div>
               )}

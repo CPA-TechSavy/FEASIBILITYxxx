@@ -63,6 +63,7 @@ export const BLANK_PROJECT: FeasibilityProject = {
     inventoryPercentOfCOGS: 0,
     accountsPayablePercentOfPurchases: 0,
     minimumCashBalance: 0,
+    discountsAndAllowancesPercent: 0,
   },
 
   academicNotes:

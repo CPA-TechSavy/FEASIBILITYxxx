@@ -283,6 +283,7 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     opexPagibig: 0,
     opex13thMonthPay: 0,
     opexNonStatutoryBenefits: 0,
+    itemizedOpex: [],
     totalOpex: totalPreOperating,
     ebit: -totalPreOperating,
     interestIncome: 0,
@@ -356,7 +357,11 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       directMaterials += dm;
     });
 
-    const salesDiscounts = grossSales * (project.salesDiscountsPercent / 100);
+    const discountPercent =
+      project.workingCapital?.discountsAndAllowancesPercent !== undefined
+        ? project.workingCapital.discountsAndAllowancesPercent
+        : (project.salesDiscountsPercent || 0);
+    const salesDiscounts = grossSales * (discountPercent / 100);
     const netSales = grossSales - salesDiscounts;
 
     // 2. Direct Labor
@@ -589,11 +594,17 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       }
     }
 
-    project.operatingExpenses.forEach((opex) => {
-      const growth = Math.pow(1 + opex.annualGrowthRate / 100, yr - 1);
-      const amount = opex.annualAmountYear1 * growth;
-      if (opex.category === 'Utilities & Rent') utilitiesAndRent += amount;
-      else otherOpex += amount;
+    const itemizedOpex: { id: string; name: string; amount: number }[] = [];
+    (project.operatingExpenses || []).forEach((opex) => {
+      let amount = 0;
+      if (opex.customYearAmounts && opex.customYearAmounts[yr] !== undefined) {
+        amount = opex.customYearAmounts[yr];
+      } else {
+        const growth = Math.pow(1 + (opex.annualGrowthRate || 0) / 100, yr - 1);
+        amount = (opex.annualAmountYear1 || 0) * growth;
+      }
+      otherOpex += amount;
+      itemizedOpex.push({ id: opex.id, name: opex.name, amount });
     });
 
     const totalOpex =
@@ -740,6 +751,7 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
       opexPagibig,
       opex13thMonthPay,
       opexNonStatutoryBenefits,
+      itemizedOpex,
       totalOpex,
       ebit,
       interestIncome,
