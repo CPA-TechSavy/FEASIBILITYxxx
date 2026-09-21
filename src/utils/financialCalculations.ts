@@ -707,17 +707,17 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     const isBalanced = diff < 1.0; // Rounding tolerance within 1 currency unit
 
     // 9. Break-Even Analysis
-    // Fixed Costs = Salaries (DL fixed base 70%) + Total FOH (which includes factory depreciation and benefits) + Admin + Rent/Utilities + Other Opex + Opex Depreciation + Interest
+    // Fixed Costs = Direct Labor (100% fixed) + Total FOH (which includes factory depreciation and benefits) + Admin + Rent/Utilities + Other Opex + Opex Depreciation + Interest
     const fixedCosts =
-      directLabor * 0.7 +
+      directLabor +
       totalFactoryOverhead +
       adminExpenses +
       utilitiesAndRent +
       otherOpex +
       opexDepreciation +
       interestExpense;
-    // Variable Costs = Direct Materials + Direct Labor variable (30%) + Selling commission/marketing
-    const variableCosts = directMaterials + directLabor * 0.3 + sellingExpenses + salesDiscounts;
+    // Variable Costs = Direct Materials + Selling commission/marketing + sales discounts (Direct Labor is 100% fixed)
+    const variableCosts = directMaterials + sellingExpenses + salesDiscounts;
     const contributionMargin = netSales - variableCosts;
     const contributionMarginRatio = netSales > 0 ? contributionMargin / netSales : 0;
     const breakEvenSales =
@@ -985,6 +985,7 @@ export interface Year1FactoryOverheadSummary {
   otherFactoryOverheadAnnual: number;
   suppliesAndOverheadAnnual: number;
   factoryOverheadSuppliesAndUtilitiesAnnual: number; // Indirect Labor + Utilities Production + Supplies & Misc
+  productionStatutoryContributionsAnnual: number;
   productionStatutoryBenefitsAnnual: number;
   productionThirteenthMonthPayAnnual: number;
   additionalNonStatutoryBenefitsAnnual: number;
@@ -1062,6 +1063,7 @@ export function calculateFactoryOverheadForYear(
   const otherFactoryOverheadAnnual = otherFactoryOverheadAnnualBase * overheadInflationFactor;
 
   // 5. Factory Labor Benefits (Production Employee Benefits Schedule + Mandatory 13th Month Pay + Additional Benefits)
+  let productionStatutoryContributionsAnnual = 0;
   let productionStatutoryBenefitsAnnual = 0;
   let productionThirteenthMonthPayAnnual = 0;
   let additionalNonStatutoryBenefitsAnnual = 0;
@@ -1094,8 +1096,15 @@ export function calculateFactoryOverheadForYear(
       projectedDl,
       projectedIdl
     );
-    productionStatutoryBenefitsAnnual = statSummary.totalStatutoryAnnual;
+    productionStatutoryContributionsAnnual = Math.round(
+      (statSummary.totalSssErAnnual +
+        statSummary.totalPhilHealthErAnnual +
+        statSummary.totalPagIbigErAnnual) *
+        100
+    ) / 100;
     productionThirteenthMonthPayAnnual = statSummary.totalThirteenthMonth;
+    // Total Statutory Benefits explicitly includes SSS, PhilHealth, Pag-IBIG contributions and 13th Month Pay (P.D. 851)
+    productionStatutoryBenefitsAnnual = statSummary.totalStatutoryAnnual;
 
     const customBenefits = (project.productionLaborBenefits || []).filter((b) => {
       const n = (b.name || '').toLowerCase();
@@ -1175,6 +1184,7 @@ export function calculateFactoryOverheadForYear(
     otherFactoryOverheadAnnual,
     suppliesAndOverheadAnnual,
     factoryOverheadSuppliesAndUtilitiesAnnual,
+    productionStatutoryContributionsAnnual,
     productionStatutoryBenefitsAnnual,
     productionThirteenthMonthPayAnnual,
     additionalNonStatutoryBenefitsAnnual,

@@ -32,6 +32,9 @@ export interface SoleProprietorYearMovement {
  * Defaults to Sole Proprietorship if unspecified.
  */
 export function getEffectiveClassification(project: FeasibilityProject): EntityClassification {
+  if (project.companyAccount?.classification === 'Corporation') {
+    return 'Corporation';
+  }
   return project.companyAccount?.classification === 'Partnership' ? 'Partnership' : 'Sole Proprietorship';
 }
 

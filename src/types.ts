@@ -163,7 +163,7 @@ export interface WorkingCapitalPolicy {
   discountsAndAllowancesTerms?: string; // Policy terms / description (e.g. "2/10, n/30" or trade discount rate)
 }
 
-export type EntityClassification = 'Sole Proprietorship' | 'Partnership';
+export type EntityClassification = 'Sole Proprietorship' | 'Partnership' | 'Corporation';
 
 export interface PartnerContribution {
   id: string;

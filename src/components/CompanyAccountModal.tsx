@@ -78,7 +78,13 @@ export default function CompanyAccountModal({
     if (project.companyAccount) {
       const ca = project.companyAccount;
       setEntityName(ca.entityName || project.title || '');
-      setClassification(ca.classification === 'Partnership' ? 'Partnership' : 'Sole Proprietorship');
+      setClassification(
+        ca.classification === 'Partnership'
+          ? 'Partnership'
+          : ca.classification === 'Corporation'
+          ? 'Corporation'
+          : 'Sole Proprietorship'
+      );
       setPurposeOfEntity(ca.purposeOfEntity || '');
 
       const isPreset = NATURE_PRESETS.includes(ca.natureOfCompany);

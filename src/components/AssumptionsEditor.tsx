@@ -516,14 +516,6 @@ export default function AssumptionsEditor({
     const presets: LaborBenefitItem[] = [
       {
         id: `ben-${Date.now()}-1`,
-        name: '13th Month Pay',
-        type: 'one_month_salary',
-        rateOrAmount: 1,
-        appliesTo: 'both',
-        notes: 'Mandatory 13th month pay equivalent to 1 month salary of all Direct and Indirect Employees (PD 851)',
-      },
-      {
-        id: `ben-${Date.now()}-2`,
         name: 'Uniform, PPE & Safety Shoes Allowance',
         type: 'fixed_monthly_per_head',
         rateOrAmount: 300,
@@ -531,7 +523,7 @@ export default function AssumptionsEditor({
         notes: 'Protective gear, plant uniform allowance, and safety apparel',
       },
       {
-        id: `ben-${Date.now()}-3`,
+        id: `ben-${Date.now()}-2`,
         name: 'Plant Meal & Attendance Subsidy',
         type: 'fixed_monthly_per_head',
         rateOrAmount: 500,
@@ -539,7 +531,7 @@ export default function AssumptionsEditor({
         notes: 'Monthly meal & perfect attendance allowance for production crew',
       },
       {
-        id: `ben-${Date.now()}-4`,
+        id: `ben-${Date.now()}-3`,
         name: 'Annual Factory Medical & Physical Exam',
         type: 'fixed_annual',
         rateOrAmount: 25000,
@@ -2225,7 +2217,7 @@ export default function AssumptionsEditor({
                   </div>
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">5. Statutory Benefits</span>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">5. Statutory & 13th Mo.</span>
                       <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
                     </div>
                     <span className="font-bold font-financial text-slate-900 block mt-0.5">
@@ -2234,11 +2226,11 @@ export default function AssumptionsEditor({
                   </div>
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">6. 13th Mo. & Non-Stat.</span>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold truncate">6. Supplemental Benefits</span>
                       <span className="text-[9px] text-slate-400 font-medium">Yr {fohViewYear}</span>
                     </div>
                     <span className="font-bold font-financial text-emerald-700 block mt-0.5">
-                      {formatCurrency(selectedYearFohSummary.productionThirteenthMonthPayAnnual + selectedYearFohSummary.additionalNonStatutoryBenefitsAnnual, c)}
+                      {formatCurrency(selectedYearFohSummary.additionalNonStatutoryBenefitsAnnual, c)}
                     </span>
                   </div>
                 </div>
@@ -3392,11 +3384,11 @@ export default function AssumptionsEditor({
                           <th className="py-3 px-3 text-right w-32 font-bold text-slate-900">
                             {fohViewYear > 1 ? `Monthly ER Total (Yr ${fohViewYear}) (${c})` : `Monthly ER Total (${c})`}
                           </th>
-                          <th className="py-3 px-3 text-right w-36 font-bold text-emerald-950 bg-emerald-50/40">
-                            {fohViewYear > 1 ? `Annual ER Total (Yr ${fohViewYear}) (${c})` : `Annual ER Total (${c})`}
-                          </th>
                           <th className="py-3 px-3 text-right w-36 font-bold text-purple-950 bg-purple-50/50">
                             {fohViewYear > 1 ? `13th Month Pay (Yr ${fohViewYear}) (${c})` : `13th Month Pay (${c})`}
+                          </th>
+                          <th className="py-3 px-3 text-right w-36 font-bold text-emerald-950 bg-emerald-50/40">
+                            {fohViewYear > 1 ? `Total Statutory (Yr ${fohViewYear}) (${c})` : `Total Statutory (${c})`}
                           </th>
                           <th className="py-3 px-2 text-center w-12">Action</th>
                         </tr>
@@ -3487,14 +3479,14 @@ export default function AssumptionsEditor({
                                           {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
                                         </td>
 
-                                        {/* Annual ER Total */}
-                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
-                                          {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
-                                        </td>
-
                                         {/* 13th Month Pay */}
                                         <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-50/30">
                                           {formatCurrency(r.thirteenthMonthPayTotalRole, c)}
+                                        </td>
+
+                                        {/* Total Statutory Benefits */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
+                                          {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
                                         </td>
 
                                         {/* Action */}
@@ -3536,11 +3528,11 @@ export default function AssumptionsEditor({
                                   <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
                                     {formatCurrency(compiledProductionBenefits.summary.directLabor.totalMonthlyBenefits, c)}
                                   </td>
-                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-blue-950 bg-blue-100/50">
-                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.totalAnnualBenefits, c)}
-                                  </td>
                                   <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-100/50">
                                     {formatCurrency(compiledProductionBenefits.summary.directLabor.thirteenthMonthTotal, c)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-financial font-bold text-blue-950 bg-blue-100/50">
+                                    {formatCurrency(compiledProductionBenefits.summary.directLabor.totalAnnualBenefits, c)}
                                   </td>
                                   <td></td>
                                 </tr>
@@ -3615,14 +3607,14 @@ export default function AssumptionsEditor({
                                           {formatCurrency(r.totalMonthlyBenefitsTotalRole, c)}
                                         </td>
 
-                                        {/* Annual ER Total */}
-                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
-                                          {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
-                                        </td>
-
                                         {/* 13th Month Pay */}
                                         <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-50/30">
                                           {formatCurrency(r.thirteenthMonthPayTotalRole, c)}
+                                        </td>
+
+                                        {/* Total Statutory Benefits */}
+                                        <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950 bg-emerald-50/30">
+                                          {formatCurrency(r.totalAnnualBenefitsTotalRole, c)}
                                         </td>
 
                                         {/* Action */}
@@ -3665,11 +3657,11 @@ export default function AssumptionsEditor({
                                     <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
                                       {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalMonthlyBenefits, c)}
                                     </td>
-                                    <td className="py-2.5 px-3 text-right font-financial font-bold text-amber-950 bg-amber-100/50">
-                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits, c)}
-                                    </td>
                                     <td className="py-2.5 px-3 text-right font-financial font-bold text-purple-950 bg-purple-100/50">
                                       {formatCurrency(compiledProductionBenefits.summary.indirectLabor.thirteenthMonthTotal, c)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-financial font-bold text-amber-950 bg-amber-100/50">
+                                      {formatCurrency(compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits, c)}
                                     </td>
                                     <td></td>
                                   </tr>
@@ -3749,16 +3741,6 @@ export default function AssumptionsEditor({
                                 c
                               )}
                             </td>
-                            <td className="py-3 px-3 text-right font-financial font-black text-emerald-950 bg-emerald-200/60">
-                              {formatCurrency(
-                                benefitsClassificationFilter === 'direct'
-                                  ? compiledProductionBenefits.summary.directLabor.totalAnnualBenefits
-                                  : benefitsClassificationFilter === 'indirect'
-                                  ? compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits
-                                  : compiledProductionBenefits.summary.totalStatutoryAnnual,
-                                c
-                              )}
-                            </td>
                             <td className="py-3 px-3 text-right font-financial font-black text-purple-950 bg-purple-200/60">
                               {formatCurrency(
                                 benefitsClassificationFilter === 'direct'
@@ -3766,6 +3748,16 @@ export default function AssumptionsEditor({
                                   : benefitsClassificationFilter === 'indirect'
                                   ? compiledProductionBenefits.summary.indirectLabor.thirteenthMonthTotal
                                   : compiledProductionBenefits.summary.totalThirteenthMonth,
+                                c
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right font-financial font-black text-emerald-950 bg-emerald-200/60">
+                              {formatCurrency(
+                                benefitsClassificationFilter === 'direct'
+                                  ? compiledProductionBenefits.summary.directLabor.totalAnnualBenefits
+                                  : benefitsClassificationFilter === 'indirect'
+                                  ? compiledProductionBenefits.summary.indirectLabor.totalAnnualBenefits
+                                  : compiledProductionBenefits.summary.totalStatutoryAnnual,
                                 c
                               )}
                             </td>
@@ -3785,7 +3777,12 @@ export default function AssumptionsEditor({
                         onChange={(e) => toggleIncludeLaborBenefitsInCOGS(e.target.checked)}
                         className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
                       />
-                      <span>Capitalize Production Statutory Benefits in Factory Overhead (Cost of Goods Sold)</span>
+                      <div>
+                        <span>Capitalize Production Statutory Benefits in Factory Overhead (Cost of Goods Sold)</span>
+                        <span className="block text-[11px] font-normal text-slate-500">
+                          Includes mandatory SSS, PhilHealth, Pag-IBIG contributions and 13th Month Pay (P.D. 851)
+                        </span>
+                      </div>
                     </label>
 
                     <div className="flex items-center gap-2 text-xs font-financial">
@@ -3813,7 +3810,7 @@ export default function AssumptionsEditor({
                     >
                       <div className="flex items-center gap-2">
                         <HeartHandshake className="w-4 h-4 text-emerald-600" />
-                        <span>Additional / Non-Statutory Benefits (13th Month Pay, Uniforms, PPE, Fringe Benefits)</span>
+                        <span>Additional / Non-Statutory Supplemental Benefits (Uniforms, PPE, Subsidies, Fringe Benefits)</span>
                         <span className="text-[11px] font-normal text-slate-500">
                           ({laborBenefitsList.length} configured)
                         </span>
@@ -3829,7 +3826,7 @@ export default function AssumptionsEditor({
                       <div className="p-4 space-y-3 border-t border-slate-200">
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-slate-600">
-                            Configure supplemental benefits beyond mandatory SSS, PhilHealth, and Pag-IBIG. These will be added on top of statutory contributions in Factory Overhead.
+                            Configure supplemental benefits beyond mandatory statutory benefits (SSS, PhilHealth, Pag-IBIG, and 13th Month Pay). These will be added on top in Factory Overhead.
                           </p>
                           <div className="flex items-center gap-2">
                             <button
@@ -3864,7 +3861,7 @@ export default function AssumptionsEditor({
 
                         {laborBenefitsList.length === 0 ? (
                           <div className="text-center py-4 text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                            No additional non-statutory benefits configured. Statutory SSS, PhilHealth, and Pag-IBIG are automatically calculated in the main table above.
+                            No additional non-statutory benefits configured. Statutory SSS, PhilHealth, Pag-IBIG, and 13th Month Pay are automatically calculated in the main table above.
                           </div>
                         ) : (
                           <div className="overflow-x-auto border border-slate-200 rounded-lg">

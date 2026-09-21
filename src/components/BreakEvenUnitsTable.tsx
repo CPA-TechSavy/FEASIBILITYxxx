@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FeasibilityProject, YearFinancials } from '../types';
 import { formatCurrency, formatPercent } from '../utils/financialCalculations';
-import { Target, Layers, ShieldCheck, TrendingUp, Info } from 'lucide-react';
+import { Target, Layers, ShieldCheck, TrendingUp, Info, Search, Calculator, Sparkles } from 'lucide-react';
+import BreakEvenBreakdownModal from './BreakEvenBreakdownModal';
 
 interface BreakEvenUnitsTableProps {
   project: FeasibilityProject;
@@ -12,6 +13,7 @@ export default function BreakEvenUnitsTable({
   project,
   financials,
 }: BreakEvenUnitsTableProps) {
+  const [selectedModalYear, setSelectedModalYear] = useState<number | null>(null);
   const c = project.currency;
   const years5 = financials.slice(1);
 
@@ -100,17 +102,28 @@ export default function BreakEvenUnitsTable({
 
       {/* MINI STATS CARDS FOR YEAR 1 */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4">
-        <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            Year 1 Break-Even Units
-          </span>
-          <div className="text-lg sm:text-xl font-bold font-financial text-indigo-950 mt-1">
-            {yr1.bepUnits.toLocaleString()} Units
+        <button
+          type="button"
+          onClick={() => setSelectedModalYear(1)}
+          className="bg-slate-50 hover:bg-indigo-50/60 rounded-xl p-3.5 border border-slate-200 hover:border-indigo-300 transition-all text-left group cursor-pointer shadow-2xs hover:shadow-sm"
+          title="Click to view detailed Year 1 BEP computation breakdown and data sources"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-500 group-hover:text-indigo-700 uppercase tracking-wider transition-colors flex items-center gap-1">
+              Year 1 Break-Even Units
+            </span>
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 group-hover:bg-indigo-600 group-hover:text-white px-2 py-0.5 rounded-md transition-all flex items-center gap-1">
+              <span>Inspect</span>
+              <Search className="w-2.5 h-2.5" />
+            </span>
           </div>
-          <span className="text-[11px] text-slate-500">
+          <div className="text-lg sm:text-xl font-bold font-financial text-indigo-950 mt-1 flex items-center gap-2">
+            <span>{yr1.bepUnits.toLocaleString()} Units</span>
+          </div>
+          <span className="text-[11px] text-slate-500 group-hover:text-indigo-900 transition-colors">
             Break-Even Sales: {formatCurrency(yr1.bepSales, c)}
           </span>
-        </div>
+        </button>
 
         <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -159,7 +172,7 @@ export default function BreakEvenUnitsTable({
             <tr className="hover:bg-slate-50/60 transition-colors">
               <td className="py-2.5 pl-2 font-medium text-slate-900">Total Fixed Costs</td>
               <td className="py-2.5 text-xs text-slate-500 font-mono hidden md:table-cell">
-                Salaries (70% DL) + FOH + Admin + Rent + Depr + Int
+                Direct Labor (Fixed) + FOH + Admin + Rent + Depr + Int
               </td>
               {bepYearData.map((d) => (
                 <td key={d.year} className="py-2.5 text-right font-financial text-slate-900">
@@ -172,7 +185,7 @@ export default function BreakEvenUnitsTable({
             <tr className="hover:bg-slate-50/60 transition-colors">
               <td className="py-2.5 pl-2 font-medium text-slate-900">Total Variable Costs</td>
               <td className="py-2.5 text-xs text-slate-500 font-mono hidden md:table-cell">
-                Materials + Direct Labor (30%) + Selling Comm.
+                Direct Materials + Selling Commissions + Sales Discounts
               </td>
               {bepYearData.map((d) => (
                 <td key={d.year} className="py-2.5 text-right font-financial text-slate-900">
@@ -241,21 +254,41 @@ export default function BreakEvenUnitsTable({
               ))}
             </tr>
 
-            {/* BREAK-EVEN POINT IN UNITS (HIGHLIGHTED) */}
-            <tr className="bg-indigo-50/80 hover:bg-indigo-50 font-bold border-y-2 border-indigo-200">
-              <td className="py-3 pl-2 text-indigo-950 font-bold flex items-center gap-1.5">
-                <Target className="w-4 h-4 text-indigo-600" />
-                <span>Break-Even Point in Units (BEP Units)</span>
+            {/* BREAK-EVEN POINT IN UNITS (HIGHLIGHTED & INTERACTIVE) */}
+            <tr className="bg-indigo-50/80 hover:bg-indigo-100/60 font-bold border-y-2 border-indigo-200 transition-colors">
+              <td className="py-3 pl-2 text-indigo-950 font-bold">
+                <div className="flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-indigo-600" />
+                  <span>Break-Even Point in Units (BEP Units)</span>
+                </div>
+                <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">
+                  Click any year amount to view that year&apos;s specific breakdown
+                </span>
               </td>
               <td className="py-3 text-xs text-indigo-700 font-mono hidden md:table-cell">
-                Total Fixed Costs ÷ Unit Contribution Margin
+                <div className="flex flex-col">
+                  <span>Total Fixed Costs ÷ Unit Contribution Margin</span>
+                  <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-1 mt-0.5">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>Click Year 1, 2, 3, 4, or 5 to inspect its schedule</span>
+                  </span>
+                </div>
               </td>
               {bepYearData.map((d) => (
                 <td
                   key={d.year}
-                  className="py-3 text-right font-financial font-bold text-indigo-950 text-sm"
+                  className="py-2.5 px-2 text-right font-financial font-bold text-indigo-950 text-sm"
                 >
-                  {d.bepUnits.toLocaleString()} Units
+                  <button
+                    type="button"
+                    id={`btn-bep-units-year-${d.year}`}
+                    onClick={() => setSelectedModalYear(d.year)}
+                    className="inline-flex items-center justify-end gap-1.5 px-2.5 py-1.5 rounded-lg bg-white hover:bg-indigo-600 text-indigo-950 hover:text-white border border-indigo-200 hover:border-indigo-600 shadow-2xs hover:shadow-xs transition-all font-bold cursor-pointer group text-xs sm:text-sm"
+                    title={`Click to view Year ${d.year} detailed BEP breakdown (${d.bepUnits.toLocaleString()} units)`}
+                  >
+                    <span>{d.bepUnits.toLocaleString()} Units</span>
+                    <Search className="w-3 h-3 text-indigo-500 group-hover:text-white transition-colors shrink-0" />
+                  </button>
                 </td>
               ))}
             </tr>
@@ -270,7 +303,15 @@ export default function BreakEvenUnitsTable({
               </td>
               {bepYearData.map((d) => (
                 <td key={d.year} className="py-2.5 text-right font-financial font-medium text-slate-900">
-                  {formatCurrency(d.bepSales, c)}
+                  <button
+                    type="button"
+                    id={`btn-bep-sales-year-${d.year}`}
+                    onClick={() => setSelectedModalYear(d.year)}
+                    className="hover:text-indigo-600 hover:underline cursor-pointer font-medium"
+                    title={`Click to view Year ${d.year} detailed BEP breakdown (${formatCurrency(d.bepSales, c)})`}
+                  >
+                    {formatCurrency(d.bepSales, c)}
+                  </button>
                 </td>
               ))}
             </tr>
@@ -345,9 +386,20 @@ export default function BreakEvenUnitsTable({
                       return (
                         <td
                           key={d.year}
-                          className="py-2 text-right font-financial text-xs text-slate-800"
+                          className="py-2 px-2 text-right font-financial text-xs text-slate-800"
                         >
-                          {item ? `${item.bepUnits.toLocaleString()} Units` : '—'}
+                          {item ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedModalYear(d.year)}
+                              className="hover:text-indigo-600 hover:underline cursor-pointer font-medium"
+                              title={`View Year ${d.year} allocation breakdown`}
+                            >
+                              {item.bepUnits.toLocaleString()} Units
+                            </button>
+                          ) : (
+                            '—'
+                          )}
                         </td>
                       );
                     })}
@@ -366,6 +418,17 @@ export default function BreakEvenUnitsTable({
           <strong>Defense Note:</strong> Break-even in units is achieved when contribution margin covers all fixed operating costs. Projected volumes exceed break-even thresholds across all 5 years, providing a strong operational safety cushion.
         </span>
       </div>
+
+      {/* DETAILED BREAK-EVEN BREAKDOWN MODAL */}
+      {selectedModalYear !== null && (
+        <BreakEvenBreakdownModal
+          isOpen={selectedModalYear !== null}
+          onClose={() => setSelectedModalYear(null)}
+          initialYear={selectedModalYear}
+          project={project}
+          financials={financials}
+        />
+      )}
     </section>
   );
 }

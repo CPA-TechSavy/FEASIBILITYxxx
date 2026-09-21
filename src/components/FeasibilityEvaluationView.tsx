@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import BreakEvenUnitsTable from './BreakEvenUnitsTable';
 import FinancialRatioDetailsModal, { RatioKey } from './FinancialRatioDetailsModal';
+import CapitalBudgetingMetricModal, { CapitalMetricKey } from './CapitalBudgetingMetricModal';
 
 interface FeasibilityEvaluationViewProps {
   project: FeasibilityProject;
@@ -34,6 +35,7 @@ export default function FeasibilityEvaluationView({
   const c = project.currency;
   const years5 = financials && financials.length > 1 ? financials.slice(1) : [];
   const [selectedRatioKey, setSelectedRatioKey] = useState<RatioKey | null>(null);
+  const [selectedCapitalMetric, setSelectedCapitalMetric] = useState<CapitalMetricKey | null>(null);
 
   return (
     <div className="space-y-6 mb-6">
@@ -82,113 +84,146 @@ export default function FeasibilityEvaluationView({
       {/* 2. CAPITAL BUDGETING CORE METRICS (NPV, IRR, PAYBACK, ARR, PI) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* NPV */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setSelectedCapitalMetric('npv')}
+          className="bg-white hover:bg-indigo-50/50 rounded-xl border border-slate-200 hover:border-indigo-300 p-4 shadow-sm hover:shadow-md transition-all text-left cursor-pointer group"
+          title="Click to view NPV description and what this amount signifies"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Net Present Value (NPV)</span>
-            <Target className="w-4 h-4 text-indigo-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider group-hover:text-indigo-700 transition-colors">
+              Net Present Value (NPV)
+            </span>
+            <Target className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900 mt-1">
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-indigo-950 mt-1">
             {formatCurrency(metrics.npv, c)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
             {metrics.npv > 0 ? (
               <span className="text-emerald-600 font-semibold">NPV &gt; 0 (Accept Project)</span>
             ) : (
               <span className="text-red-600 font-semibold">NPV &lt; 0 (Reject Project)</span>
             )}
+            <span className="text-[10px] text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Inspect ↗
+            </span>
           </div>
-        </div>
+        </button>
 
         {/* IRR */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setSelectedCapitalMetric('irr')}
+          className="bg-white hover:bg-emerald-50/50 rounded-xl border border-slate-200 hover:border-emerald-300 p-4 shadow-sm hover:shadow-md transition-all text-left cursor-pointer group"
+          title="Click to view IRR description and what this percentage signifies"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Internal Rate of Return</span>
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
+              Internal Rate of Return
+            </span>
+            <TrendingUp className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900 mt-1">
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-emerald-950 mt-1">
             {metrics.irr.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
             {metrics.irr >= project.discountRatePercent ? (
               <span className="text-emerald-600 font-semibold">
-                Exceeds {project.discountRatePercent}% Hurdle Rate
+                Exceeds {project.discountRatePercent}% Hurdle
               </span>
             ) : (
               <span className="text-red-600 font-semibold">
-                Below {project.discountRatePercent}% Hurdle Rate
+                Below {project.discountRatePercent}% Hurdle
               </span>
             )}
+            <span className="text-[10px] text-emerald-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Inspect ↗
+            </span>
           </div>
-        </div>
+        </button>
 
         {/* Payback Period */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setSelectedCapitalMetric('payback')}
+          className="bg-white hover:bg-amber-50/50 rounded-xl border border-slate-200 hover:border-amber-300 p-4 shadow-sm hover:shadow-md transition-all text-left cursor-pointer group"
+          title="Click to view Payback Period description and what this timeline signifies"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Payback Period</span>
-            <Clock className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider group-hover:text-amber-700 transition-colors">
+              Payback Period
+            </span>
+            <Clock className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900 mt-1">
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-amber-950 mt-1">
             {metrics.paybackPeriodYears < 5
               ? `${metrics.paybackPeriodYears.toFixed(2)} Years`
               : '> 5 Years'}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Discounted: {metrics.discountedPaybackPeriodYears.toFixed(2)} Yrs
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>Disc: {metrics.discountedPaybackPeriodYears.toFixed(2)} Yrs</span>
+            <span className="text-[10px] text-amber-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Inspect ↗
+            </span>
           </div>
-        </div>
+        </button>
 
         {/* Accounting Rate of Return */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setSelectedCapitalMetric('arr')}
+          className="bg-white hover:bg-blue-50/50 rounded-xl border border-slate-200 hover:border-blue-300 p-4 shadow-sm hover:shadow-md transition-all text-left cursor-pointer group"
+          title="Click to view ARR description and what this return signifies"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Accounting ROI / ARR</span>
-            <Award className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider group-hover:text-blue-700 transition-colors">
+              Accounting ROI / ARR
+            </span>
+            <Award className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900 mt-1">
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-blue-950 mt-1">
             {metrics.accountingRateOfReturn.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Avg. Net Income / Initial Outlay
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>Avg Net Income / Outlay</span>
+            <span className="text-[10px] text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Inspect ↗
+            </span>
           </div>
-        </div>
+        </button>
 
         {/* Profitability Index */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setSelectedCapitalMetric('pi')}
+          className="bg-white hover:bg-purple-50/50 rounded-xl border border-slate-200 hover:border-purple-300 p-4 shadow-sm hover:shadow-md transition-all text-left cursor-pointer group"
+          title="Click to view Profitability Index description and what this ratio signifies"
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Profitability Index (PI)</span>
-            <Zap className="w-4 h-4 text-purple-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider group-hover:text-purple-700 transition-colors">
+              Profitability Index (PI)
+            </span>
+            <Zap className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900 mt-1">
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-purple-950 mt-1">
             {metrics.profitabilityIndex.toFixed(2)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
             {metrics.profitabilityIndex >= 1.0 ? (
-              <span className="text-emerald-600 font-semibold">PI &gt; 1.0 (Value Accretive)</span>
+              <span className="text-emerald-600 font-semibold">PI &gt; 1.0 (Accretive)</span>
             ) : (
               <span className="text-red-600 font-semibold">PI &lt; 1.0</span>
             )}
+            <span className="text-[10px] text-purple-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Inspect ↗
+            </span>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* 2. BREAK-EVEN POINT (BEP) IN UNITS TABLE */}
       <BreakEvenUnitsTable project={project} financials={financials} />
-
-      {/* INTERACTIVE RATIO EXPLORATION BANNER */}
-      <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs sm:text-sm font-bold text-indigo-950">
-              Interactive Financial Ratio Analysis & Meaning
-            </div>
-            <p className="text-xs text-indigo-800/90 mt-0.5">
-              Click any specific ratio row below to view a detailed popup explaining what that ratio means, its formula, benchmark standards, and the financial meaning behind the numbers for each projection year.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* 3. LIQUIDITY RATIOS */}
       <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
@@ -926,6 +961,15 @@ export default function FeasibilityEvaluationView({
         onClose={() => setSelectedRatioKey(null)}
         project={project}
         financials={financials}
+      />
+
+      {/* CAPITAL BUDGETING METRIC DESCRIPTION & MEANING MODAL */}
+      <CapitalBudgetingMetricModal
+        metricKey={selectedCapitalMetric}
+        onClose={() => setSelectedCapitalMetric(null)}
+        project={project}
+        financials={financials}
+        metrics={metrics}
       />
     </div>
   );
