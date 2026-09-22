@@ -585,8 +585,8 @@ export default function CompanyAccountModal({
                   </div>
 
                   {/* Partners Contribution Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse">
+                  <div className="overflow-x-auto scrollbar-thin">
+                    <table className="w-full min-w-[460px] text-xs text-left border-collapse">
                       <thead>
                         <tr className="border-b border-emerald-200 text-emerald-950 font-semibold">
                           <th className="py-2 pl-2">Partner Name</th>

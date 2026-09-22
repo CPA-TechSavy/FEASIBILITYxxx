@@ -18,6 +18,7 @@ import {
   Package,
   CreditCard,
   Building,
+  ArrowUpDown,
 } from 'lucide-react';
 
 interface SupportingSchedulesViewProps {
@@ -101,6 +102,17 @@ export default function SupportingSchedulesView({
       </div>
 
       <div id="all-notes-schedules-container" className="space-y-10">
+        {/* Mobile Horizontal Scroll Hint */}
+        <div className="md:hidden flex items-center justify-between text-[11px] text-slate-600 bg-indigo-50/60 px-3 py-2 rounded-xl border border-indigo-100">
+          <span className="flex items-center gap-1.5 font-medium">
+            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 rotate-90 shrink-0" />
+            Scroll horizontally to see all schedule periods
+          </span>
+          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full shrink-0">
+            Yr 1–5 →
+          </span>
+        </div>
+
       {/* ========================================================================= */}
       {/* SCHEDULE 1: CASH AND CASH EQUIVALENT SCHEDULE */}
       {/* ========================================================================= */}
@@ -140,8 +152,8 @@ export default function SupportingSchedulesView({
           </div>
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+          <table className="w-full min-w-[660px] text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3 text-left w-2/5">Particulars / Cash Component</th>
@@ -324,8 +336,8 @@ export default function SupportingSchedulesView({
           />
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+          <table className="w-full min-w-[780px] text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3 text-left">Asset Description</th>
@@ -441,8 +453,8 @@ export default function SupportingSchedulesView({
           />
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+          <table className="w-full min-w-[660px] text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3 text-left w-2/5">Working Capital Account / Particulars</th>
@@ -622,8 +634,8 @@ export default function SupportingSchedulesView({
           />
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+          <table className="w-full min-w-[660px] text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3 text-left w-2/5">Accounts Payable Movement / Particulars</th>
@@ -793,8 +805,8 @@ export default function SupportingSchedulesView({
           </div>
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+          <table className="w-full min-w-[660px] text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3 text-left w-2/5">Debt Service & Balance Classification</th>

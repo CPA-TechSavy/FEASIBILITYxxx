@@ -63,7 +63,7 @@ export default function FinancialStatementsView({
           </h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <PdfDownloadButton
             targetId="all-statements-container"
             title="Projected Financial Statements"
@@ -75,62 +75,72 @@ export default function FinancialStatementsView({
           />
 
           {/* View Switcher Tabs */}
-          <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
-          <button
-            onClick={() => setSelectedView('all')}
-            className={`px-2.5 py-1 rounded-md font-medium transition ${
-              selectedView === 'all'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            All Statements
-          </button>
-          <button
-            onClick={() => setSelectedView('income')}
-            className={`px-2.5 py-1 rounded-md font-medium transition ${
-              selectedView === 'income'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Income Statement
-          </button>
-          <button
-            onClick={() => setSelectedView('cashflow')}
-            className={`px-2.5 py-1 rounded-md font-medium transition ${
-              selectedView === 'cashflow'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Cash Flows
-          </button>
-          <button
-            onClick={() => setSelectedView('balance')}
-            className={`px-2.5 py-1 rounded-md font-medium transition ${
-              selectedView === 'balance'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Balance Sheet
-          </button>
-          <button
-            onClick={() => setSelectedView('equity')}
-            className={`px-2.5 py-1 rounded-md font-medium transition ${
-              selectedView === 'equity'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Changes in Equity
-          </button>
-        </div>
+          <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs overflow-x-auto max-w-full scrollbar-none">
+            <button
+              onClick={() => setSelectedView('all')}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition whitespace-nowrap min-h-[32px] cursor-pointer ${
+                selectedView === 'all'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setSelectedView('income')}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition whitespace-nowrap min-h-[32px] cursor-pointer ${
+                selectedView === 'income'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Income Statement
+            </button>
+            <button
+              onClick={() => setSelectedView('cashflow')}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition whitespace-nowrap min-h-[32px] cursor-pointer ${
+                selectedView === 'cashflow'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Cash Flows
+            </button>
+            <button
+              onClick={() => setSelectedView('balance')}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition whitespace-nowrap min-h-[32px] cursor-pointer ${
+                selectedView === 'balance'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Balance Sheet
+            </button>
+            <button
+              onClick={() => setSelectedView('equity')}
+              className={`px-2.5 py-1.5 rounded-md font-medium transition whitespace-nowrap min-h-[32px] cursor-pointer ${
+                selectedView === 'equity'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Changes in Equity
+            </button>
+          </div>
         </div>
       </div>
 
-      <div id="all-statements-container" className="p-4 sm:p-6 space-y-10">
+      <div id="all-statements-container" className="p-3 sm:p-6 space-y-8 sm:space-y-10">
+        {/* Mobile Horizontal Scroll Hint */}
+        <div className="md:hidden flex items-center justify-between text-[11px] text-slate-600 bg-indigo-50/60 px-3 py-2 rounded-xl border border-indigo-100">
+          <span className="flex items-center gap-1.5 font-medium">
+            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 rotate-90 shrink-0" />
+            Scroll horizontally to view all projected years
+          </span>
+          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full shrink-0">
+            Yr 1–5 →
+          </span>
+        </div>
         {/* ========================================================================= */}
         {/* 1. PROJECTED STATEMENT OF COMPREHENSIVE INCOME */}
         {/* ========================================================================= */}
@@ -162,8 +172,8 @@ export default function FinancialStatementsView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs sm:text-sm border-collapse">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[580px] text-xs sm:text-sm border-collapse">
                 <thead>
                   <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                     <th className="py-2 text-left w-1/3">Particulars</th>
@@ -539,8 +549,8 @@ export default function FinancialStatementsView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs sm:text-sm border-collapse">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[660px] text-xs sm:text-sm border-collapse">
                 <thead>
                   <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                     <th className="py-2 text-left w-1/3">Particulars</th>
@@ -744,10 +754,10 @@ export default function FinancialStatementsView({
                     PAS 7 Cash & Financing Disclosures
                   </span>
                 </div>
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-300 text-slate-600 font-semibold bg-slate-50/70">
-                      <th className="py-1.5 pl-2 text-left w-1/3">Disclosure Item</th>
+                <table className="w-full min-w-[620px] text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-300 text-slate-600 font-semibold bg-slate-50/70">
+                        <th className="py-1.5 pl-2 text-left w-1/3">Disclosure Item</th>
                       <th className="py-1.5 text-right font-financial">Pre-Op (Yr 0)</th>
                       <th className="py-1.5 text-right font-financial">Year 1</th>
                       <th className="py-1.5 text-right font-financial">Year 2</th>
@@ -840,8 +850,8 @@ export default function FinancialStatementsView({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs sm:text-sm border-collapse">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[680px] text-xs sm:text-sm border-collapse">
                 <thead>
                   <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                     <th className="py-2 text-left w-1/3">Particulars</th>
@@ -1199,8 +1209,8 @@ export default function FinancialStatementsView({
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs sm:text-sm border-collapse">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[680px] text-xs sm:text-sm border-collapse">
                 <thead>
                   <tr className="border-b-2 border-slate-900 font-semibold text-slate-800 bg-slate-100/70">
                     <th className="py-2 text-left w-1/3 pl-2">Particulars</th>
@@ -1535,8 +1545,8 @@ export default function FinancialStatementsView({
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-xs border-collapse">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                    <table className="w-full min-w-[780px] text-xs border-collapse">
                       <thead>
                         <tr className="border-b border-slate-300 text-slate-700 font-semibold bg-emerald-50/70">
                           <th className="py-2 pl-3 text-left">Partner Name</th>
@@ -1656,8 +1666,8 @@ export default function FinancialStatementsView({
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-xs border-collapse">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                    <table className="w-full min-w-[620px] text-xs border-collapse">
                       <thead>
                         <tr className="border-b border-slate-300 text-slate-700 font-semibold bg-indigo-50/60">
                           <th className="py-2 pl-3 text-left">Period</th>

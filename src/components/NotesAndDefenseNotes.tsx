@@ -21,6 +21,18 @@ import {
   Landmark,
   UserCheck,
   FileText,
+  Users,
+  User,
+  Briefcase,
+  Factory,
+  Receipt,
+  DollarSign,
+  ArrowUpRight,
+  Tag,
+  Percent,
+  Sparkles,
+  AlertCircle,
+  Package,
 } from 'lucide-react';
 import { formatCurrency, formatPercent } from '../utils/financialCalculations';
 import PdfDownloadButton from './PdfDownloadButton';
@@ -44,6 +56,7 @@ export default function NotesAndDefenseNotes({
 
   const c = project.currency;
   const years5 = financials && financials.length > 1 ? financials.slice(1) : [];
+  const wcPolicy = project.workingCapitalPolicy || project.workingCapital;
 
   const handleSaveNotes = () => {
     onUpdateProject({ ...project, academicNotes: notesText });
@@ -334,21 +347,126 @@ export default function NotesAndDefenseNotes({
                 </div>
               </div>
 
+              {/* Legal Structure & Ownership Details */}
+              <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Building2 className="w-4 h-4 text-indigo-600" />
+                  1.3 Ownership Structure & Legal Capitalization Details ({legalForm})
+                </span>
+
+                {legalForm === 'Sole Proprietorship' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] uppercase font-semibold text-slate-500 block">Registered Proprietor</span>
+                      <span className="font-bold text-slate-900 text-xs">
+                        {company?.soleProprietorship?.ownerName || project.proponents.split(',')[0].trim() || 'Principal Owner'}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] uppercase font-semibold text-slate-500 block">Registered Initial Capital</span>
+                      <span className="font-bold text-indigo-900 text-xs font-financial">
+                        {formatCurrency(company?.soleProprietorship?.ownerCapital || equityAmount, c)}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] uppercase font-semibold text-slate-500 block">Target Annual Drawings</span>
+                      <span className="font-bold text-slate-800 text-xs font-financial">
+                        {company?.soleProprietorship?.drawingsAnnual ? formatCurrency(company.soleProprietorship.drawingsAnnual, c) : `${project.dividendPayoutPercent}% of Net Income`}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {legalForm === 'Partnership' && (
+                  <div className="space-y-2 pt-1">
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg scrollbar-thin">
+                      <table className="w-full min-w-[460px] text-xs text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                          <tr>
+                            <th className="py-2 px-3">Partner Name</th>
+                            <th className="py-2 px-3 text-right">Agreed Capital Contribution ({c})</th>
+                            <th className="py-2 px-3 text-right">Profit / Loss Share (%)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-financial">
+                          {(company?.partnership?.partners && company.partnership.partners.length > 0) ? (
+                            company.partnership.partners.map((p, idx) => (
+                              <tr key={p.id || idx}>
+                                <td className="py-2 px-3 font-sans font-medium text-slate-800">{p.name || `Partner ${idx + 1}`}</td>
+                                <td className="py-2 px-3 text-right text-slate-700">{formatCurrency(p.capitalContribution || 0, c)}</td>
+                                <td className="py-2 px-3 text-right text-indigo-900 font-semibold">{p.profitSharePercent || 0}%</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td className="py-2 px-3 font-sans font-medium text-slate-800">{project.proponents}</td>
+                              <td className="py-2 px-3 text-right text-slate-700">{formatCurrency(equityAmount, c)}</td>
+                              <td className="py-2 px-3 text-right text-indigo-900 font-semibold">100.0%</td>
+                            </tr>
+                          )}
+                          <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                            <td className="py-2 px-3 font-sans">Total Partners' Capital</td>
+                            <td className="py-2 px-3 text-right text-indigo-950">
+                              {formatCurrency(company?.partnership?.totalPartnersCapital || equityAmount, c)}
+                            </td>
+                            <td className="py-2 px-3 text-right text-indigo-950">100.0%</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    {company?.partnership?.partnershipAgreementSummary && (
+                      <p className="text-[11px] text-slate-600 italic">
+                        <strong>Agreement Summary:</strong> {company.partnership.partnershipAgreementSummary}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {legalForm === 'Corporation' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Authorized Capital</span>
+                      <span className="font-bold text-slate-900 font-financial">
+                        {formatCurrency(company?.corporation?.authorizedCapital || (equityAmount * 2) || 1000000, c)}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Par Value per Share</span>
+                      <span className="font-bold text-slate-900 font-financial">
+                        {formatCurrency(company?.corporation?.parValuePerShare || 100, c)}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Subscribed Capital</span>
+                      <span className="font-bold text-slate-900 font-financial">
+                        {formatCurrency(company?.corporation?.subscribedCapital || equityAmount, c)}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Paid-Up Capital</span>
+                      <span className="font-bold text-indigo-900 font-financial">
+                        {formatCurrency(company?.corporation?.paidUpCapital || equityAmount, c)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <p>
-                  <strong>1.3 Principal Business Purpose & Operational Scope:</strong> {businessPurpose} The
+                  <strong>1.4 Principal Business Purpose & Operational Scope:</strong> {businessPurpose} The
                   enterprise is established to capitalize on market opportunities within its target geographical territory,
                   delivering value to customers while generating a sustainable financial return for its equity holders.
                 </p>
                 <p>
-                  <strong>1.4 5-Year Planning Horizon & Going Concern Assumption:</strong> The accompanying projected
+                  <strong>1.5 5-Year Planning Horizon & Going Concern Assumption:</strong> The accompanying projected
                   financial statements encompass a five-year operating horizon (Years 1 to 5) following a pre-operating
                   setup period (Year 0). The projected financial statements have been prepared on a{' '}
                   <span className="font-semibold text-slate-900">going concern assumption</span>, which contemplates the
                   realization of assets and the satisfaction of liabilities in the normal course of commercial operations.
                 </p>
                 <p>
-                  <strong>1.5 Authorization of Financial Projections:</strong> The projected financial statements were
+                  <strong>1.6 Authorization of Financial Projections:</strong> The projected financial statements were
                   formulated by the academic proponents under the supervision of the faculty feasibility study adviser
                   and officially authorized for undergraduate thesis defense and academic submission on the designated defense date.
                 </p>
@@ -364,7 +482,7 @@ export default function NotesAndDefenseNotes({
                   2
                 </span>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-                  Note 2 — Basis of Preparation & Statement of Compliance
+                  Note 2 — Basis of Preparation & Crucial Forecasting Assumptions
                 </h3>
               </div>
 
@@ -392,35 +510,234 @@ export default function NotesAndDefenseNotes({
                 indicated.
               </p>
 
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <span className="font-bold text-slate-800 block text-xs">
-                  2.4 Critical Accounting Estimates, Judgments, and Forecasting Assumptions:
-                </span>
-                <p className="text-slate-600">
-                  The preparation of projected financial statements requires the proponents to make estimates and assumptions
-                  that affect the reported amounts of assets, liabilities, revenues, and expenses. Key assumptions include:
-                </p>
-                <ul className="list-disc pl-5 space-y-1 text-slate-600">
-                  <li>
-                    <strong>General Economic Inflation Rate:</strong> Set at{' '}
-                    <span className="font-semibold text-slate-900">{project.inflationRatePercent}% per annum</span>, applied
-                    to material costs, utilities, and general operating expenditures over the 5-year study horizon.
-                  </li>
-                  <li>
-                    <strong>Cost of Capital / Hurdle Discount Rate:</strong> Established at{' '}
-                    <span className="font-semibold text-slate-900">{project.discountRatePercent}%</span>, reflecting the
-                    weighted average cost of capital (WACC) taking into account equity cost and commercial bank borrowing rates.
-                  </li>
-                  <li>
-                    <strong>Statutory Corporate Income Tax Rate:</strong> Assumed at{' '}
-                    <span className="font-semibold text-slate-900">{project.taxRatePercent}%</span>, in accordance with the
-                    provisions of the Philippine Corporate Recovery and Tax Incentives for Enterprises (CREATE) Act.
-                  </li>
-                  <li>
-                    <strong>Product Volume Escalation:</strong> Sales growth is projected based on marketing capacity and
-                    market penetration estimates for each product line.
-                  </li>
-                </ul>
+              <p>
+                <strong>2.4 Critical Accounting Estimates and Judgments:</strong> The preparation of financial projections
+                in conformity with PFRS requires management to make judgments, estimates, and assumptions that affect the
+                amounts reported in the financial statements. Although these estimates are based on historical industry
+                benchmarks and market validation, actual future results may vary from these projections.
+              </p>
+
+              {/* 2.5 COMPREHENSIVE ESCALATION RATES & OPERATIONAL DRIVERS SCHEDULE */}
+              <div className="space-y-4 pt-2">
+                <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-950 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                      <TrendingUp className="w-4 h-4 text-indigo-600" />
+                      2.5 Comprehensive Escalation Rates & Operational Forecasting Drivers
+                    </span>
+                    <span className="text-[10px] font-semibold text-indigo-700 bg-white px-2.5 py-0.5 rounded-full border border-indigo-200">
+                      Coinciding Model Assumptions
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    To capture realistic macroeconomic dynamics, market expansion, and price adjustments over the 5-year study
+                    horizon, the financial model incorporates specific, cross-verified escalation rates across revenue, materials,
+                    labor, utilities, and general overhead:
+                  </p>
+
+                  {/* 2.5.1 Product Volume Escalation */}
+                  <div className="space-y-1.5 bg-white p-3 rounded-lg border border-indigo-100">
+                    <span className="font-bold text-slate-900 text-xs block">
+                      A. Product Sales Volume Escalation & Revenue Trajectory
+                    </span>
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg scrollbar-thin">
+                      <table className="w-full min-w-[520px] text-xs text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                          <tr>
+                            <th className="py-2 px-3">Product Description</th>
+                            <th className="py-2 px-2 text-right">Selling Price</th>
+                            <th className="py-2 px-2 text-right">Year 1 Volume</th>
+                            <th className="py-2 px-2 text-right">Annual Escalation</th>
+                            <th className="py-2 px-2 text-right">Projected Year 5 Volume</th>
+                            <th className="py-2 px-2 text-right">Yr 1 Gross Sales</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-financial">
+                          {(project.products || []).map((prod) => {
+                            const yr5Vol = Math.round(
+                              (prod.year1Volume || 0) * Math.pow(1 + (prod.annualGrowthRate || 0) / 100, 4)
+                            );
+                            const yr1Sales = (prod.year1Volume || 0) * (prod.unitPrice || 0);
+                            return (
+                              <tr key={prod.id}>
+                                <td className="py-1.5 px-3 font-sans text-slate-900 font-medium">{prod.name}</td>
+                                <td className="py-1.5 px-2 text-right text-slate-700">{formatCurrency(prod.unitPrice, c)}</td>
+                                <td className="py-1.5 px-2 text-right text-slate-700">{(prod.year1Volume || 0).toLocaleString()}</td>
+                                <td className="py-1.5 px-2 text-right text-indigo-700 font-semibold">{prod.annualGrowthRate}% p.a.</td>
+                                <td className="py-1.5 px-2 text-right text-indigo-900 font-semibold">{yr5Vol.toLocaleString()}</td>
+                                <td className="py-1.5 px-2 text-right text-slate-900 font-bold">{formatCurrency(yr1Sales, c)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 2.5.2 Cost, Labor & Overhead Escalation Rates Matrix */}
+                  <div className="space-y-1.5 bg-white p-3 rounded-lg border border-indigo-100">
+                    <span className="font-bold text-slate-900 text-xs block">
+                      B. Direct Costs, Labor Wages & Factory Overhead Escalation Parameters
+                    </span>
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg scrollbar-thin">
+                      <table className="w-full min-w-[500px] text-xs text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                          <tr>
+                            <th className="py-2 px-3">Cost / Expense Category</th>
+                            <th className="py-2 px-3">Escalation Basis / Policy</th>
+                            <th className="py-2 px-3 text-right">Escalation Rate</th>
+                            <th className="py-2 px-3 text-right">Effective Year</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          <tr>
+                            <td className="py-2 px-3 font-semibold text-slate-900">Direct Materials & Packaging</td>
+                            <td className="py-2 px-3 text-slate-500">Compounded baseline raw material procurement inflation</td>
+                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">{project.inflationRatePercent}% p.a.</td>
+                            <td className="py-2 px-3 text-right font-financial">Year 2–5</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-semibold text-slate-900">Direct Labor Basic Wages</td>
+                            <td className="py-2 px-3 text-slate-500">
+                              Production worker wage escalation ({project.directLabor?.[0]?.annualSalaryIncreaseType || 'percentage'})
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">
+                              {project.directLabor?.[0]?.annualSalaryIncreaseType === 'amount'
+                                ? `${formatCurrency(project.directLabor?.[0]?.annualSalaryIncreaseValue || 0, c)}/mo`
+                                : `${project.directLabor?.[0]?.annualSalaryIncreaseValue || project.inflationRatePercent}% p.a.`}
+                            </td>
+                            <td className="py-2 px-3 text-right font-financial">
+                              Year {project.directLabor?.[0]?.annualSalaryIncreaseStartYear || project.directLaborSalaryIncreaseStartYear || 2}
+                            </td>
+                          </tr>
+                          {project.indirectLabor && project.indirectLabor.length > 0 && (
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-900">Indirect Labor Basic Wages</td>
+                              <td className="py-2 px-3 text-slate-500">Plant supervisory & quality maintenance compensation</td>
+                              <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">
+                                {project.indirectLabor[0]?.annualSalaryIncreaseType === 'amount'
+                                  ? `${formatCurrency(project.indirectLabor[0]?.annualSalaryIncreaseValue || 0, c)}/mo`
+                                  : `${project.indirectLabor[0]?.annualSalaryIncreaseValue || project.inflationRatePercent}% p.a.`}
+                              </td>
+                              <td className="py-2 px-3 text-right font-financial">
+                                Year {project.indirectLabor[0]?.annualSalaryIncreaseStartYear || project.indirectLaborSalaryIncreaseStartYear || 2}
+                              </td>
+                            </tr>
+                          )}
+                          {project.nonManufacturingLabor && project.nonManufacturingLabor.length > 0 && (
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-900">Non-Manufacturing (SG&A) Salaries</td>
+                              <td className="py-2 px-3 text-slate-500">Administrative, accounting, and sales personnel pay</td>
+                              <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">
+                                {project.nonManufacturingLabor[0]?.annualSalaryIncreaseType === 'amount'
+                                  ? `${formatCurrency(project.nonManufacturingLabor[0]?.annualSalaryIncreaseValue || 0, c)}/mo`
+                                  : `${project.nonManufacturingLabor[0]?.annualSalaryIncreaseValue || project.inflationRatePercent}% p.a.`}
+                              </td>
+                              <td className="py-2 px-3 text-right font-financial">
+                                Year {project.nonManufacturingLabor[0]?.annualSalaryIncreaseStartYear || project.nonManufacturingSalaryIncreaseStartYear || 2}
+                              </td>
+                            </tr>
+                          )}
+                          <tr>
+                            <td className="py-2 px-3 font-semibold text-slate-900">Factory Overhead General Growth</td>
+                            <td className="py-2 px-3 text-slate-500">General manufacturing supplies and indirect support expenses</td>
+                            <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">{project.factoryOverheadGrowthRate}% p.a.</td>
+                            <td className="py-2 px-3 text-right font-financial">Year 2–5</td>
+                          </tr>
+                          {project.productionUtilities && project.productionUtilities.length > 0 && (
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-900">Production Utilities (Power, Water, Gas)</td>
+                              <td className="py-2 px-3 text-slate-500">
+                                {project.productionUtilities.map((u) => `${u.name} (${u.annualGrowthRate}% p.a.)`).join(', ')}
+                              </td>
+                              <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">
+                                {(
+                                  project.productionUtilities.reduce((sum, u) => sum + (u.annualGrowthRate || 0), 0) /
+                                  project.productionUtilities.length
+                                ).toFixed(1)}% avg
+                              </td>
+                              <td className="py-2 px-3 text-right font-financial">Year 2–5</td>
+                            </tr>
+                          )}
+                          {project.operatingExpenses && project.operatingExpenses.length > 0 && (
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-900">Operating Expenses (SG&A Overhead)</td>
+                              <td className="py-2 px-3 text-slate-500">Office supplies, marketing, permits, and professional fees</td>
+                              <td className="py-2 px-3 text-right font-financial text-indigo-900 font-semibold">
+                                {(
+                                  project.operatingExpenses.reduce((sum, o) => sum + (o.annualGrowthRate || 0), 0) /
+                                  project.operatingExpenses.length
+                                ).toFixed(1)}% avg
+                              </td>
+                              <td className="py-2 px-3 text-right font-financial">Year 2–5</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 2.5.3 Macro, Tax & Working Capital Parameter Matrix */}
+                  <div className="space-y-1.5 bg-white p-3 rounded-lg border border-indigo-100">
+                    <span className="font-bold text-slate-900 text-xs block">
+                      C. Macroeconomic, Financing, Tax & Working Capital Policy Parameters
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Statutory Income Tax</span>
+                        <span className="font-bold text-slate-900 font-financial">{project.taxRatePercent}%</span>
+                        <span className="text-[10px] text-slate-500 block">CREATE Act standard</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Hurdle Discount Rate</span>
+                        <span className="font-bold text-indigo-900 font-financial">{project.discountRatePercent}%</span>
+                        <span className="text-[10px] text-slate-500 block">WACC baseline</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Commercial Loan Rate</span>
+                        <span className="font-bold text-slate-900 font-financial">{project.financing?.annualInterestRate}% p.a.</span>
+                        <span className="text-[10px] text-slate-500 block">{project.financing?.loanTermYears}-Year term</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Bank Deposit Rate</span>
+                        <span className="font-bold text-emerald-800 font-financial">
+                          {project.workingCapitalBufferDetails?.bankInterestRatePercent || 0.5}% p.a.
+                        </span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {project.workingCapitalBufferDetails?.bankName || 'Depository Bank'}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Dividend / Drawing Payout</span>
+                        <span className="font-bold text-slate-900 font-financial">{project.dividendPayoutPercent}%</span>
+                        <span className="text-[10px] text-slate-500 block">{100 - project.dividendPayoutPercent}% retained</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Sales Discounts Rate</span>
+                        <span className="font-bold text-rose-700 font-financial">{project.salesDiscountsPercent}%</span>
+                        <span className="text-[10px] text-slate-500 block">Trade allowances</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Receivables Credit Terms</span>
+                        <span className="font-bold text-slate-900 font-financial">
+                          {wcPolicy?.accountsReceivablePercentOfSales}% of Sales
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          ~{Math.round(((wcPolicy?.accountsReceivablePercentOfSales || 0) / 100) * 365)} days cycle
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Inventory Safety Buffer</span>
+                        <span className="font-bold text-slate-900 font-financial">
+                          {wcPolicy?.inventoryPercentOfCOGS}% of COGS
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          ~{Math.round(((wcPolicy?.inventoryPercentOfCOGS || 0) / 100) * 365)} days buffer
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -451,7 +768,7 @@ export default function NotesAndDefenseNotes({
                   <strong>3.2 Trade and Other Receivables:</strong> Trade receivables arising from sales on account are
                   recognized initially at the transaction price. The credit policy assumes that{' '}
                   <span className="font-semibold text-slate-900">
-                    {project.workingCapitalPolicy?.accountsReceivablePercentOfSales || 0}%
+                    {wcPolicy?.accountsReceivablePercentOfSales || 0}%
                   </span>{' '}
                   of annual gross sales is extended on credit terms, collected within standard commercial billing cycles
                   (e.g., 30-day terms). Trade receivables are assessed annually for impairment; bad debts are recognized
@@ -466,7 +783,7 @@ export default function NotesAndDefenseNotes({
                   The cost of finished goods comprises raw materials, direct labor, and a proportionate share of fixed and
                   variable factory overhead. A safety inventory buffer equal to{' '}
                   <span className="font-semibold text-slate-900">
-                    {project.workingCapitalPolicy?.inventoryPercentOfCOGS || 0}% of Cost of Goods Sold
+                    {wcPolicy?.inventoryPercentOfCOGS || 0}% of Cost of Goods Sold
                   </span>{' '}
                   is maintained to guard against stockouts and supply disruptions.
                 </p>
@@ -507,7 +824,7 @@ export default function NotesAndDefenseNotes({
                   <strong>3.6 Trade Accounts Payable:</strong> Trade accounts payable are recognized when raw materials,
                   ingredients, or factory supplies are delivered. The working capital assumption maintains trade payables at{' '}
                   <span className="font-semibold text-slate-900">
-                    {project.workingCapitalPolicy?.accountsPayablePercentOfPurchases || 0}%
+                    {wcPolicy?.accountsPayablePercentOfPurchases || 0}%
                   </span>{' '}
                   of annual direct material purchases, settled within standard supplier trade terms (30 days).
                 </p>
@@ -536,7 +853,7 @@ export default function NotesAndDefenseNotes({
                   <strong>3.9 Revenue Recognition (PFRS 15):</strong> Revenue from contracts with customers is recognized
                   upon delivery and acceptance of finished products by customers, at which point the performance obligation is
                   satisfied and control of the asset is transferred. Revenue is measured net of trade discounts, rebates, and
-                  sales allowances ({project.workingCapitalPolicy?.discountsAndAllowancesPercent || project.salesDiscountsPercent || 0}%).
+                  sales allowances ({wcPolicy?.discountsAndAllowancesPercent || project.salesDiscountsPercent || 0}%).
                 </p>
 
                 <p>
@@ -584,103 +901,242 @@ export default function NotesAndDefenseNotes({
                 and equipment, and the initial working capital cash reserve:
               </p>
 
-              {/* Table of Capital Requirements */}
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 uppercase font-semibold text-[10px]">
-                    <tr>
-                      <th className="py-2.5 px-3">Capital Outlay Component</th>
-                      <th className="py-2.5 px-3">Description / Accounting Treatment</th>
-                      <th className="py-2.5 px-3 text-right">Amount ({c})</th>
-                      <th className="py-2.5 px-3 text-right">% of Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    <tr>
-                      <td className="py-2 px-3 font-semibold text-slate-900">Pre-Operating Organization Expenses</td>
-                      <td className="py-2 px-3 text-slate-500">
-                        Permits, DTI/SEC registration, health/sanitary, recipe development & test runs
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial">{formatCurrency(preOpTotal, c)}</td>
-                      <td className="py-2 px-3 text-right font-financial">
-                        {totalProjectCapital > 0 ? ((preOpTotal / totalProjectCapital) * 100).toFixed(1) : 0}%
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-3 font-semibold text-slate-900">Property, Plant and Equipment (PPE)</td>
-                      <td className="py-2 px-3 text-slate-500">
-                        Production machinery, delivery vehicle, leasehold improvements, and furniture
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial">{formatCurrency(ppeTotal, c)}</td>
-                      <td className="py-2 px-3 text-right font-financial">
-                        {totalProjectCapital > 0 ? ((ppeTotal / totalProjectCapital) * 100).toFixed(1) : 0}%
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 px-3 font-semibold text-slate-900">Initial Working Capital Buffer</td>
-                      <td className="py-2 px-3 text-slate-500">
-                        Cash on Hand ({formatCurrency(project.workingCapitalBufferDetails?.cashOnHand || 0, c)}) + Cash in Bank ({formatCurrency(project.workingCapitalBufferDetails?.cashInBank || 0, c)})
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial">{formatCurrency(initialWorkingCapital, c)}</td>
-                      <td className="py-2 px-3 text-right font-financial">
-                        {totalProjectCapital > 0 ? ((initialWorkingCapital / totalProjectCapital) * 100).toFixed(1) : 0}%
-                      </td>
-                    </tr>
-                    <tr className="bg-indigo-50/60 font-bold text-slate-900 border-t-2 border-slate-300">
-                      <td className="py-2.5 px-3 uppercase tracking-wide">Total Project Capital Requirement</td>
-                      <td className="py-2.5 px-3 text-indigo-700 text-[11px]">Total Initial Year 0 Investment</td>
-                      <td className="py-2.5 px-3 text-right font-financial text-indigo-900">
-                        {formatCurrency(totalProjectCapital, c)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial text-indigo-900">100.0%</td>
-                    </tr>
-                  </tbody>
-                </table>
+              {/* 4.1 Summary of Initial Capital Requirements */}
+              <div className="space-y-1.5">
+                <span className="font-bold text-slate-900 text-xs block">
+                  4.1 Summary of Initial Capital Requirements (Year 0)
+                </span>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[520px] text-xs text-left">
+                    <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 uppercase font-semibold text-[10px]">
+                      <tr>
+                        <th className="py-2.5 px-3">Capital Outlay Component</th>
+                        <th className="py-2.5 px-3">Description / Accounting Treatment</th>
+                        <th className="py-2.5 px-3 text-right">Amount ({c})</th>
+                        <th className="py-2.5 px-3 text-right">% of Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      <tr>
+                        <td className="py-2 px-3 font-semibold text-slate-900">Pre-Operating Organization Expenses</td>
+                        <td className="py-2 px-3 text-slate-500">
+                          Permits, DTI/SEC registration, health/sanitary, recipe development & test runs
+                        </td>
+                        <td className="py-2 px-3 text-right font-financial">{formatCurrency(preOpTotal, c)}</td>
+                        <td className="py-2 px-3 text-right font-financial">
+                          {totalProjectCapital > 0 ? ((preOpTotal / totalProjectCapital) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 font-semibold text-slate-900">Property, Plant and Equipment (PPE)</td>
+                        <td className="py-2 px-3 text-slate-500">
+                          Production machinery, delivery vehicle, leasehold improvements, and furniture
+                        </td>
+                        <td className="py-2 px-3 text-right font-financial">{formatCurrency(ppeTotal, c)}</td>
+                        <td className="py-2 px-3 text-right font-financial">
+                          {totalProjectCapital > 0 ? ((ppeTotal / totalProjectCapital) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 font-semibold text-slate-900">Initial Working Capital Buffer</td>
+                        <td className="py-2 px-3 text-slate-500">
+                          Cash on Hand ({formatCurrency(project.workingCapitalBufferDetails?.cashOnHand || 0, c)}) + Cash in Bank ({formatCurrency(project.workingCapitalBufferDetails?.cashInBank || 0, c)})
+                        </td>
+                        <td className="py-2 px-3 text-right font-financial">{formatCurrency(initialWorkingCapital, c)}</td>
+                        <td className="py-2 px-3 text-right font-financial">
+                          {totalProjectCapital > 0 ? ((initialWorkingCapital / totalProjectCapital) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+                      <tr className="bg-indigo-50/60 font-bold text-slate-900 border-t-2 border-slate-300">
+                        <td className="py-2.5 px-3 uppercase tracking-wide">Total Project Capital Requirement</td>
+                        <td className="py-2.5 px-3 text-indigo-700 text-[11px]">Total Initial Year 0 Investment</td>
+                        <td className="py-2.5 px-3 text-right font-financial text-indigo-900">
+                          {formatCurrency(totalProjectCapital, c)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-financial text-indigo-900">100.0%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {/* Financing Structure Breakdown */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider block mb-2">
-                    Financing Sources Breakdown
-                  </span>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between items-center py-1 border-b border-slate-200/80">
-                      <span>Proponents' Equity Contribution:</span>
-                      <span className="font-bold text-slate-900 font-financial">
-                        {formatCurrency(equityAmount, c)} ({equitySharePercent.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-1 border-b border-slate-200/80">
-                      <span>Commercial Bank Loan Financing:</span>
-                      <span className="font-bold text-slate-900 font-financial">
-                        {formatCurrency(loanAmount, c)} ({loanSharePercent.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center pt-1 font-bold text-slate-900">
-                      <span>Total Project Financing:</span>
-                      <span className="font-financial text-indigo-900">{formatCurrency(totalProjectCapital, c)}</span>
-                    </div>
+              {/* 4.2 Itemized Pre-Operating Expenses Schedule */}
+              <div className="space-y-1.5 pt-2">
+                <span className="font-bold text-slate-900 text-xs block">
+                  4.2 Itemized Pre-Operating Expenses Breakdown
+                </span>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[500px] text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase font-semibold text-[10px]">
+                      <tr>
+                        <th className="py-2 px-3">Expense Item Description</th>
+                        <th className="py-2 px-3">Category / Nature</th>
+                        <th className="py-2 px-3 text-right">Cost Amount ({c})</th>
+                        <th className="py-2 px-3 text-right">% of Pre-Op</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-financial">
+                      {(project.preOperatingExpenses || []).map((item) => (
+                        <tr key={item.id}>
+                          <td className="py-1.5 px-3 font-sans font-medium text-slate-800">{item.name}</td>
+                          <td className="py-1.5 px-3 font-sans text-slate-500">Organization & Launch Expense</td>
+                          <td className="py-1.5 px-3 text-right text-slate-700">{formatCurrency(item.amount, c)}</td>
+                          <td className="py-1.5 px-3 text-right text-indigo-900 font-semibold">
+                            {preOpTotal > 0 ? (((item.amount || 0) / preOpTotal) * 100).toFixed(1) : 0}%
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                        <td className="py-2 px-3 font-sans" colSpan={2}>Total Pre-Operating Expenses</td>
+                        <td className="py-2 px-3 text-right text-indigo-950">{formatCurrency(preOpTotal, c)}</td>
+                        <td className="py-2 px-3 text-right text-indigo-950">100.0%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 4.3 Itemized Property, Plant and Equipment (Fixed Assets) Schedule */}
+              <div className="space-y-1.5 pt-2">
+                <span className="font-bold text-slate-900 text-xs block">
+                  4.3 Itemized Property, Plant and Equipment (PPE) Acquisition & Depreciation Schedule
+                </span>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[560px] text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase font-semibold text-[10px]">
+                      <tr>
+                        <th className="py-2 px-3">Fixed Asset / Equipment</th>
+                        <th className="py-2 px-2 text-right">Acquisition Cost ({c})</th>
+                        <th className="py-2 px-2 text-right">Useful Life</th>
+                        <th className="py-2 px-2 text-right">Salvage Value</th>
+                        <th className="py-2 px-2 text-right">Annual Depr. ({c})</th>
+                        <th className="py-2 px-2 text-right">% of PPE</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-financial">
+                      {(project.fixedAssets || []).map((asset) => {
+                        const annualDepr =
+                          (asset.usefulLifeYears || 5) > 0
+                            ? ((asset.cost || 0) - (asset.salvageValue || 0)) / (asset.usefulLifeYears || 5)
+                            : 0;
+                        return (
+                          <tr key={asset.id}>
+                            <td className="py-1.5 px-3 font-sans font-medium text-slate-800">{asset.name}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-700">{formatCurrency(asset.cost, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-600">{asset.usefulLifeYears} yrs</td>
+                            <td className="py-1.5 px-2 text-right text-slate-500">{formatCurrency(asset.salvageValue, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-indigo-700 font-semibold">{formatCurrency(annualDepr, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-indigo-900 font-semibold">
+                              {ppeTotal > 0 ? (((asset.cost || 0) / ppeTotal) * 100).toFixed(1) : 0}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                        <td className="py-2 px-3 font-sans">Total Property, Plant and Equipment</td>
+                        <td className="py-2 px-2 text-right text-indigo-950">{formatCurrency(ppeTotal, c)}</td>
+                        <td className="py-2 px-2 text-right font-sans text-slate-500">-</td>
+                        <td className="py-2 px-2 text-right font-sans text-slate-500">-</td>
+                        <td className="py-2 px-2 text-right text-indigo-950">
+                          {formatCurrency(
+                            (project.fixedAssets || []).reduce(
+                              (sum, a) =>
+                                sum +
+                                ((a.usefulLifeYears || 5) > 0
+                                  ? ((a.cost || 0) - (a.salvageValue || 0)) / (a.usefulLifeYears || 5)
+                                  : 0),
+                              0
+                            ),
+                            c
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right text-indigo-950">100.0%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 4.4 Working Capital Buffer Cash Allocation */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <span className="font-bold text-slate-800 block text-xs">
+                  4.4 Initial Working Capital Buffer & Depository Banking Allocation
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block">Cash on Hand (Petty Fund)</span>
+                    <span className="font-bold text-slate-900 font-financial">
+                      {formatCurrency(project.workingCapitalBufferDetails?.cashOnHand || 0, c)}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Immediate operating disbursements</span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block">Cash in Depository Bank</span>
+                    <span className="font-bold text-indigo-900 font-financial">
+                      {formatCurrency(project.workingCapitalBufferDetails?.cashInBank || 0, c)}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block truncate">
+                      {project.workingCapitalBufferDetails?.bankName || 'Commercial Bank'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block">Deposit Savings Rate</span>
+                    <span className="font-bold text-emerald-800 font-financial">
+                      {project.workingCapitalBufferDetails?.bankInterestRatePercent || 0.5}% p.a.
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Annual interest yield on bank balance</span>
                   </div>
                 </div>
+              </div>
 
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider block mb-2">
-                    Commercial Bank Loan Terms
-                  </span>
-                  <div className="space-y-1.5 text-xs">
-                    <p>
-                      <strong>Loan Principal Borrowed:</strong> {formatCurrency(loanAmount, c)}
-                    </p>
-                    <p>
-                      <strong>Nominal Annual Interest Rate:</strong> {project.financing?.annualInterestRate}% p.a.
-                    </p>
-                    <p>
-                      <strong>Loan Amortization Period:</strong> {project.financing?.loanTermYears} Years
-                    </p>
-                    <p>
-                      <strong>Repayment Schedule:</strong> Equal annual installments covering interest expense and principal reduction.
-                    </p>
+              {/* 4.5 Financing Structure Breakdown */}
+              <div className="space-y-1.5 pt-2">
+                <span className="font-bold text-slate-900 text-xs block">
+                  4.5 Financing Sources Breakdown & Commercial Bank Debt Terms
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider block mb-2">
+                      Financing Sources Breakdown
+                    </span>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between items-center py-1 border-b border-slate-200/80">
+                        <span>Proponents' Equity Contribution:</span>
+                        <span className="font-bold text-slate-900 font-financial">
+                          {formatCurrency(equityAmount, c)} ({equitySharePercent.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-slate-200/80">
+                        <span>Commercial Bank Loan Financing:</span>
+                        <span className="font-bold text-slate-900 font-financial">
+                          {formatCurrency(loanAmount, c)} ({loanSharePercent.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 font-bold text-slate-900">
+                        <span>Total Project Financing:</span>
+                        <span className="font-financial text-indigo-900">{formatCurrency(totalProjectCapital, c)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider block mb-2">
+                      Commercial Bank Loan Terms
+                    </span>
+                    <div className="space-y-1.5 text-xs">
+                      <p>
+                        <strong>Loan Principal Borrowed:</strong> {formatCurrency(loanAmount, c)}
+                      </p>
+                      <p>
+                        <strong>Nominal Annual Interest Rate:</strong> {project.financing?.annualInterestRate}% p.a.
+                      </p>
+                      <p>
+                        <strong>Loan Amortization Period:</strong> {project.financing?.loanTermYears} Years
+                      </p>
+                      <p>
+                        <strong>Repayment Schedule:</strong> Equal annual installments covering interest expense and principal reduction.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -704,13 +1160,61 @@ export default function NotesAndDefenseNotes({
                 </div>
               </div>
 
+              {/* Note 5.0: Product Costing, BOM & Unit Economics */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <span className="text-indigo-600">5.0</span> Product Costing, Bill of Materials (BOM) & Unit Economics
+                </h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[620px] text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                      <tr>
+                        <th className="py-2 px-3">Product Description</th>
+                        <th className="py-2 px-2 text-right">Selling Price ({c})</th>
+                        <th className="py-2 px-2 text-right">Direct Materials</th>
+                        <th className="py-2 px-2 text-right">Direct Labor</th>
+                        <th className="py-2 px-2 text-right">Factory Overhead</th>
+                        <th className="py-2 px-2 text-right">Unit COGS ({c})</th>
+                        <th className="py-2 px-2 text-right">Contribution Margin</th>
+                        <th className="py-2 px-2 text-right">Margin %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-financial">
+                      {(project.products || []).map((prod) => {
+                        const matCost =
+                          prod.rawMaterialsCostPerUnit !== undefined
+                            ? prod.rawMaterialsCostPerUnit
+                            : (prod.costBreakdown || []).reduce((sum, cb) => sum + (cb.totalCost || 0), 0);
+                        const laborCost = prod.directLaborCostPerUnit || 0;
+                        const fohCost = prod.factoryOverheadCostPerUnit || 0;
+                        const totalUnitCost = prod.unitCost || (matCost + laborCost + fohCost);
+                        const unitMargin = (prod.unitPrice || 0) - totalUnitCost;
+                        const marginPct = (prod.unitPrice || 0) > 0 ? (unitMargin / (prod.unitPrice || 1)) * 100 : 0;
+                        return (
+                          <tr key={prod.id}>
+                            <td className="py-1.5 px-3 font-sans font-medium text-slate-900">{prod.name}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-800 font-bold">{formatCurrency(prod.unitPrice, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-600">{formatCurrency(matCost, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-600">{formatCurrency(laborCost, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-600">{formatCurrency(fohCost, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-amber-900 font-semibold">{formatCurrency(totalUnitCost, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-emerald-800 font-bold">{formatCurrency(unitMargin, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-indigo-900 font-semibold">{marginPct.toFixed(1)}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* Note 5.1: Cash & Cash Equivalents */}
               <div className="space-y-2">
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                   <span className="text-indigo-600">5.1</span> Cash and Cash Equivalents
                 </h4>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[560px] text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                       <tr>
                         <th className="py-2 px-3">Account Breakdown</th>
@@ -761,8 +1265,8 @@ export default function NotesAndDefenseNotes({
                   <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <span className="text-indigo-600">5.2</span> Trade Accounts Receivable
                   </h4>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-xs text-left">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                    <table className="w-full min-w-[480px] text-xs text-left">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                         <tr>
                           <th className="py-2 px-3">Item</th>
@@ -776,7 +1280,7 @@ export default function NotesAndDefenseNotes({
                           <td className="py-1.5 px-3 font-sans text-slate-800">Gross Sales Revenue</td>
                           {years5.map((y) => (
                             <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
-                              {formatCurrency(y.grossRevenue, c)}
+                              {formatCurrency(y.grossSales, c)}
                             </td>
                           ))}
                         </tr>
@@ -784,7 +1288,7 @@ export default function NotesAndDefenseNotes({
                           <td className="py-1.5 px-3 font-sans text-slate-800">Credit Terms Rate</td>
                           {years5.map((y) => (
                             <td key={y.year} className="py-1.5 px-2 text-right text-slate-500 font-sans">
-                              {project.workingCapitalPolicy?.accountsReceivablePercentOfSales}%
+                              {wcPolicy?.accountsReceivablePercentOfSales}%
                             </td>
                           ))}
                         </tr>
@@ -805,8 +1309,8 @@ export default function NotesAndDefenseNotes({
                   <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <span className="text-indigo-600">5.3</span> Inventories
                   </h4>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-xs text-left">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                    <table className="w-full min-w-[480px] text-xs text-left">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                         <tr>
                           <th className="py-2 px-3">Item</th>
@@ -828,7 +1332,7 @@ export default function NotesAndDefenseNotes({
                           <td className="py-1.5 px-3 font-sans text-slate-800">Safety Buffer % of COGS</td>
                           {years5.map((y) => (
                             <td key={y.year} className="py-1.5 px-2 text-right text-slate-500 font-sans">
-                              {project.workingCapitalPolicy?.inventoryPercentOfCOGS}%
+                              {wcPolicy?.inventoryPercentOfCOGS}%
                             </td>
                           ))}
                         </tr>
@@ -851,8 +1355,8 @@ export default function NotesAndDefenseNotes({
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                   <span className="text-indigo-600">5.4</span> Property, Plant and Equipment (PPE) Carrying Value
                 </h4>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[580px] text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                       <tr>
                         <th className="py-2 px-3">PPE Schedule</th>
@@ -903,8 +1407,8 @@ export default function NotesAndDefenseNotes({
                   <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <span className="text-indigo-600">5.5</span> Trade Accounts Payable
                   </h4>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-xs text-left">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                    <table className="w-full min-w-[480px] text-xs text-left">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                         <tr>
                           <th className="py-2 px-3">Item</th>
@@ -926,7 +1430,7 @@ export default function NotesAndDefenseNotes({
                           <td className="py-1.5 px-3 font-sans text-slate-800">Trade Credit Terms Rate</td>
                           {years5.map((y) => (
                             <td key={y.year} className="py-1.5 px-2 text-right text-slate-500 font-sans">
-                              {project.workingCapitalPolicy?.accountsPayablePercentOfPurchases}%
+                              {wcPolicy?.accountsPayablePercentOfPurchases}%
                             </td>
                           ))}
                         </tr>
@@ -947,8 +1451,8 @@ export default function NotesAndDefenseNotes({
                   <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <span className="text-indigo-600">5.6</span> Commercial Bank Loan Amortization
                   </h4>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-xs text-left">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                    <table className="w-full min-w-[480px] text-xs text-left">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                         <tr>
                           <th className="py-2 px-3">Debt Breakdown</th>
@@ -1001,8 +1505,8 @@ export default function NotesAndDefenseNotes({
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                   <span className="text-indigo-600">5.7</span> Owner's Equity & Retained Earnings Movement
                 </h4>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[580px] text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                       <tr>
                         <th className="py-2 px-3">Equity Statement Line Item</th>
@@ -1067,13 +1571,204 @@ export default function NotesAndDefenseNotes({
                 </div>
               </div>
 
-              {/* Note 5.8 to 5.11: Comprehensive Income Schedule */}
+              {/* Note 5.8: Direct Labor & Statutory Benefits Schedule */}
               <div className="space-y-2">
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                  <span className="text-indigo-600">5.8 – 5.11</span> Income Statement Operating Component Summary
+                  <span className="text-indigo-600">5.8</span> Direct Labor & Philippine Statutory Benefits Schedule
                 </h4>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[560px] text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                      <tr>
+                        <th className="py-2 px-3">Position / Labor Role</th>
+                        <th className="py-2 px-2 text-right">Headcount</th>
+                        <th className="py-2 px-2 text-right">Monthly Wage ({c})</th>
+                        <th className="py-2 px-2 text-right">Months/Yr</th>
+                        <th className="py-2 px-2 text-right">Annual Basic ({c})</th>
+                        <th className="py-2 px-2 text-right">13th Mo. + Benefits ({c})</th>
+                        <th className="py-2 px-2 text-right">Total Annual Cost ({c})</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-financial">
+                      {(project.directLabor || []).map((dl) => {
+                        const basicAnnual = (dl.headcount || 1) * (dl.monthlyWage || 0) * (dl.monthsPerYear || 12);
+                        // Approx benefits (13th month ~ 1 month + statutory ~ 10-14%)
+                        const thirteenthMonth = basicAnnual / (dl.monthsPerYear || 12);
+                        const statutory = basicAnnual * 0.115;
+                        const totalLabor = basicAnnual + thirteenthMonth + statutory;
+                        return (
+                          <tr key={dl.id}>
+                            <td className="py-1.5 px-3 font-sans font-medium text-slate-800">{dl.role}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-700">{dl.headcount}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-700">{formatCurrency(dl.monthlyWage, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-600">{dl.monthsPerYear || 12}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-800 font-semibold">{formatCurrency(basicAnnual, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-indigo-700 font-semibold">{formatCurrency(thirteenthMonth + statutory, c)}</td>
+                            <td className="py-1.5 px-2 text-right text-indigo-950 font-bold">{formatCurrency(totalLabor, c)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                        <td className="py-2 px-3 font-sans">Total Direct Labor (Year 1 Base)</td>
+                        <td className="py-2 px-2 text-right font-financial">
+                          {(project.directLabor || []).reduce((sum, dl) => sum + (dl.headcount || 1), 0)}
+                        </td>
+                        <td className="py-2 px-2 text-right font-sans text-slate-500">-</td>
+                        <td className="py-2 px-2 text-right font-sans text-slate-500">-</td>
+                        <td className="py-2 px-2 text-right text-slate-900">
+                          {formatCurrency(
+                            (project.directLabor || []).reduce(
+                              (sum, dl) => sum + (dl.headcount || 1) * (dl.monthlyWage || 0) * (dl.monthsPerYear || 12),
+                              0
+                            ),
+                            c
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right text-indigo-700 font-semibold">
+                          {formatCurrency(
+                            (project.directLabor || []).reduce((sum, dl) => {
+                              const basic = (dl.headcount || 1) * (dl.monthlyWage || 0) * (dl.monthsPerYear || 12);
+                              return sum + (basic / (dl.monthsPerYear || 12)) + basic * 0.115;
+                            }, 0),
+                            c
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right text-indigo-950">
+                          {formatCurrency(years5[0]?.directLabor || 0, c)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Note 5.9: Factory Overhead (FOH) 5-Year Schedule */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <span className="text-indigo-600">5.9</span> Factory Overhead (FOH) 5-Year Schedule
+                </h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[540px] text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                      <tr>
+                        <th className="py-2 px-3">Factory Overhead Cost Component</th>
+                        {years5.map((y) => (
+                          <th key={y.year} className="py-2 px-2 text-right">Year {y.year}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-financial">
+                      <tr>
+                        <td className="py-1.5 px-3 font-sans text-slate-800">Manufacturing Utilities (Power, Water, Gas)</td>
+                        {years5.map((y, idx) => {
+                          const baseUtilities = (project.productionUtilities || []).reduce(
+                            (s, u) => s + (u.annualAmountYear1 || 0),
+                            0
+                          );
+                          const escalated = baseUtilities * Math.pow(1 + (project.inflationRatePercent || 4) / 100, idx);
+                          return (
+                            <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
+                              {formatCurrency(escalated, c)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 px-3 font-sans text-slate-800">Factory Supplies & Sanitation Consumables</td>
+                        {years5.map((y, idx) => {
+                          const baseSupplies = (project.factorySupplies || []).reduce(
+                            (s, fs) => s + (fs.annualAmount || 0),
+                            0
+                          );
+                          const escalated = baseSupplies * Math.pow(1 + (project.inflationRatePercent || 4) / 100, idx);
+                          return (
+                            <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
+                              {formatCurrency(escalated, c)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 px-3 font-sans text-slate-800">Production Machinery & Equipment Depreciation</td>
+                        {years5.map((y) => (
+                          <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
+                            {formatCurrency(y.factoryDepreciation || 0, c)}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr className="bg-slate-50 font-bold text-slate-900 border-t border-slate-200">
+                        <td className="py-2 px-3 font-sans">Total Factory Overhead (FOH)</td>
+                        {years5.map((y) => (
+                          <td key={y.year} className="py-2 px-2 text-right text-indigo-900">
+                            {formatCurrency(y.factoryOverhead, c)}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Note 5.10: Operating Expenses (SG&A Overhead) 5-Year Schedule */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <span className="text-indigo-600">5.10</span> Operating Expenses (SG&A Overhead) 5-Year Schedule
+                </h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[540px] text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
+                      <tr>
+                        <th className="py-2 px-3">SG&A Expense Category</th>
+                        {years5.map((y) => (
+                          <th key={y.year} className="py-2 px-2 text-right">Year {y.year}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-financial">
+                      <tr>
+                        <td className="py-1.5 px-3 font-sans text-slate-800">General Administrative Expenses</td>
+                        {years5.map((y) => (
+                          <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
+                            {formatCurrency(y.adminExpenses || 0, c)}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 px-3 font-sans text-slate-800">Selling, Marketing & Delivery Expenses</td>
+                        {years5.map((y) => (
+                          <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
+                            {formatCurrency(y.sellingExpenses || 0, c)}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 px-3 font-sans text-slate-800">Non-Manufacturing Furniture & Vehicle Depreciation</td>
+                        {years5.map((y) => (
+                          <td key={y.year} className="py-1.5 px-2 text-right text-slate-600">
+                            {formatCurrency(y.opexDepreciation || 0, c)}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr className="bg-slate-50 font-bold text-slate-900 border-t border-slate-200">
+                        <td className="py-2 px-3 font-sans">Total Operating Expenses (SG&A)</td>
+                        {years5.map((y) => (
+                          <td key={y.year} className="py-2 px-2 text-right text-rose-700">
+                            {formatCurrency(y.totalOpex, c)}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Note 5.11: Comprehensive Income Statement Reconciliation */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <span className="text-indigo-600">5.11</span> Comprehensive Income Statement Component Summary
+                </h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[520px] text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-semibold">
                       <tr>
                         <th className="py-2 px-3">Revenue, Cost & Profit Component</th>
@@ -1087,7 +1782,7 @@ export default function NotesAndDefenseNotes({
                         <td className="py-1.5 px-3 font-sans text-slate-800">Gross Sales Revenue</td>
                         {years5.map((y) => (
                           <td key={y.year} className="py-1.5 px-2 text-right text-slate-700">
-                            {formatCurrency(y.grossRevenue, c)}
+                            {formatCurrency(y.grossSales, c)}
                           </td>
                         ))}
                       </tr>
@@ -1103,7 +1798,7 @@ export default function NotesAndDefenseNotes({
                         <td className="py-1.5 px-3 font-sans">Net Sales Revenue</td>
                         {years5.map((y) => (
                           <td key={y.year} className="py-1.5 px-2 text-right text-indigo-900">
-                            {formatCurrency(y.netRevenue, c)}
+                            {formatCurrency(y.netSales, c)}
                           </td>
                         ))}
                       </tr>
@@ -1254,7 +1949,7 @@ export default function NotesAndDefenseNotes({
                   </span>
                   <p className="text-slate-600 text-[11px]">
                     Credit risk is contained by capping credit sales at{' '}
-                    <strong>{project.workingCapitalPolicy?.accountsReceivablePercentOfSales}% of annual revenue</strong> and prioritizing
+                    <strong>{wcPolicy?.accountsReceivablePercentOfSales}% of annual revenue</strong> and prioritizing
                     prompt cash-on-delivery settlements for retail channels. Institutional wholesale buyers are evaluated prior to
                     granting 30-day commercial terms.
                   </p>
@@ -1312,19 +2007,21 @@ export default function NotesAndDefenseNotes({
                 <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-8 text-center sm:text-left">
                   PREPARED, RESPECTFULLY SUBMITTED, AND ENDORSED BY:
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center text-xs">
-                  <div>
-                    <div className="border-b border-slate-800 pb-1 mb-1 font-bold text-slate-900">
-                      {project.proponents.split(',')[0] || 'Lead Proponent'}
-                    </div>
-                    <div className="text-slate-500 text-[11px]">Student Proponent / Lead Author</div>
-                  </div>
-                  <div>
-                    <div className="border-b border-slate-800 pb-1 mb-1 font-bold text-slate-900">
-                      {project.proponents.split(',')[1] || 'Co-Proponent / Financial Analyst'}
-                    </div>
-                    <div className="text-slate-500 text-[11px]">Student Co-Proponent</div>
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 text-center text-xs">
+                  {project.proponents
+                    .split(',')
+                    .map((p) => p.trim())
+                    .filter(Boolean)
+                    .map((proponentName, idx) => (
+                      <div key={idx}>
+                        <div className="border-b border-slate-800 pb-1 mb-1 font-bold text-slate-900">
+                          {proponentName}
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          {idx === 0 ? 'Lead Proponent / Project Manager' : `Student Co-Proponent / Researcher`}
+                        </div>
+                      </div>
+                    ))}
                   <div>
                     <div className="border-b border-slate-800 pb-1 mb-1 font-bold text-slate-900">
                       Feasibility Study Adviser / CPA
@@ -1457,9 +2154,9 @@ export default function NotesAndDefenseNotes({
                 </h4>
                 <p className="text-slate-600 leading-relaxed pl-7">
                   "Our working capital policy establishes an initial cash buffer of {formatCurrency(initialWorkingCapital, c)},
-                  trade receivables at {project.workingCapitalPolicy?.accountsReceivablePercentOfSales}% of sales (collected within
-                  30 days), finished goods and materials safety buffer at {project.workingCapitalPolicy?.inventoryPercentOfCOGS}% of COGS,
-                  and trade accounts payable at {project.workingCapitalPolicy?.accountsPayablePercentOfPurchases}% of purchases. This ensures
+                  trade receivables at {wcPolicy?.accountsReceivablePercentOfSales}% of sales (collected within
+                  30 days), finished goods and materials safety buffer at {wcPolicy?.inventoryPercentOfCOGS}% of COGS,
+                  and trade accounts payable at {wcPolicy?.accountsPayablePercentOfPurchases}% of purchases. This ensures
                   smooth cash conversion throughout all operating cycles."
                 </p>
               </div>

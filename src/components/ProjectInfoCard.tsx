@@ -35,33 +35,33 @@ export default function ProjectInfoCard({
   const allBalanced = financials.every((f) => f.isBalanced);
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 mb-6 transition">
+    <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6 transition">
       {/* Header Row */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-slate-100">
         <div className="min-w-0">
           {isEditing ? (
             <input
               type="text"
               value={project.title}
               onChange={(e) => onUpdateProject({ ...project, title: e.target.value })}
-              className="text-xl font-bold text-slate-900 w-full border-b border-indigo-400 focus:outline-none pb-1"
+              className="text-lg sm:text-2xl font-bold text-slate-900 w-full border-b-2 border-indigo-500 focus:outline-none pb-1 bg-slate-50/70 px-2 py-1 rounded-t-lg"
               placeholder="Feasibility Study Title"
             />
           ) : (
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 break-words sm:truncate">
               {project.title}
             </h1>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-1">
-            <span className="flex items-center gap-1">
-              <Users className="w-3.5 h-3.5 text-indigo-500" />
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1.5 text-xs text-slate-500 mt-2 sm:mt-1">
+            <span className="flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
               {isEditing ? (
                 <input
                   type="text"
                   value={project.proponents}
                   onChange={(e) => onUpdateProject({ ...project, proponents: e.target.value })}
-                  className="border-b border-slate-300 text-xs text-slate-700 focus:outline-none"
+                  className="border border-slate-300 rounded px-1.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
                   placeholder="Proponents / Authors"
                 />
               ) : (
@@ -69,14 +69,14 @@ export default function ProjectInfoCard({
               )}
             </span>
 
-            <span className="flex items-center gap-1">
-              <GraduationCap className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="flex items-center gap-1.5">
+              <GraduationCap className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               {isEditing ? (
                 <input
                   type="text"
                   value={project.academicProgram}
                   onChange={(e) => onUpdateProject({ ...project, academicProgram: e.target.value })}
-                  className="border-b border-slate-300 text-xs text-slate-700 focus:outline-none"
+                  className="border border-slate-300 rounded px-1.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
                   placeholder="Degree Program"
                 />
               ) : (
@@ -84,14 +84,14 @@ export default function ProjectInfoCard({
               )}
             </span>
 
-            <span className="flex items-center gap-1">
-              <Building2 className="w-3.5 h-3.5 text-amber-500" />
+            <span className="flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               {isEditing ? (
                 <input
                   type="text"
                   value={project.institution}
                   onChange={(e) => onUpdateProject({ ...project, institution: e.target.value })}
-                  className="border-b border-slate-300 text-xs text-slate-700 focus:outline-none"
+                  className="border border-slate-300 rounded px-1.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
                   placeholder="University / College"
                 />
               ) : (
@@ -104,15 +104,15 @@ export default function ProjectInfoCard({
         {/* Action button & Balancing Pill */}
         <div className="flex flex-wrap items-center gap-2 self-start md:self-center shrink-0">
           {!allBalanced && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-300">
+            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-300">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              BS Difference Detected
+              <span>BS Discrepancy</span>
             </span>
           )}
 
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="px-3 py-1 rounded-lg text-xs font-medium border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1 transition cursor-pointer"
+            className="px-3 sm:px-3.5 py-1.5 sm:py-1 rounded-lg text-xs font-medium border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition cursor-pointer min-h-[38px] sm:min-h-0"
           >
             {isEditing ? (
               <>
@@ -131,7 +131,7 @@ export default function ProjectInfoCard({
 
       {/* Company Account Profile Ribbon */}
       {project.companyAccount ? (
-        <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-indigo-50/70 via-slate-50 to-emerald-50/60 border border-indigo-100/90 text-xs">
+        <div className="mt-3.5 p-3 sm:p-3.5 rounded-xl bg-gradient-to-r from-indigo-50/70 via-slate-50 to-emerald-50/60 border border-indigo-100/90 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-indigo-100/80">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
@@ -147,15 +147,15 @@ export default function ProjectInfoCard({
               <button
                 type="button"
                 onClick={onOpenCompanyModal}
-                className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white hover:bg-slate-50 text-indigo-900 border border-indigo-200 transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1.5 sm:py-1 rounded-md text-[11px] font-semibold bg-white hover:bg-slate-50 text-indigo-900 border border-indigo-200 transition shadow-2xs flex items-center gap-1 cursor-pointer min-h-[36px] sm:min-h-0"
               >
                 <Edit3 className="w-3 h-3 text-indigo-600" />
-                <span>Configure Company Account</span>
+                <span>Configure Account</span>
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 text-slate-600">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-2 pt-2 text-slate-600">
             <div>
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                 Nature of Operations:
@@ -169,7 +169,7 @@ export default function ProjectInfoCard({
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                 Capital & Equity Structure:
               </span>
-              <span className="font-medium text-slate-800 font-financial">
+              <span className="font-medium text-slate-800 font-financial text-xs">
                 {project.companyAccount.classification === 'Sole Proprietorship' &&
                   `Owner's Capital: ${formatCurrency(project.companyAccount.soleProprietorship?.ownerCapital || project.financing.equityContribution, project.currency)}`}
                 {project.companyAccount.classification === 'Partnership' &&
@@ -189,7 +189,7 @@ export default function ProjectInfoCard({
         </div>
       ) : (
         onOpenCompanyModal && (
-          <div className="mt-3.5 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between text-xs">
+          <div className="mt-3.5 p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-amber-900">
               <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
@@ -199,7 +199,7 @@ export default function ProjectInfoCard({
             <button
               type="button"
               onClick={onOpenCompanyModal}
-              className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition shadow-2xs shrink-0 cursor-pointer ml-2"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition shadow-2xs shrink-0 cursor-pointer w-full sm:w-auto text-center min-h-[38px] sm:min-h-0 flex items-center justify-center"
             >
               Add Company Account
             </button>

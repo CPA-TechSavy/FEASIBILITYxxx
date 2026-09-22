@@ -16,6 +16,7 @@ import {
   Activity,
   HelpCircle,
   Sparkles,
+  ArrowUpDown,
 } from 'lucide-react';
 import BreakEvenUnitsTable from './BreakEvenUnitsTable';
 import FinancialRatioDetailsModal, { RatioKey } from './FinancialRatioDetailsModal';
@@ -235,6 +236,17 @@ export default function FeasibilityEvaluationView({
       </div>
 
       <div id="all-ratio-tables-container" className="space-y-6">
+        {/* Mobile Horizontal Scroll Hint */}
+        <div className="md:hidden flex items-center justify-between text-[11px] text-slate-600 bg-indigo-50/60 px-3 py-2 rounded-xl border border-indigo-100">
+          <span className="flex items-center gap-1.5 font-medium">
+            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 rotate-90 shrink-0" />
+            Swipe tables horizontally to inspect Years 1–5
+          </span>
+          <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full shrink-0">
+            Yr 1–5 →
+          </span>
+        </div>
+
       {/* 2. BREAK-EVEN POINT (BEP) IN UNITS TABLE */}
       <BreakEvenUnitsTable project={project} financials={financials} />
 
@@ -265,8 +277,8 @@ export default function FeasibilityEvaluationView({
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[560px] text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                 <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
@@ -408,8 +420,8 @@ export default function FeasibilityEvaluationView({
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[560px] text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                 <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
@@ -550,8 +562,8 @@ export default function FeasibilityEvaluationView({
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[560px] text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                 <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>
@@ -737,8 +749,8 @@ export default function FeasibilityEvaluationView({
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs sm:text-sm border-collapse">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[560px] text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
                 <th className="py-2.5 text-left w-1/4">Ratio / Metric</th>

@@ -954,8 +954,8 @@ export default function ProductCostingTab({
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                <table className="w-full min-w-[620px] text-left text-xs">
                   <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                     <tr>
                       <th className="p-2.5">Category</th>

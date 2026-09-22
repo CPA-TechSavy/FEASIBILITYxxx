@@ -159,8 +159,8 @@ export default function BreakEvenUnitsTable({
       </div>
 
       {/* 5-YEAR BREAK-EVEN IN UNITS TABLE */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs sm:text-sm border-collapse">
+      <div className="overflow-x-auto scrollbar-thin">
+        <table className="w-full min-w-[620px] text-xs sm:text-sm border-collapse">
           <thead>
             <tr className="border-b-2 border-slate-900 font-semibold text-slate-800">
               <th className="py-2.5 text-left w-1/3">CVP Component / Metric</th>

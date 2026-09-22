@@ -249,6 +249,7 @@ export interface FeasibilityProject {
 
   // Policies
   workingCapital: WorkingCapitalPolicy;
+  workingCapitalPolicy?: WorkingCapitalPolicy;
 
   // Notes
   academicNotes: string;
@@ -260,6 +261,8 @@ export interface YearFinancials {
   grossSales: number;
   salesDiscounts: number;
   netSales: number;
+  grossRevenue?: number;
+  netRevenue?: number;
   
   // Cost of Goods Sold / Cost of Sales
   directMaterials: number;

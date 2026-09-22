@@ -213,7 +213,7 @@ export default function BreakEvenBreakdownModal({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-thin">
             <button
               type="button"
               id="btn-view-step-computation"
@@ -430,8 +430,8 @@ export default function BreakEvenBreakdownModal({
                     100.0% of Fixed Overhead
                   </span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
+                <div className="overflow-x-auto scrollbar-thin">
+                  <table className="w-full min-w-[560px] text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-700 font-semibold">
                         <th className="py-2.5 px-3 text-left">Fixed Cost Component</th>
@@ -619,8 +619,8 @@ export default function BreakEvenBreakdownModal({
                     {formatPercent(cmRatio)} Contribution Margin Ratio
                   </span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
+                <div className="overflow-x-auto scrollbar-thin">
+                  <table className="w-full min-w-[560px] text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-700 font-semibold">
                         <th className="py-2.5 px-3 text-left">Unit Economics Driver</th>
@@ -755,8 +755,8 @@ export default function BreakEvenBreakdownModal({
                 </h3>
               </div>
 
-              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-                <table className="w-full text-xs border-collapse">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-x-auto scrollbar-thin">
+                <table className="w-full min-w-[660px] text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-700 font-semibold">
                       <th className="py-2.5 px-3 text-left">Product Name</th>

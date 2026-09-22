@@ -1017,6 +1017,28 @@ export default function AssumptionsEditor({
 
       {isExpanded && (
         <>
+          {/* Mobile Tab Switcher Dropdown */}
+          <div className="md:hidden px-3.5 py-2.5 bg-slate-100/90 border-b border-slate-200">
+            <label htmlFor="mobile-assumption-tab-select" className="sr-only">
+              Select Assumption Tab
+            </label>
+            <div className="relative">
+              <select
+                id="mobile-assumption-tab-select"
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value as TabKey)}
+                className="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-9 py-2.5 text-xs font-semibold text-slate-800 shadow-xs appearance-none focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[44px]"
+              >
+                {TAB_ITEMS.map((tab) => (
+                  <option key={tab.key} value={tab.key}>
+                    {tab.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
           {/* Sub Navigation Tabs with Smooth Scrolling Controls */}
           <div className="relative border-b border-slate-200 bg-slate-50/80 select-none overflow-hidden">
             {/* Left Scroll Navigation Button */}

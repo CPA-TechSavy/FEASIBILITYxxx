@@ -337,7 +337,7 @@ export default function BankInterestAndLoanModal({
         </div>
 
         {/* Modal Navigation Tabs */}
-        <div className="flex overflow-x-auto border-b border-slate-200 bg-white px-5 sm:px-6 scrollbar-none shrink-0">
+        <div className="flex overflow-x-auto border-b border-slate-200 bg-white px-3 sm:px-6 scrollbar-thin shrink-0 gap-1">
           <button
             onClick={() => setActiveTab('overview')}
             className={`flex items-center gap-2 py-3 px-3.5 text-xs font-semibold whitespace-nowrap border-b-2 transition ${
@@ -433,8 +433,8 @@ export default function BankInterestAndLoanModal({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs sm:text-sm border-collapse">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[620px] text-xs sm:text-sm border-collapse">
                     <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3 text-left">Period</th>
@@ -648,8 +648,8 @@ export default function BankInterestAndLoanModal({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs sm:text-sm border-collapse">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[620px] text-xs sm:text-sm border-collapse">
                     <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3 text-left">Period</th>
@@ -825,8 +825,8 @@ export default function BankInterestAndLoanModal({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs sm:text-sm border-collapse">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[660px] text-xs sm:text-sm border-collapse">
                     <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3 text-left">Period</th>
@@ -1002,8 +1002,8 @@ export default function BankInterestAndLoanModal({
               </div>
 
               {monthlyAmortization.length > 0 ? (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-xs sm:text-sm border-collapse">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl scrollbar-thin">
+                  <table className="w-full min-w-[680px] text-xs sm:text-sm border-collapse">
                     <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3 text-left">Month</th>
