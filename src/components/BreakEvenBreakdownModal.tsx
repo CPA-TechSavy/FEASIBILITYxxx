@@ -189,9 +189,6 @@ export default function BreakEvenBreakdownModal({
                   CVP Model
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Cost-volume-profit derivation, line-item audit trail, product sales mix allocation, and defense guidance for <strong>Year {selectedYear}</strong> ({bepUnits.toLocaleString()} units).
-              </p>
             </div>
           </div>
 
@@ -381,9 +378,6 @@ export default function BreakEvenBreakdownModal({
                   <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
                   Data Origins & Line-Item Drivers for Year {selectedYear}
                 </h3>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  Every figure in this Break-Even computation is fully traceable to the financial statements and operational schedules in this study. Below is the audited breakdown of both the <strong>Numerator (Fixed Overhead)</strong> and <strong>Denominator (Variable Costs & Selling Price)</strong> for Year {selectedYear}.
-                </p>
               </div>
 
               {/* 3-Column Summary Strip (Matching Tab 4) */}
@@ -759,9 +753,6 @@ export default function BreakEvenBreakdownModal({
                   <Layers className="w-4 h-4 text-indigo-600" />
                   Multi-Product Sales Mix Allocation for Year {selectedYear}
                 </h3>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  In multi-product commercial operations, the composite break-even threshold of <strong>{bepUnits.toLocaleString()} units</strong> is distributed across product lines based on each product&apos;s planned sales mix proportion.
-                </p>
               </div>
 
               <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">

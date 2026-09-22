@@ -78,6 +78,7 @@ import {
   getPagIbigEmployerShare,
   SSS_CONTRIBUTION_TABLE,
 } from '../utils/philippineBenefits';
+import PdfDownloadButton from './PdfDownloadButton';
 
 interface AssumptionsEditorProps {
   project: FeasibilityProject;
@@ -102,7 +103,15 @@ export default function AssumptionsEditor({
   onOpenBankModal,
 }: AssumptionsEditorProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('capital');
+  const [selectedCostingProductId, setSelectedCostingProductId] = useState<string | undefined>(undefined);
   const [isExpanded, setIsExpanded] = useState(true);
+
+  const handleNavigateToTab = useCallback((tab: TabKey, productId?: string) => {
+    setActiveTab(tab);
+    if (productId) {
+      setSelectedCostingProductId(productId);
+    }
+  }, []);
 
   // Tab scrolling support
   const tabScrollRef = useRef<HTMLDivElement>(null);
@@ -987,6 +996,15 @@ export default function AssumptionsEditor({
         </div>
 
         <div className="flex items-center space-x-2">
+          <PdfDownloadButton
+            targetId={`assumptions-tab-${activeTab}`}
+            title={`Assumptions Tab: ${TAB_ITEMS.find((t) => t.key === activeTab)?.label || 'Schedule'}`}
+            subtitle={`${project.title} • Operating Assumptions & Schedules`}
+            projectTitle={project.title}
+            buttonText="Download Tab PDF"
+            size="xs"
+            variant="indigo"
+          />
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 border border-slate-700 flex items-center gap-1 transition"
@@ -1067,7 +1085,27 @@ export default function AssumptionsEditor({
           <div className="p-4 sm:p-6">
             {/* TAB 1: CAPITAL OUTLAY & FINANCING */}
             {activeTab === 'capital' && (
-              <div className="space-y-6">
+              <div id="assumptions-tab-capital" className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-2xl border border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-indigo-600" />
+                      <span>1. Capital Outlay, Asset Investment & Financing Structure</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Pre-operating expenses, property, plant & equipment, initial working capital buffer, and loan structure.
+                    </p>
+                  </div>
+                  <PdfDownloadButton
+                    targetId="assumptions-tab-capital"
+                    title="1. Capital Outlay & Financing Assumptions"
+                    subtitle={`${project.title} • Assumptions Tab 1`}
+                    projectTitle={project.title}
+                    buttonText="Download Tab PDF"
+                    size="sm"
+                    variant="indigo"
+                  />
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Pre-Operating Expenses Table */}
                   <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/40">
@@ -1586,11 +1624,32 @@ export default function AssumptionsEditor({
 
             {/* TAB 2: PRODUCTS & SALES PROJECTIONS */}
             {activeTab === 'sales' && (
-              <div className="space-y-4">
+              <div id="assumptions-tab-sales" className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-2xl border border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Package className="w-4 h-4 text-indigo-600" />
+                      <span>2. Revenue Streams & Product Sales Projections</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Product pricing, Year 1 volume, annual volume growth rates, and sales discount policies.
+                    </p>
+                  </div>
+                  <PdfDownloadButton
+                    targetId="assumptions-tab-sales"
+                    title="2. Products & Sales Projections"
+                    subtitle={`${project.title} • Assumptions Tab 2`}
+                    projectTitle={project.title}
+                    buttonText="Download Tab PDF"
+                    size="sm"
+                    variant="indigo"
+                  />
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">
-                      Revenue Streams & Product Assumptions
+                      Product Pricing & Baseline Volumes
                     </h3>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1659,8 +1718,18 @@ export default function AssumptionsEditor({
                         const marginPct = prod.unitPrice > 0 ? (unitMargin / prod.unitPrice) * 100 : 0;
                         const yr1Rev = prod.unitPrice * prod.year1Volume;
 
+                        const isTarget = selectedCostingProductId === prod.id;
+
                         return (
-                          <tr key={prod.id} className="hover:bg-slate-50/50">
+                          <tr
+                            key={prod.id}
+                            id={`sales-product-row-${prod.id}`}
+                            className={`transition ${
+                              isTarget
+                                ? 'bg-indigo-50/80 ring-2 ring-indigo-400 font-semibold'
+                                : 'hover:bg-slate-50/50'
+                            }`}
+                          >
                             <td className="p-2.5">
                               <input
                                 type="text"
@@ -1765,25 +1834,70 @@ export default function AssumptionsEditor({
 
             {/* TAB 3: COSTING (SELLING PRICE, UNIT COST BREAKDOWN DM/DL/FOH, 5-YR REVENUE) */}
             {activeTab === 'costing' && (
-              <CostingTab
-                project={project}
-                onUpdateProject={onUpdateProject}
-                onNavigateToTab={setActiveTab}
-              />
+              <div id="assumptions-tab-costing" className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-2xl border border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-indigo-600" />
+                      <span>3. Costing & 5-Year Revenue Projections</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Selling price, unit cost breakdown (DM, DL, FOH), unit margins, and 5-year sales volume schedule.
+                    </p>
+                  </div>
+                  <PdfDownloadButton
+                    targetId="assumptions-tab-costing"
+                    title="3. Costing & 5-Year Revenue Projections"
+                    subtitle={`${project.title} • Assumptions Tab 3`}
+                    projectTitle={project.title}
+                    buttonText="Download Tab PDF"
+                    size="sm"
+                    variant="indigo"
+                  />
+                </div>
+                <CostingTab
+                  project={project}
+                  onUpdateProject={onUpdateProject}
+                  onNavigateToTab={handleNavigateToTab}
+                />
+              </div>
             )}
 
             {/* TAB 4: DIRECT MATERIALS (BILL OF MATERIALS & PACKAGING) */}
             {activeTab === 'directMaterials' && (
-              <ProductCostingTab
-                project={project}
-                onUpdateProject={onUpdateProject}
-                onNavigateToTab={setActiveTab}
-              />
+              <div id="assumptions-tab-directMaterials" className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-amber-50/60 via-slate-50 to-amber-50/40 rounded-2xl border border-amber-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-amber-600" />
+                      <span>4. Direct Materials (Bill of Materials & Packaging)</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Itemized raw materials, ingredients, specifications, packaging, unit costs, and BOM presets.
+                    </p>
+                  </div>
+                  <PdfDownloadButton
+                    targetId="assumptions-tab-directMaterials"
+                    title="4. Direct Materials (Bill of Materials & Packaging)"
+                    subtitle={`${project.title} • Assumptions Tab 4`}
+                    projectTitle={project.title}
+                    buttonText="Download Tab PDF"
+                    size="sm"
+                    variant="emerald"
+                  />
+                </div>
+                <ProductCostingTab
+                  project={project}
+                  onUpdateProject={onUpdateProject}
+                  onNavigateToTab={handleNavigateToTab}
+                  initialProductId={selectedCostingProductId}
+                />
+              </div>
             )}
 
-            {/* TAB 4: DIRECT LABOR */}
+            {/* TAB 5: DIRECT LABOR */}
             {activeTab === 'directCosts' && (
-              <div className="space-y-6">
+              <div id="assumptions-tab-directCosts" className="space-y-6">
                 {/* ---------------------------------------------------- */}
                 {/* 1. DIRECT LABOR TABLE                                */}
                 {/* ---------------------------------------------------- */}
@@ -1825,23 +1939,34 @@ export default function AssumptionsEditor({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() =>
-                        updateDirectLabor([
-                          ...project.directLabor,
-                          {
-                            id: `dl-${Date.now()}`,
-                            role: 'Production Technician',
-                            headcount: 1,
-                            monthlyWage: 18000,
-                            monthsPerYear: 13,
-                          },
-                        ])
-                      }
-                      className="px-3 py-1.5 text-xs bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium flex items-center gap-1.5 transition shadow-2xs shrink-0 self-start lg:self-center"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Direct Labor Role
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0 self-start lg:self-center">
+                      <PdfDownloadButton
+                        targetId="assumptions-tab-directCosts"
+                        title="5. Direct Labor Schedule & Benefits"
+                        subtitle={`${project.title} • Assumptions Tab 5`}
+                        projectTitle={project.title}
+                        buttonText="Download Tab PDF"
+                        size="xs"
+                        variant="indigo"
+                      />
+                      <button
+                        onClick={() =>
+                          updateDirectLabor([
+                            ...project.directLabor,
+                            {
+                              id: `dl-${Date.now()}`,
+                              role: 'Production Technician',
+                              headcount: 1,
+                              monthlyWage: 18000,
+                              monthsPerYear: 13,
+                            },
+                          ])
+                        }
+                        className="px-3 py-1.5 text-xs bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-medium flex items-center gap-1.5 transition shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Direct Labor Role
+                      </button>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -2116,9 +2241,9 @@ export default function AssumptionsEditor({
               </div>
             )}
 
-            {/* TAB 5: FACTORY OVERHEAD */}
+            {/* TAB 6: FACTORY OVERHEAD */}
             {activeTab === 'factoryOverhead' && (
-              <div className="space-y-6">
+              <div id="assumptions-tab-factoryOverhead" className="space-y-6">
                 {/* Header & Master Badge with Year Function Tab */}
                 <div className="bg-gradient-to-r from-amber-50/90 via-white to-slate-50 border border-amber-200/90 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div className="space-y-3">
@@ -2157,23 +2282,34 @@ export default function AssumptionsEditor({
                     </div>
                   </div>
 
-                  <div className="bg-white border border-amber-200 rounded-xl px-4 py-2.5 shadow-2xs text-right shrink-0">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block">
-                        Total Year {fohViewYear} FOH (COGS)
-                      </span>
-                      {fohViewYear > 1 && (
-                        <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded">
-                          Escalated
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 shrink-0">
+                    <PdfDownloadButton
+                      targetId="assumptions-tab-factoryOverhead"
+                      title="6. Factory Overhead (FOH) Schedule"
+                      subtitle={`${project.title} • Assumptions Tab 6`}
+                      projectTitle={project.title}
+                      buttonText="Download Tab PDF"
+                      size="sm"
+                      variant="amber"
+                    />
+                    <div className="bg-white border border-amber-200 rounded-xl px-4 py-2.5 shadow-2xs text-right shrink-0">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block">
+                          Total Year {fohViewYear} FOH (COGS)
                         </span>
-                      )}
+                        {fohViewYear > 1 && (
+                          <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded">
+                            Escalated
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-base font-bold font-financial text-amber-700">
+                        {formatCurrency(selectedYearFohSummary.totalFactoryOverheadAnnual, c)}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 font-financial mt-0.5">
+                        {formatCurrency(selectedYearFohSummary.overheadPerUnit, c)} / unit ({selectedYearFohSummary.totalProductionVolume.toLocaleString()} units)
+                      </span>
                     </div>
-                    <span className="text-base font-bold font-financial text-amber-700">
-                      {formatCurrency(selectedYearFohSummary.totalFactoryOverheadAnnual, c)}
-                    </span>
-                    <span className="block text-[10px] text-slate-400 font-financial mt-0.5">
-                      {formatCurrency(selectedYearFohSummary.overheadPerUnit, c)} / unit ({selectedYearFohSummary.totalProductionVolume.toLocaleString()} units)
-                    </span>
                   </div>
                 </div>
 
@@ -4196,9 +4332,9 @@ export default function AssumptionsEditor({
               </div>
             )}
 
-            {/* TAB 6: NON-MANUFACTURING */}
+            {/* TAB 7: NON-MANUFACTURING */}
             {activeTab === 'nonManufacturing' && (
-              <div className="space-y-6">
+              <div id="assumptions-tab-nonManufacturing" className="space-y-6">
                 {/* Header & Context */}
                 <div className="bg-gradient-to-r from-blue-50/80 via-white to-slate-50 border border-blue-200/70 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
@@ -4215,25 +4351,36 @@ export default function AssumptionsEditor({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateNonManufacturingLabor([
-                        ...(project.nonManufacturingLabor || []),
-                        {
-                          id: `nml-${Date.now()}`,
-                          role: 'Administrative Officer',
-                          account: 'Salary',
-                          headcount: 1,
-                          monthlyWage: 20000,
-                          monthsPerYear: 12,
-                        },
-                      ])
-                    }
-                    className="px-3.5 py-2 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-semibold flex items-center gap-1.5 transition shadow-2xs shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Non-Manufacturing Employee
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <PdfDownloadButton
+                      targetId="assumptions-tab-nonManufacturing"
+                      title="7. Non-Manufacturing Personnel (SG&A Staff)"
+                      subtitle={`${project.title} • Assumptions Tab 7`}
+                      projectTitle={project.title}
+                      buttonText="Download Tab PDF"
+                      size="sm"
+                      variant="indigo"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateNonManufacturingLabor([
+                          ...(project.nonManufacturingLabor || []),
+                          {
+                            id: `nml-${Date.now()}`,
+                            role: 'Administrative Officer',
+                            account: 'Salary',
+                            headcount: 1,
+                            monthlyWage: 20000,
+                            monthsPerYear: 12,
+                          },
+                        ])
+                      }
+                      className="px-3.5 py-2 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-semibold flex items-center gap-1.5 transition shadow-2xs shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Non-Manufacturing Employee
+                    </button>
+                  </div>
                 </div>
 
                 {/* Metric Summary Cards */}
@@ -4885,9 +5032,9 @@ export default function AssumptionsEditor({
               </div>
             )}
 
-            {/* TAB 4: OPERATING EXPENSES (SG&A) */}
+            {/* TAB 8: OPERATING EXPENSES (SG&A) */}
             {activeTab === 'opex' && (
-              <div className="space-y-5">
+              <div id="assumptions-tab-opex" className="space-y-5">
                 {/* Header with quick stats & add actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
                   <div>
@@ -4899,6 +5046,15 @@ export default function AssumptionsEditor({
                     </h3>
                   </div>
                   <div className="flex items-center gap-2">
+                    <PdfDownloadButton
+                      targetId="assumptions-tab-opex"
+                      title="8. Operating Expenses (SG&A) Schedule"
+                      subtitle={`${project.title} • Assumptions Tab 8`}
+                      projectTitle={project.title}
+                      buttonText="Download Tab PDF"
+                      size="xs"
+                      variant="slate"
+                    />
                     <button
                       onClick={() => setShow5YearOpexSchedule(!show5YearOpexSchedule)}
                       className={`px-3 py-1.5 text-xs rounded-lg font-medium border flex items-center gap-1.5 transition ${
@@ -5345,13 +5501,28 @@ export default function AssumptionsEditor({
               </div>
             )}
 
-            {/* TAB 5: WORKING CAPITAL POLICY */}
+            {/* TAB 9: WORKING CAPITAL POLICY */}
             {activeTab === 'workingCapital' && (
-              <div className="space-y-5">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Working Capital Policies & Cash Management
-                  </h3>
+              <div id="assumptions-tab-workingCapital" className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 rounded-2xl border border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-indigo-600" />
+                      <span>9. Working Capital Policies & Cash Management</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Accounts receivable days/rates, ending inventory safety stock, accounts payable settlement terms, and discounts.
+                    </p>
+                  </div>
+                  <PdfDownloadButton
+                    targetId="assumptions-tab-workingCapital"
+                    title="9. Working Capital Policies & Cash Management"
+                    subtitle={`${project.title} • Assumptions Tab 9`}
+                    projectTitle={project.title}
+                    buttonText="Download Tab PDF"
+                    size="sm"
+                    variant="indigo"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

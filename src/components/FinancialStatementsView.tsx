@@ -1,6 +1,7 @@
 import { useState, Fragment } from 'react';
 import { FeasibilityProject, YearFinancials } from '../types';
 import { formatCurrency, formatPercent } from '../utils/financialCalculations';
+import PdfDownloadButton from './PdfDownloadButton';
 import {
   getEffectiveClassification,
   getOwnerName,
@@ -63,6 +64,16 @@ export default function FinancialStatementsView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <PdfDownloadButton
+            targetId="all-statements-container"
+            title="Projected Financial Statements"
+            subtitle={`${project.title} • Complete 5-Year Financial Statements`}
+            projectTitle={project.title}
+            buttonText="Download All Statements (PDF)"
+            size="sm"
+            variant="slate"
+          />
+
           {/* View Switcher Tabs */}
           <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
           <button
@@ -119,22 +130,36 @@ export default function FinancialStatementsView({
         </div>
       </div>
 
-      <div className="p-4 sm:p-6 space-y-10">
+      <div id="all-statements-container" className="p-4 sm:p-6 space-y-10">
         {/* ========================================================================= */}
         {/* 1. PROJECTED STATEMENT OF COMPREHENSIVE INCOME */}
         {/* ========================================================================= */}
         {(selectedView === 'all' || selectedView === 'income') && (
-          <div className="print-break-inside-avoid">
-            <div className="text-center mb-4">
-              <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
-                {project.title}
-              </h3>
-              <h4 className="text-sm font-semibold uppercase text-slate-700">
-                Projected Statement of Comprehensive Income
-              </h4>
-              <p className="text-xs text-slate-500 italic">
-                For the Years Ended 1 to 5 (Amounts in {c})
-              </p>
+          <div id="statement-income" className="print-break-inside-avoid">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-24 hidden sm:block" />
+              <div className="text-center flex-1">
+                <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
+                  {project.title}
+                </h3>
+                <h4 className="text-sm font-semibold uppercase text-slate-700">
+                  Projected Statement of Comprehensive Income
+                </h4>
+                <p className="text-xs text-slate-500 italic">
+                  For the Years Ended 1 to 5 (Amounts in {c})
+                </p>
+              </div>
+              <div className="w-auto flex justify-end">
+                <PdfDownloadButton
+                  targetId="statement-income"
+                  title="Projected Statement of Comprehensive Income"
+                  subtitle={`${project.title} • For the Years Ended 1 to 5 (${c})`}
+                  projectTitle={project.title}
+                  buttonText="Download PDF"
+                  size="xs"
+                  variant="default"
+                />
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -487,17 +512,31 @@ export default function FinancialStatementsView({
         {/* 2. PROJECTED STATEMENT OF CASH FLOWS */}
         {/* ========================================================================= */}
         {(selectedView === 'all' || selectedView === 'cashflow') && (
-          <div className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
-            <div className="text-center mb-4">
-              <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
-                {project.title}
-              </h3>
-              <h4 className="text-sm font-semibold uppercase text-slate-700">
-                Projected Statement of Cash Flows
-              </h4>
-              <p className="text-xs text-slate-500 italic">
-                From Pre-Operating Year 0 through Year 5 (Amounts in {c})
-              </p>
+          <div id="statement-cashflow" className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-24 hidden sm:block" />
+              <div className="text-center flex-1">
+                <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
+                  {project.title}
+                </h3>
+                <h4 className="text-sm font-semibold uppercase text-slate-700">
+                  Projected Statement of Cash Flows
+                </h4>
+                <p className="text-xs text-slate-500 italic">
+                  From Pre-Operating Year 0 through Year 5 (Amounts in {c})
+                </p>
+              </div>
+              <div className="w-auto flex justify-end">
+                <PdfDownloadButton
+                  targetId="statement-cashflow"
+                  title="Projected Statement of Cash Flows"
+                  subtitle={`${project.title} • Pre-Op (Yr 0) through Year 5 (${c})`}
+                  projectTitle={project.title}
+                  buttonText="Download PDF"
+                  size="xs"
+                  variant="default"
+                />
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -772,19 +811,33 @@ export default function FinancialStatementsView({
         {/* 3. PROJECTED STATEMENT OF FINANCIAL POSITION (BALANCE SHEET) */}
         {/* ========================================================================= */}
         {(selectedView === 'all' || selectedView === 'balance') && (
-          <div className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
-            <div className="text-center mb-4">
-              <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
-                {project.companyAccount?.entityName || project.title}
-              </h3>
-              <h4 className="text-sm font-semibold uppercase text-slate-700">
-                Projected Statement of Financial Position (Balance Sheet)
-              </h4>
-              <p className="text-xs text-slate-500 italic">
-                As of Pre-Operating Year 0 through Year 5 (Amounts in {c}) • {classification}
-                {classification === 'Partnership' && ` (${partnerSchedules.length} Partners)`}
-                {classification === 'Sole Proprietorship' && ` (Proprietor: ${ownerName})`}
-              </p>
+          <div id="statement-balance" className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-24 hidden sm:block" />
+              <div className="text-center flex-1">
+                <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
+                  {project.companyAccount?.entityName || project.title}
+                </h3>
+                <h4 className="text-sm font-semibold uppercase text-slate-700">
+                  Projected Statement of Financial Position (Balance Sheet)
+                </h4>
+                <p className="text-xs text-slate-500 italic">
+                  As of Pre-Operating Year 0 through Year 5 (Amounts in {c}) • {classification}
+                  {classification === 'Partnership' && ` (${partnerSchedules.length} Partners)`}
+                  {classification === 'Sole Proprietorship' && ` (Proprietor: ${ownerName})`}
+                </p>
+              </div>
+              <div className="w-auto flex justify-end">
+                <PdfDownloadButton
+                  targetId="statement-balance"
+                  title="Projected Statement of Financial Position (Balance Sheet)"
+                  subtitle={`${project.companyAccount?.entityName || project.title} • As of Pre-Op through Year 5 (${c})`}
+                  projectTitle={project.title}
+                  buttonText="Download PDF"
+                  size="xs"
+                  variant="default"
+                />
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -1075,24 +1128,42 @@ export default function FinancialStatementsView({
         {/* 4. STATEMENT OF CHANGES IN EQUITY */}
         {/* ========================================================================= */}
         {(selectedView === 'all' || selectedView === 'equity') && (
-          <div className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
-            <div className="text-center mb-4">
-              <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
-                {project.companyAccount?.entityName || project.title}
-              </h3>
-              <h4 className="text-sm font-semibold uppercase text-slate-700">
-                {classification === 'Sole Proprietorship'
-                  ? "Projected Statement of Changes in Owner's Equity"
-                  : classification === 'Partnership'
-                  ? "Projected Statement of Changes in Partners' Equity"
-                  : "Projected Statement of Changes in Stockholders' Equity"}
-              </h4>
-              <p className="text-xs text-slate-500 italic">
-                From Inception through Year 5 (Amounts in {c}) • {classification}
-                {classification === 'Partnership' &&
-                  ` (${partnerSchedules.length} Partners • Per Agreed Profit Sharing Ratio)`}
-                {classification === 'Sole Proprietorship' && ` (Proprietor: ${ownerName})`}
-              </p>
+          <div id="statement-equity" className="print-break-inside-avoid print-break-before pt-6 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-24 hidden sm:block" />
+              <div className="text-center flex-1">
+                <h3 className="text-base sm:text-lg font-bold font-serif-title uppercase tracking-wider text-slate-900">
+                  {project.companyAccount?.entityName || project.title}
+                </h3>
+                <h4 className="text-sm font-semibold uppercase text-slate-700">
+                  {classification === 'Sole Proprietorship'
+                    ? "Projected Statement of Changes in Owner's Equity"
+                    : classification === 'Partnership'
+                    ? "Projected Statement of Changes in Partners' Equity"
+                    : "Projected Statement of Changes in Stockholders' Equity"}
+                </h4>
+                <p className="text-xs text-slate-500 italic">
+                  From Inception through Year 5 (Amounts in {c}) • {classification}
+                  {classification === 'Partnership' &&
+                    ` (${partnerSchedules.length} Partners • Per Agreed Profit Sharing Ratio)`}
+                  {classification === 'Sole Proprietorship' && ` (Proprietor: ${ownerName})`}
+                </p>
+              </div>
+              <div className="w-auto flex justify-end">
+                <PdfDownloadButton
+                  targetId="statement-equity"
+                  title={classification === 'Sole Proprietorship'
+                    ? "Projected Statement of Changes in Owner's Equity"
+                    : classification === 'Partnership'
+                    ? "Projected Statement of Changes in Partners' Equity"
+                    : "Projected Statement of Changes in Stockholders' Equity"}
+                  subtitle={`${project.companyAccount?.entityName || project.title} • Inception through Year 5 (${c})`}
+                  projectTitle={project.title}
+                  buttonText="Download PDF"
+                  size="xs"
+                  variant="default"
+                />
+              </div>
             </div>
 
             {/* Ownership Structure Quick Bar */}

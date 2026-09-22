@@ -77,7 +77,8 @@ export default function BankInterestAndLoanModal({
       const fin = financials.find((f) => f.year === yr);
       const prevFin = financials.find((f) => f.year === yr - 1);
       const prevCash = prevFin ? prevFin.endingCash : totalBuffer;
-      const depositBase = Math.max(0, Math.min(prevCash, cashInBank));
+      const prevCoh = Math.min(prevCash, cashOnHand);
+      const depositBase = Math.max(0, prevCash - prevCoh);
       const annualGross = fin?.interestIncome ?? Math.round(depositBase * (savingsRate / 100));
       const monthlyGross = annualGross / 12;
       const dailyGross = annualGross / 365;
@@ -95,7 +96,7 @@ export default function BankInterestAndLoanModal({
         rate: savingsRate,
       };
     });
-  }, [financials, cashInBank, totalBuffer, savingsRate, withholdingTaxRate]);
+  }, [financials, cashOnHand, totalBuffer, savingsRate, withholdingTaxRate]);
 
   // Totals for Savings
   const total5YrSavingsInterestGross = savingsSchedule.reduce(

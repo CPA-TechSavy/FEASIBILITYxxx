@@ -145,7 +145,7 @@ export default function App() {
             }`}
           >
             <Table className="w-4 h-4" />
-            <span>Loan & Depreciation Schedules</span>
+            <span>Notes Schedules</span>
           </button>
 
           <button
@@ -157,7 +157,7 @@ export default function App() {
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Notes & Defense Talking Points</span>
+            <span>Notes to Financial Statements</span>
           </button>
 
           {/* Dedicated Quick-Access Button for Bank Savings Interest & Loan Debt Breakdown */}
@@ -208,6 +208,7 @@ export default function App() {
         {activeMainView === 'schedules' && (
           <SupportingSchedulesView
             project={project}
+            financials={financials}
             onOpenBankModal={() => setIsBankModalOpen(true)}
           />
         )}
@@ -217,6 +218,7 @@ export default function App() {
             project={project}
             onUpdateProject={setProject}
             metrics={metrics}
+            financials={financials}
           />
         )}
 
@@ -227,11 +229,12 @@ export default function App() {
             financials={financials}
             metrics={metrics}
           />
-          <SupportingSchedulesView project={project} />
+          <SupportingSchedulesView project={project} financials={financials} />
           <NotesAndDefenseNotes
             project={project}
             onUpdateProject={setProject}
             metrics={metrics}
+            financials={financials}
           />
         </div>
       </main>

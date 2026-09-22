@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FeasibilityProject,
   ProductItem,
@@ -31,7 +31,8 @@ import {
 interface ProductCostingTabProps {
   project: FeasibilityProject;
   onUpdateProject: (p: FeasibilityProject) => void;
-  onNavigateToTab?: (tab: any) => void;
+  onNavigateToTab?: (tab: any, productId?: string) => void;
+  initialProductId?: string;
 }
 
 const COMPONENT_CATEGORIES: CostComponentCategory[] = [
@@ -44,13 +45,21 @@ export default function ProductCostingTab({
   project,
   onUpdateProject,
   onNavigateToTab,
+  initialProductId,
 }: ProductCostingTabProps) {
   const c = project.currency;
 
   // Selected product ID for detailed costing
   const [selectedProductId, setSelectedProductId] = useState<string>(() => {
-    return project.products[0]?.id || '';
+    return initialProductId || project.products[0]?.id || '';
   });
+
+  // Sync selectedProductId whenever initialProductId changes from external navigation
+  React.useEffect(() => {
+    if (initialProductId && project.products.some((p) => p.id === initialProductId)) {
+      setSelectedProductId(initialProductId);
+    }
+  }, [initialProductId, project.products]);
 
   // Keep selectedProductId valid if products change
   const activeProduct: ProductItem | null = useMemo(() => {

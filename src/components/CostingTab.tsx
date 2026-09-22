@@ -18,12 +18,13 @@ import {
   Percent,
   DollarSign,
   Package,
+  ExternalLink,
 } from 'lucide-react';
 
 interface CostingTabProps {
   project: FeasibilityProject;
   onUpdateProject: (p: FeasibilityProject) => void;
-  onNavigateToTab?: (tab: any) => void;
+  onNavigateToTab?: (tab: any, productId?: string) => void;
 }
 
 export default function CostingTab({
@@ -333,64 +334,86 @@ export default function CostingTab({
       {/* ---------------------------------------------------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Card 1: Yr 1 Sales Volume */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
+        <div
+          onClick={() => onNavigateToTab?.('sales')}
+          className="bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 shadow-2xs space-y-1 cursor-pointer transition group"
+          title="Click to manage Sales Volume in Tab 2 (Products & Sales Volume)"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span className="font-semibold uppercase tracking-wider text-[10px]">Year 1 Volume</span>
-            <span className="p-1 bg-indigo-50 text-indigo-600 rounded-md">
+            <span className="p-1 bg-indigo-50 text-indigo-600 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition">
               <Package className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900">
-            {totalYear1Volume.toLocaleString()}
-            <span className="text-xs font-normal text-slate-500 ml-1">units</span>
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-indigo-600 transition flex items-baseline justify-between">
+            <span>
+              {totalYear1Volume.toLocaleString()}
+              <span className="text-xs font-normal text-slate-500 ml-1">units</span>
+            </span>
+            <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 opacity-60 group-hover:opacity-100 transition" />
           </div>
           <p className="text-[11px] text-slate-500">
-            Across {project.products.length} product{project.products.length > 1 ? 's' : ''}
+            Across {project.products.length} product{project.products.length > 1 ? 's' : ''} (Tab 2)
           </p>
         </div>
 
         {/* Card 2: Year 1 Gross Revenue */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
+        <div
+          onClick={() => onNavigateToTab?.('sales')}
+          className="bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-300 rounded-2xl p-4 shadow-2xs space-y-1 cursor-pointer transition group"
+          title="Click to manage Selling Prices in Tab 2 (Products & Sales Volume)"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span className="font-semibold uppercase tracking-wider text-[10px]">Year 1 Gross Sales</span>
-            <span className="p-1 bg-emerald-50 text-emerald-700 rounded-md">
+            <span className="p-1 bg-emerald-50 text-emerald-700 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition">
               <DollarSign className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-bold font-financial text-emerald-700">
-            {formatCurrency(yr1GrossSales, c)}
+          <div className="text-xl font-bold font-financial text-emerald-700 flex items-baseline justify-between">
+            <span>{formatCurrency(yr1GrossSales, c)}</span>
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-500 opacity-60 group-hover:opacity-100 transition" />
           </div>
           <p className="text-[11px] text-slate-500">
-            Net: {formatCurrency(yr1NetSales, c)} (Yr 1)
+            Net: {formatCurrency(yr1NetSales, c)} (Tab 2)
           </p>
         </div>
 
         {/* Card 3: Year 1 Cost of Goods Sold */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
+        <div
+          onClick={() => onNavigateToTab?.('directMaterials')}
+          className="bg-white hover:bg-slate-50 border border-slate-200 hover:border-amber-300 rounded-2xl p-4 shadow-2xs space-y-1 cursor-pointer transition group"
+          title="Click to inspect Cost of Goods Sold & BOM in Tab 4 (Direct Materials)"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span className="font-semibold uppercase tracking-wider text-[10px]">Year 1 Total COGS</span>
-            <span className="p-1 bg-amber-50 text-amber-700 rounded-md">
+            <span className="p-1 bg-amber-50 text-amber-700 rounded-md group-hover:bg-amber-600 group-hover:text-white transition">
               <Layers className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-bold font-financial text-slate-900">
-            {formatCurrency(totalYr1COGS, c)}
+          <div className="text-xl font-bold font-financial text-slate-900 group-hover:text-amber-800 transition flex items-baseline justify-between">
+            <span>{formatCurrency(totalYr1COGS, c)}</span>
+            <ExternalLink className="w-3.5 h-3.5 text-amber-500 opacity-60 group-hover:opacity-100 transition" />
           </div>
           <p className="text-[11px] text-slate-500">
-            DM + DL + FOH production cost
+            DM (Tab 4) + DL (Tab 5) + FOH (Tab 6)
           </p>
         </div>
 
         {/* Card 4: Overall Gross Margin % */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-1">
+        <div
+          onClick={() => onNavigateToTab?.('sales')}
+          className="bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 shadow-2xs space-y-1 cursor-pointer transition group"
+          title="Click to review Revenue & Margins in Tab 2 (Products & Sales Volume)"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span className="font-semibold uppercase tracking-wider text-[10px]">Gross Profit Margin</span>
-            <span className="p-1 bg-indigo-50 text-indigo-700 rounded-md">
+            <span className="p-1 bg-indigo-50 text-indigo-700 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition">
               <Percent className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-bold font-financial text-indigo-700">
-            {overallYr1MarginPct.toFixed(1)}%
+          <div className="text-xl font-bold font-financial text-indigo-700 flex items-baseline justify-between">
+            <span>{overallYr1MarginPct.toFixed(1)}%</span>
+            <ExternalLink className="w-3.5 h-3.5 text-indigo-500 opacity-60 group-hover:opacity-100 transition" />
           </div>
           <p className="text-[11px] text-slate-500">
             Gross Profit: {formatCurrency(overallYr1Margin, c)}
@@ -398,19 +421,73 @@ export default function CostingTab({
         </div>
 
         {/* Card 5: 5-Year Cumulative Net Revenue */}
-        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white border border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+        <div
+          onClick={() => onNavigateToTab?.('sales')}
+          className="bg-gradient-to-br from-indigo-900 to-slate-900 hover:from-indigo-800 hover:to-slate-800 text-white border border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1 cursor-pointer transition group"
+          title="Click to manage 5-Year Projected Sales in Tab 2 (Products & Sales Volume)"
+        >
           <div className="flex items-center justify-between text-indigo-200 text-xs">
             <span className="font-semibold uppercase tracking-wider text-[10px]">5-Yr Net Revenue</span>
-            <span className="p-1 bg-indigo-800/60 text-indigo-200 rounded-md">
+            <span className="p-1 bg-indigo-800/60 text-indigo-200 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition">
               <TrendingUp className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-bold font-financial text-emerald-400">
-            {formatCurrency(grand5YrNetSales, c)}
+          <div className="text-xl font-bold font-financial text-emerald-400 flex items-baseline justify-between">
+            <span>{formatCurrency(grand5YrNetSales, c)}</span>
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-400 opacity-60 group-hover:opacity-100 transition" />
           </div>
           <p className="text-[10px] text-indigo-200/80">
             5-Yr Total: {fiveYearSchedule.grandTotalVolume.toLocaleString()} units
           </p>
+        </div>
+      </div>
+
+      {/* READ-ONLY NAVIGATION GUIDANCE BANNER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <span className="p-1.5 bg-indigo-100 text-indigo-800 rounded-lg shrink-0">
+            <Calculator className="w-4 h-4" />
+          </span>
+          <div>
+            <span className="font-bold text-slate-900">Costing Matrix is Read-Only:</span>
+            <span className="text-slate-600 ml-1">
+              Amounts cannot be edited directly here. Click any amount to navigate directly to its specific tab where you can edit it:
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('sales')}
+            className="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-indigo-700 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
+          >
+            <span>Selling Price (Tab 2)</span>
+            <ExternalLink className="w-3 h-3 text-indigo-500" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('directMaterials')}
+            className="px-2.5 py-1 bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-amber-800 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
+          >
+            <span>Direct Materials (Tab 4)</span>
+            <ExternalLink className="w-3 h-3 text-amber-600" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('directCosts')}
+            className="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-indigo-800 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
+          >
+            <span>Direct Labor (Tab 5)</span>
+            <ExternalLink className="w-3 h-3 text-indigo-600" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('factoryOverhead')}
+            className="px-2.5 py-1 bg-white hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-purple-800 rounded-lg font-semibold flex items-center gap-1 transition cursor-pointer"
+          >
+            <span>Factory Overhead (Tab 6)</span>
+            <ExternalLink className="w-3 h-3 text-purple-600" />
+          </button>
         </div>
       </div>
 
@@ -481,101 +558,111 @@ export default function CostingTab({
 
                     {/* Selling Price */}
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-slate-400 font-bold">{c}</span>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={p.unitPrice}
-                          onChange={(e) =>
-                            handleUpdateProductCost(
-                              p.id,
-                              'unitPrice',
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="w-20 font-financial font-bold text-right border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 focus:outline-indigo-500 bg-white"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className="group inline-flex items-center justify-end gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition text-right cursor-pointer"
+                        title="Selling Price cannot be edited directly in Costing. Click to edit in Tab 2: Products & Sales Volume."
+                      >
+                        <span className="font-financial font-bold text-slate-900 group-hover:text-indigo-600">
+                          {formatCurrency(p.unitPrice, c, 2)}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Direct Materials */}
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-slate-400 font-bold">{c}</span>
-                        <input
-                          type="number"
-                          step="0.05"
-                          value={dm}
-                          onChange={(e) =>
-                            handleUpdateProductCost(
-                              p.id,
-                              'rawMaterialsCostPerUnit',
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="w-20 font-financial font-semibold text-right border border-amber-300 bg-amber-50/30 rounded px-1.5 py-0.5 text-amber-900 focus:outline-amber-500"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('directMaterials', p.id)}
+                        className="group inline-flex items-center justify-end gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/50 hover:bg-amber-100/70 border border-amber-200 hover:border-amber-300 transition text-right cursor-pointer"
+                        title="Direct Materials cannot be edited directly in Costing. Click to edit Bill of Materials & Packaging in Tab 4: Direct Materials."
+                      >
+                        <span className="font-financial font-semibold text-amber-900 group-hover:text-amber-950">
+                          {formatCurrency(dm, c, 2)}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-amber-500 group-hover:text-amber-700 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Direct Labor */}
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-slate-400 font-bold">{c}</span>
-                        <input
-                          type="number"
-                          step="0.05"
-                          value={dl}
-                          onChange={(e) =>
-                            handleUpdateProductCost(
-                              p.id,
-                              'directLaborCostPerUnit',
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="w-20 font-financial font-semibold text-right border border-indigo-300 bg-indigo-50/30 rounded px-1.5 py-0.5 text-indigo-900 focus:outline-indigo-500"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('directCosts', p.id)}
+                        className="group inline-flex items-center justify-end gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/50 hover:bg-indigo-100/70 border border-indigo-200 hover:border-indigo-300 transition text-right cursor-pointer"
+                        title="Direct Labor cannot be edited directly in Costing. Click to edit headcount, wages, and benefits in Tab 5: Direct Labor."
+                      >
+                        <span className="font-financial font-semibold text-indigo-900 group-hover:text-indigo-950">
+                          {formatCurrency(dl, c, 2)}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-indigo-500 group-hover:text-indigo-700 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Factory Overhead */}
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="text-slate-400 font-bold">{c}</span>
-                        <input
-                          type="number"
-                          step="0.05"
-                          value={foh}
-                          onChange={(e) =>
-                            handleUpdateProductCost(
-                              p.id,
-                              'factoryOverheadCostPerUnit',
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="w-20 font-financial font-semibold text-right border border-purple-300 bg-purple-50/30 rounded px-1.5 py-0.5 text-purple-900 focus:outline-purple-500"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('factoryOverhead', p.id)}
+                        className="group inline-flex items-center justify-end gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50/50 hover:bg-purple-100/70 border border-purple-200 hover:border-purple-300 transition text-right cursor-pointer"
+                        title="Factory Overhead cannot be edited directly in Costing. Click to edit utilities, supplies, depreciation, and indirect labor in Tab 6: Factory Overhead."
+                      >
+                        <span className="font-financial font-semibold text-purple-900 group-hover:text-purple-950">
+                          {formatCurrency(foh, c, 2)}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-purple-500 group-hover:text-purple-700 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Total Unit Cost (COGS) */}
-                    <td className="p-3 text-right font-financial font-bold text-slate-900 bg-slate-50/50">
-                      {formatCurrency(totalUnitCost, c, 2)}
+                    <td className="p-3 text-right bg-slate-50/50">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('directMaterials', p.id)}
+                        className="group inline-flex items-center justify-end gap-1.5 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 transition text-right cursor-pointer"
+                        title={`Total Unit Cost (${formatCurrency(totalUnitCost, c, 2)}) = DM + DL + FOH. Click to inspect BOM in Tab 4.`}
+                      >
+                        <span className="font-financial font-bold text-slate-900">
+                          {formatCurrency(totalUnitCost, c, 2)}
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-slate-700 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Unit Margin */}
-                    <td
-                      className={`p-3 text-right font-financial font-bold ${
-                        unitMargin >= 0 ? 'text-emerald-700' : 'text-rose-600'
-                      }`}
-                    >
-                      {formatCurrency(unitMargin, c, 2)}
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className={`group inline-flex items-center justify-end gap-1 px-2.5 py-1 rounded-lg border transition text-right cursor-pointer ${
+                          unitMargin >= 0
+                            ? 'bg-emerald-50/50 hover:bg-emerald-100/70 border-emerald-200 text-emerald-800'
+                            : 'bg-rose-50/50 hover:bg-rose-100/70 border-rose-200 text-rose-800'
+                        }`}
+                        title={`Unit Margin = Selling Price (${formatCurrency(p.unitPrice, c, 2)}) - Total Unit Cost (${formatCurrency(totalUnitCost, c, 2)}). Click to manage in Tab 2.`}
+                      >
+                        <span className="font-financial font-bold">
+                          {formatCurrency(unitMargin, c, 2)}
+                        </span>
+                        <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Margin % */}
-                    <td className="p-3 text-right font-financial text-slate-700 font-semibold">
-                      {marginPct.toFixed(1)}%
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className="group inline-flex items-center justify-end gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition text-right cursor-pointer"
+                        title="Margin percentage. Click to manage in Tab 2: Products & Sales Volume."
+                      >
+                        <span className="font-financial text-slate-700 font-semibold group-hover:text-slate-900">
+                          {marginPct.toFixed(1)}%
+                        </span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Cost Distribution Bar */}
@@ -597,10 +684,12 @@ export default function CostingTab({
                       <td className="p-3 text-center">
                         <button
                           type="button"
-                          onClick={() => onNavigateToTab('directMaterials')}
-                          className="px-2.5 py-1 text-[11px] bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-lg font-semibold transition cursor-pointer"
+                          onClick={() => onNavigateToTab('directMaterials', p.id)}
+                          className="px-2.5 py-1 text-[11px] bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-lg font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                          title={`Open Tab 4 to edit Bill of Materials for ${p.name}`}
                         >
-                          BOM Sheet
+                          <Tag className="w-3 h-3" />
+                          <span>BOM Sheet</span>
                         </button>
                       </td>
                     )}
@@ -611,59 +700,127 @@ export default function CostingTab({
             <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900 text-xs">
               <tr>
                 <td className="p-3">Summary / Weighted Totals:</td>
-                <td className="p-3 text-right font-financial text-slate-800">
-                  Avg {formatCurrency(
-                    totalYear1Volume > 0 ? yr1GrossSales / totalYear1Volume : 0,
-                    c,
-                    2
-                  )}
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('sales')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-indigo-50 font-financial text-slate-800 group-hover:text-indigo-600 transition cursor-pointer"
+                    title="Average Selling Price. Click to edit in Tab 2: Products & Sales Volume."
+                  >
+                    <span>
+                      Avg {formatCurrency(
+                        totalYear1Volume > 0 ? yr1GrossSales / totalYear1Volume : 0,
+                        c,
+                        2
+                      )}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
-                <td className="p-3 text-right font-financial text-amber-800">
-                  {formatCurrency(
-                    totalYear1Volume > 0
-                      ? project.products.reduce((s, p) => s + getProductDm(p) * p.year1Volume, 0) /
-                          totalYear1Volume
-                      : 0,
-                    c,
-                    2
-                  )}
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('directMaterials')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-amber-100 font-financial text-amber-800 group-hover:text-amber-950 transition cursor-pointer"
+                    title="Average Direct Materials. Click to edit in Tab 4: Direct Materials."
+                  >
+                    <span>
+                      {formatCurrency(
+                        totalYear1Volume > 0
+                          ? project.products.reduce((s, p) => s + getProductDm(p) * p.year1Volume, 0) /
+                              totalYear1Volume
+                          : 0,
+                        c,
+                        2
+                      )}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-amber-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
-                <td className="p-3 text-right font-financial text-indigo-700">
-                  {formatCurrency(
-                    totalYear1Volume > 0
-                      ? project.products.reduce((s, p) => s + getProductDl(p) * p.year1Volume, 0) /
-                          totalYear1Volume
-                      : 0,
-                    c,
-                    2
-                  )}
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('directCosts')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-indigo-100 font-financial text-indigo-700 group-hover:text-indigo-900 transition cursor-pointer"
+                    title="Average Direct Labor. Click to edit in Tab 5: Direct Labor."
+                  >
+                    <span>
+                      {formatCurrency(
+                        totalYear1Volume > 0
+                          ? project.products.reduce((s, p) => s + getProductDl(p) * p.year1Volume, 0) /
+                              totalYear1Volume
+                          : 0,
+                        c,
+                        2
+                      )}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
-                <td className="p-3 text-right font-financial text-purple-700">
-                  {formatCurrency(
-                    totalYear1Volume > 0
-                      ? project.products.reduce((s, p) => s + getProductFoh(p) * p.year1Volume, 0) /
-                          totalYear1Volume
-                      : 0,
-                    c,
-                    2
-                  )}
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('factoryOverhead')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-purple-100 font-financial text-purple-700 group-hover:text-purple-900 transition cursor-pointer"
+                    title="Average Factory Overhead. Click to edit in Tab 6: Factory Overhead."
+                  >
+                    <span>
+                      {formatCurrency(
+                        totalYear1Volume > 0
+                          ? project.products.reduce((s, p) => s + getProductFoh(p) * p.year1Volume, 0) /
+                              totalYear1Volume
+                          : 0,
+                        c,
+                        2
+                      )}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-purple-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
-                <td className="p-3 text-right font-financial text-slate-900">
-                  Avg {formatCurrency(
-                    totalYear1Volume > 0 ? totalYr1COGS / totalYear1Volume : 0,
-                    c,
-                    2
-                  )}
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('directMaterials')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-slate-200 font-financial text-slate-900 transition cursor-pointer"
+                    title="Average Total Unit Cost. Click to inspect BOM in Tab 4."
+                  >
+                    <span>
+                      Avg {formatCurrency(
+                        totalYear1Volume > 0 ? totalYr1COGS / totalYear1Volume : 0,
+                        c,
+                        2
+                      )}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-slate-500 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
-                <td className="p-3 text-right font-financial text-emerald-700">
-                  Avg {formatCurrency(
-                    totalYear1Volume > 0 ? overallYr1Margin / totalYear1Volume : 0,
-                    c,
-                    2
-                  )}
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('sales')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-emerald-100 font-financial text-emerald-700 transition cursor-pointer"
+                    title="Average Unit Margin. Click to manage in Tab 2: Products & Sales Volume."
+                  >
+                    <span>
+                      Avg {formatCurrency(
+                        totalYear1Volume > 0 ? overallYr1Margin / totalYear1Volume : 0,
+                        c,
+                        2
+                      )}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-emerald-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
-                <td className="p-3 text-right font-financial text-indigo-700">
-                  {overallYr1MarginPct.toFixed(1)}%
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab?.('sales')}
+                    className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-indigo-100 font-financial text-indigo-700 transition cursor-pointer"
+                    title="Overall Margin %. Click to manage in Tab 2: Products & Sales Volume."
+                  >
+                    <span>{overallYr1MarginPct.toFixed(1)}%</span>
+                    <ExternalLink className="w-3 h-3 text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                  </button>
                 </td>
                 <td colSpan={onNavigateToTab ? 2 : 1}></td>
               </tr>
@@ -693,6 +850,16 @@ export default function CostingTab({
             <span className="text-xs font-bold font-financial bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
               {project.salesDiscountsPercent}%
             </span>
+            {onNavigateToTab && (
+              <button
+                type="button"
+                onClick={() => onNavigateToTab('sales')}
+                className="ml-2 px-3 py-1.5 text-xs bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Edit selling prices, volume, and escalation in Tab 2: Products & Sales Volume"
+              >
+                <span>Edit in Tab 2 (Sales) →</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -728,49 +895,55 @@ export default function CostingTab({
                     </td>
 
                     {/* Unit Price */}
-                    <td className="p-3 text-right font-financial text-slate-800">
-                      {formatCurrency(p.unitPrice, c, 2)}
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-indigo-50 font-financial text-slate-800 group-hover:text-indigo-600 transition cursor-pointer"
+                        title="Selling Price cannot be edited in Costing. Click to edit in Tab 2: Products & Sales Volume."
+                      >
+                        <span>{formatCurrency(p.unitPrice, c, 2)}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
-                    {/* Escalation Rate Input */}
+                    {/* Escalation Rate */}
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-0.5">
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={p.annualGrowthRate}
-                          onChange={(e) =>
-                            handleUpdateProductCost(
-                              p.id,
-                              'annualGrowthRate',
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="w-14 font-financial font-semibold text-right border border-slate-300 rounded px-1 py-0.5 text-slate-900 focus:outline-indigo-500 bg-white"
-                        />
-                        <span className="text-[11px] text-slate-500 font-bold">%</span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 font-financial font-semibold text-slate-900 group-hover:text-indigo-600 transition cursor-pointer"
+                        title="Sales Escalation Rate cannot be edited in Costing. Click to edit in Tab 2: Products & Sales Volume."
+                      >
+                        <span>{p.annualGrowthRate}%</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Year 1 Units */}
                     <td className="p-3 text-right bg-slate-100/30">
-                      <input
-                        type="number"
-                        value={p.year1Volume}
-                        onChange={(e) =>
-                          handleUpdateProductCost(
-                            p.id,
-                            'year1Volume',
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                        className="w-20 font-financial font-semibold text-right border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 focus:outline-indigo-500 bg-white"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className="group inline-flex items-center justify-end gap-1 px-2.5 py-0.5 rounded bg-white hover:bg-indigo-50 border border-slate-300 hover:border-indigo-300 font-financial font-semibold text-slate-900 group-hover:text-indigo-600 transition cursor-pointer"
+                        title="Year 1 Volume cannot be edited in Costing. Click to edit in Tab 2: Products & Sales Volume."
+                      >
+                        <span>{p.year1Volume.toLocaleString()}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 opacity-60 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Year 1 Revenue */}
                     <td className="p-3 text-right font-financial font-bold text-slate-900 bg-slate-100/30 whitespace-nowrap">
-                      {formatCurrency(item.years[0]?.sales || 0, c)}
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab?.('sales', p.id)}
+                        className="group inline-flex items-center justify-end gap-1 px-2 py-0.5 rounded hover:bg-indigo-100/50 transition cursor-pointer"
+                        title="Click to view/edit in Tab 2: Products & Sales Volume."
+                      >
+                        <span>{formatCurrency(item.years[0]?.sales || 0, c)}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400 opacity-40 group-hover:opacity-100 transition shrink-0" />
+                      </button>
                     </td>
 
                     {/* Year 2 */}

@@ -630,14 +630,16 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     const ebit = grossProfit - totalOpex;
 
     // 5. Financing, Interest Income & Tax
-    const initialBankDeposit =
-      project.workingCapitalBufferDetails?.cashInBank ??
-      (project.initialWorkingCapitalBuffer * 0.8);
+    const baseCashOnHand =
+      project.workingCapitalBufferDetails?.cashOnHand ??
+      Math.round((project.initialWorkingCapitalBuffer || 0) * 0.2);
     const bankInterestRate =
       (project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 0) / 100;
-    // Bank deposit generates interest income based on cash held in bank account
-    const bankDepositBalance = Math.max(0, Math.min(prevCash, initialBankDeposit));
-    const interestIncome = Math.round(bankDepositBalance * bankInterestRate);
+    // Bank deposit generates interest income based on actual cash held in bank account
+    // Cash in Bank = Total Cash minus petty cash / cash on hand float
+    const prevCashOnHand = Math.min(prevCash, baseCashOnHand);
+    const prevCashInBank = Math.max(0, prevCash - prevCashOnHand);
+    const interestIncome = Math.round(prevCashInBank * bankInterestRate);
 
     const loanRow = loanSchedule[yr - 1] || {
       interestExpense: 0,

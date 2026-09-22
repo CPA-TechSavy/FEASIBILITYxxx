@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { FeasibilityProject, YearFinancials } from '../types';
 import { formatCurrency, formatPercent } from '../utils/financialCalculations';
-import { Target, Layers, ShieldCheck, TrendingUp, Info, Search, Calculator, Sparkles } from 'lucide-react';
+import { Target, Layers, ShieldCheck, TrendingUp, Info, Search, Calculator } from 'lucide-react';
 import BreakEvenBreakdownModal from './BreakEvenBreakdownModal';
+import PdfDownloadButton from './PdfDownloadButton';
 
 interface BreakEvenUnitsTableProps {
   project: FeasibilityProject;
@@ -77,7 +78,7 @@ export default function BreakEvenUnitsTable({
   };
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm print-break-inside-avoid">
+    <section id="table-break-even-units" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm print-break-inside-avoid">
       {/* SECTION HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
@@ -93,11 +94,17 @@ export default function BreakEvenUnitsTable({
                 Cost-Volume-Profit (CVP) Analysis
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Minimum unit production volume required each year to cover all fixed and variable costs.
-            </p>
           </div>
         </div>
+        <PdfDownloadButton
+          targetId="table-break-even-units"
+          title="Break-Even Point (BEP) in Units & CVP Analysis"
+          subtitle={`${project.title} • 5-Year BEP Breakdown`}
+          projectTitle={project.title}
+          buttonText="Download PDF"
+          size="xs"
+          variant="default"
+        />
       </div>
 
       {/* MINI STATS CARDS FOR YEAR 1 */}
@@ -261,18 +268,9 @@ export default function BreakEvenUnitsTable({
                   <Target className="w-4 h-4 text-indigo-600" />
                   <span>Break-Even Point in Units (BEP Units)</span>
                 </div>
-                <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">
-                  Click any year amount to view that year&apos;s specific breakdown
-                </span>
               </td>
               <td className="py-3 text-xs text-indigo-700 font-mono hidden md:table-cell">
-                <div className="flex flex-col">
-                  <span>Total Fixed Costs ÷ Unit Contribution Margin</span>
-                  <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-1 mt-0.5">
-                    <Sparkles className="w-2.5 h-2.5" />
-                    <span>Click Year 1, 2, 3, 4, or 5 to inspect its schedule</span>
-                  </span>
-                </div>
+                <span>Total Fixed Costs ÷ Unit Contribution Margin</span>
               </td>
               {bepYearData.map((d) => (
                 <td

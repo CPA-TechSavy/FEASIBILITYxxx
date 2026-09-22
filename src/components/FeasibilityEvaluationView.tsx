@@ -20,6 +20,7 @@ import {
 import BreakEvenUnitsTable from './BreakEvenUnitsTable';
 import FinancialRatioDetailsModal, { RatioKey } from './FinancialRatioDetailsModal';
 import CapitalBudgetingMetricModal, { CapitalMetricKey } from './CapitalBudgetingMetricModal';
+import PdfDownloadButton from './PdfDownloadButton';
 
 interface FeasibilityEvaluationViewProps {
   project: FeasibilityProject;
@@ -71,6 +72,17 @@ export default function FeasibilityEvaluationView({
                 )}
               </h2>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <PdfDownloadButton
+              targetId="all-ratio-tables-container"
+              title="Comprehensive Financial Ratios & Feasibility Analysis"
+              subtitle={`${project.title} • 5-Year Financial Ratio Analysis`}
+              projectTitle={project.title}
+              buttonText="Download All Ratios (PDF)"
+              size="sm"
+              variant="slate"
+            />
           </div>
         </div>
 
@@ -222,23 +234,35 @@ export default function FeasibilityEvaluationView({
         </button>
       </div>
 
+      <div id="all-ratio-tables-container" className="space-y-6">
       {/* 2. BREAK-EVEN POINT (BEP) IN UNITS TABLE */}
       <BreakEvenUnitsTable project={project} financials={financials} />
 
       {/* 3. LIQUIDITY RATIOS */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
+      <section id="table-liquidity-ratios" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
               <Droplets className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Liquidity Ratios
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                Liquidity Ratios
+              </h3>
+              <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                Short-Term Solvency
+              </span>
+            </div>
           </div>
-          <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 w-fit">
-            Short-Term Solvency
-          </span>
+          <PdfDownloadButton
+            targetId="table-liquidity-ratios"
+            title="Liquidity Ratios Analysis"
+            subtitle={`${project.title} • Short-Term Solvency (Years 1 to 5)`}
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="default"
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -358,19 +382,30 @@ export default function FeasibilityEvaluationView({
       </section>
 
       {/* 4. LEVERAGE & SOLVENCY RATIOS */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
+      <section id="table-solvency-ratios" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
               <Scale className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Leverage & Solvency Ratios
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                Leverage & Solvency Ratios
+              </h3>
+              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                Capital Structure & Long-Term Solvency
+              </span>
+            </div>
           </div>
-          <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 w-fit">
-            Capital Structure & Long-Term Solvency
-          </span>
+          <PdfDownloadButton
+            targetId="table-solvency-ratios"
+            title="Leverage & Solvency Ratios Analysis"
+            subtitle={`${project.title} • Long-Term Solvency & Capital Structure`}
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="default"
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -489,19 +524,30 @@ export default function FeasibilityEvaluationView({
       </section>
 
       {/* 5. PROFITABILITY RATIOS */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
+      <section id="table-profitability-ratios" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
               <Percent className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Profitability Ratios
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                Profitability Ratios
+              </h3>
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Operating Margins & Capital Returns
+              </span>
+            </div>
           </div>
-          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 w-fit">
-            Operating Margins & Capital Returns
-          </span>
+          <PdfDownloadButton
+            targetId="table-profitability-ratios"
+            title="Profitability Ratios Analysis"
+            subtitle={`${project.title} • Operating Margins & Capital Returns`}
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="default"
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -665,19 +711,30 @@ export default function FeasibilityEvaluationView({
       </section>
 
       {/* 6. OPERATIONAL EFFICIENCY / ACTIVITY RATIOS */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
+      <section id="table-efficiency-ratios" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm print-break-inside-avoid">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
               <Activity className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Operational Efficiency / Activity Ratios
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                Operational Efficiency / Activity Ratios
+              </h3>
+              <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                Asset Turnover & Working Capital Velocity
+              </span>
+            </div>
           </div>
-          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 w-fit">
-            Asset Turnover & Working Capital Velocity
-          </span>
+          <PdfDownloadButton
+            targetId="table-efficiency-ratios"
+            title="Operational Efficiency & Activity Ratios"
+            subtitle={`${project.title} • Asset Turnover & Working Capital Velocity`}
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="default"
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -954,6 +1011,7 @@ export default function FeasibilityEvaluationView({
           </table>
         </div>
       </section>
+      </div>
 
       {/* RATIO DETAILS POPUP MODAL */}
       <FinancialRatioDetailsModal

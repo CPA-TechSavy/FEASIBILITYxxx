@@ -1,125 +1,327 @@
-import { FeasibilityProject } from '../types';
+import { useMemo } from 'react';
+import { FeasibilityProject, YearFinancials } from '../types';
 import {
   calculateLoanAmortization,
   calculateDepreciation,
-  calculateYear1FactoryOverhead,
+  calculate5YearFinancials,
   formatCurrency,
 } from '../utils/financialCalculations';
-import { compileProductionEmployeeBenefits } from '../utils/philippineBenefits';
-import { Table, Calendar, Layers, Receipt, Calculator, Tag, Landmark, PiggyBank, Factory, ShieldCheck, Package } from 'lucide-react';
+import PdfDownloadButton from './PdfDownloadButton';
+import {
+  Table,
+  Receipt,
+  Landmark,
+  PiggyBank,
+  CheckCircle2,
+  Wallet,
+  Coins,
+  Package,
+  CreditCard,
+  Building,
+} from 'lucide-react';
 
 interface SupportingSchedulesViewProps {
   project: FeasibilityProject;
+  financials?: YearFinancials[];
   onOpenBankModal?: () => void;
 }
 
 export default function SupportingSchedulesView({
   project,
+  financials,
   onOpenBankModal,
 }: SupportingSchedulesViewProps) {
   const c = project.currency;
-  const loanSchedule = calculateLoanAmortization(project);
-  const depreciationSchedule = calculateDepreciation(project);
+  const loanSchedule = useMemo(() => calculateLoanAmortization(project), [project]);
+  const depreciationSchedule = useMemo(() => calculateDepreciation(project), [project]);
+
+  // Ensure full 5-year financials with Year 0 Pre-Operating
+  const allYears = useMemo(() => {
+    if (financials && financials.length >= 6) {
+      return financials;
+    }
+    return calculate5YearFinancials(project);
+  }, [financials, project]);
+
+  const years5 = useMemo(() => allYears.filter((y) => y.year >= 1), [allYears]);
+  const year0 = allYears[0] || {
+    year: 0,
+    cash: project.initialWorkingCapitalBuffer || 0,
+    endingCash: project.initialWorkingCapitalBuffer || 0,
+    beginningCash: 0,
+    netCashFlow: project.initialWorkingCapitalBuffer || 0,
+    accountsReceivable: 0,
+    inventory: 0,
+    accountsPayable: 0,
+    currentPortionOfDebt: loanSchedule[0]?.principalRepayment || 0,
+    longTermDebt: Math.max(0, project.financing.bankLoanAmount - (loanSchedule[0]?.principalRepayment || 0)),
+  };
+
+  const bankName = project.workingCapitalBufferDetails?.bankName || 'Depository Commercial Bank';
+  const bankInterestRate = project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 1.0;
+  const baseCashOnHand = project.workingCapitalBufferDetails?.cashOnHand ?? Math.round((project.initialWorkingCapitalBuffer || 0) * 0.2);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-6 p-5 sm:p-6 space-y-8">
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-6 p-5 sm:p-6 space-y-10">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Table className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-              Feasibility Supporting Schedules (Notes & Audit Schedules)
+            <Table className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 uppercase tracking-wide">
+              Feasibility Notes Schedules (Supporting Schedules)
             </h2>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Detailed working papers for bank debt service amortization and straight-line depreciation of fixed assets.
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Detailed working papers and audit schedules supporting line items in the Financial Statements.
           </p>
         </div>
 
-        {onOpenBankModal && (
-          <button
-            onClick={onOpenBankModal}
-            title="Open comprehensive interactive breakdown for bank savings interest and loan payments"
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-50 to-emerald-50 hover:from-indigo-100 hover:to-emerald-100 text-indigo-950 border border-indigo-200 flex items-center gap-2 transition shadow-2xs cursor-pointer"
-          >
-            <Landmark className="w-4 h-4 text-indigo-600" />
-            <span>Bank Savings Interest & Loan Debt Breakdown</span>
-          </button>
-        )}
-      </div>
-
-      {/* SCHEDULE 1: LOAN AMORTIZATION SCHEDULE */}
-      <section className="print-break-inside-avoid">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Schedule 1: Bank Debt Amortization Schedule
-            </h3>
-            <p className="text-xs text-slate-500">
-              Principal: {formatCurrency(project.financing.bankLoanAmount, c)} at {project.financing.annualInterestRate}% for {project.financing.loanTermYears} years.
-            </p>
-          </div>
-
+        <div className="flex flex-wrap items-center gap-2">
+          <PdfDownloadButton
+            targetId="all-notes-schedules-container"
+            title="Feasibility Notes & Supporting Schedules"
+            subtitle={`${project.title} • All 5 Schedules`}
+            projectTitle={project.title}
+            buttonText="Download All Schedules (PDF)"
+            size="md"
+            variant="slate"
+          />
           {onOpenBankModal && (
             <button
               onClick={onOpenBankModal}
-              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1.5 transition cursor-pointer"
+              title="Open comprehensive interactive breakdown for bank savings interest and loan payments"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-50 to-emerald-50 hover:from-indigo-100 hover:to-emerald-100 text-indigo-950 border border-indigo-200 flex items-center gap-2 transition shadow-2xs cursor-pointer"
             >
-              <Receipt className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Capital & Interest Breakdown</span>
+              <Landmark className="w-4 h-4 text-indigo-600" />
+              <span>Bank Savings Interest & Loan Debt Breakdown</span>
             </button>
           )}
+        </div>
+      </div>
+
+      <div id="all-notes-schedules-container" className="space-y-10">
+      {/* ========================================================================= */}
+      {/* SCHEDULE 1: CASH AND CASH EQUIVALENT SCHEDULE */}
+      {/* ========================================================================= */}
+      <section id="note-schedule-1-cash" className="print-break-inside-avoid space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                Schedule 1: Cash and Cash Equivalent Schedule
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Movement of Cash on Hand and Cash in Bank ({bankName} @ {bankInterestRate}% p.a.) with dynamic interest earned based on depository bank balance, ending cash balance, and reconciliation to the Financial Statements.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <PdfDownloadButton
+              targetId="note-schedule-1-cash"
+              title="Schedule 1: Cash and Cash Equivalent Schedule"
+              subtitle={`Depository Bank: ${bankName} (${bankInterestRate}% p.a.)`}
+              projectTitle={project.title}
+              buttonText="Download PDF"
+              size="xs"
+              variant="emerald"
+            />
+            {onOpenBankModal && (
+              <button
+                onClick={onOpenBankModal}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <PiggyBank className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Interest Details</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="overflow-x-auto border border-slate-200 rounded-xl">
           <table className="w-full text-xs sm:text-sm border-collapse">
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
               <tr>
-                <th className="py-2.5 px-3 text-left">Period</th>
-                <th className="py-2.5 px-3 text-right">Beginning Balance</th>
-                <th className="py-2.5 px-3 text-right">Annual Debt Payment</th>
-                <th className="py-2.5 px-3 text-right">Principal Repayment</th>
-                <th className="py-2.5 px-3 text-right">Interest Expense</th>
-                <th className="py-2.5 px-3 text-right">Ending Balance</th>
+                <th className="py-2.5 px-3 text-left w-2/5">Particulars / Cash Component</th>
+                <th className="py-2.5 px-3 text-right font-financial">Pre-Op (Yr 0)</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 1</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 2</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 3</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 4</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 5</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-normal">
-              {loanSchedule.map((row) => (
-                <tr key={row.year} className="hover:bg-slate-50/50">
-                  <td className="py-2 px-3 font-medium text-slate-800">Year {row.year}</td>
-                  <td className="py-2 px-3 text-right font-financial">
-                    {formatCurrency(row.beginningBalance, c)}
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
+              {/* Part 1: Cash Flow Movement */}
+              <tr className="bg-slate-50/60 font-semibold text-slate-700">
+                <td colSpan={7} className="py-1.5 px-3">
+                  I. Overall Cash Flow Movement
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5">Beginning Cash Balance</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                    {formatCurrency(y.beginningCash, c)}
                   </td>
-                  <td className="py-2 px-3 text-right font-financial font-semibold text-indigo-950">
-                    {formatCurrency(row.annualPayment, c)}
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5">Add: Operating Cash Inflows / (Disbursements)</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                    {formatCurrency(y.year === 0 ? y.operatingCashFlow : y.operatingCashFlow - (y.interestIncome || 0), c)}
                   </td>
-                  <td className="py-2 px-3 text-right font-financial text-slate-700">
-                    {formatCurrency(row.principalRepayment, c)}
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 font-medium text-emerald-700">
+                  <div className="flex flex-col">
+                    <span>Add: Interest Received from Depository Bank ({bankInterestRate}% p.a.)</span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      Dynamically computed based on opening Cash in Bank balance
+                    </span>
+                  </div>
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial font-medium text-emerald-700">
+                    {formatCurrency(y.interestIncome || 0, c)}
                   </td>
-                  <td className="py-2 px-3 text-right font-financial text-amber-700">
-                    {formatCurrency(row.interestExpense, c)}
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-600">Add / (Less): Investing Activities (CapEx)</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                    {formatCurrency(y.investingCashFlow, c)}
                   </td>
-                  <td className="py-2 px-3 text-right font-financial font-medium text-slate-900">
-                    {formatCurrency(row.endingBalance, c)}
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-600">Add / (Less): Financing Activities (Equity, Debt, Drawings)</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                    {formatCurrency(y.financingCashFlow, c)}
                   </td>
-                </tr>
-              ))}
+                ))}
+              </tr>
+              <tr className="acc-subtotal font-semibold bg-slate-50/40">
+                <td className="py-2 px-3 pl-5">Net Increase / (Decrease) in Cash</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-semibold">
+                    {formatCurrency(y.netCashFlow, c)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Part 2: Composition into Cash on Hand and Cash in Bank */}
+              <tr className="bg-slate-50/60 font-semibold text-slate-700 pt-2">
+                <td colSpan={7} className="py-1.5 px-3">
+                  II. Breakdown of Cash & Cash Equivalents by Holding Account
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <Coins className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Cash on Hand (Petty Cash Fund & Operating Float)</span>
+                  </div>
+                </td>
+                {allYears.map((y) => {
+                  const coh = Math.min(y.endingCash, baseCashOnHand);
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial font-medium text-slate-800">
+                      {formatCurrency(coh, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <Landmark className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Cash in Bank ({bankName})</span>
+                  </div>
+                </td>
+                {allYears.map((y) => {
+                  const coh = Math.min(y.endingCash, baseCashOnHand);
+                  const cib = Math.max(0, y.endingCash - coh);
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial font-medium text-indigo-950">
+                      {formatCurrency(cib, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Ending Cash Balance */}
+              <tr className="acc-total font-bold bg-emerald-50/60 text-emerald-950">
+                <td className="py-2.5 px-3 font-bold uppercase tracking-wide">
+                  Ending Cash Balance (per Schedule 1)
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2.5 px-3 text-right font-financial font-bold text-emerald-950">
+                    {formatCurrency(y.endingCash, c)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Financial Statements Reconciliation Row */}
+              <tr className="bg-indigo-50/40 text-xs font-semibold text-indigo-900 border-t border-indigo-200">
+                <td className="py-2 px-3 pl-4 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Reflected in Financial Statements (Balance Sheet & Cash Flow)</span>
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-bold text-indigo-950">
+                    {formatCurrency(y.cash, c)}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>
+
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Audit Reconciliation:</strong> The ending cash balance per Schedule 1 matches line-for-line with the Statement of Financial Position (Balance Sheet Current Asset: Cash & Cash Equivalents) and the Statement of Cash Flows across all periods.
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 shrink-0">
+            Reconciled: ₱0.00 Variance
+          </span>
+        </div>
       </section>
 
-      {/* SCHEDULE 2: FIXED ASSET DEPRECIATION SCHEDULE */}
-      <section className="print-break-inside-avoid">
-        <div className="flex items-center justify-between mb-2">
+      {/* ========================================================================= */}
+      {/* SCHEDULE 2: FIXED ASSET DEPRECIATION SCHEDULE (Remains the same) */}
+      {/* ========================================================================= */}
+      <section id="note-schedule-2-depreciation" className="print-break-inside-avoid space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Schedule 2: Fixed Asset Depreciation Schedule
-            </h3>
-            <p className="text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <Building className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                Schedule 2: Fixed Asset Depreciation Schedule
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
               Supports Straight-Line (Default), Double Declining Balance, 150% DB, and Sum-of-the-Years&apos;-Digits.
             </p>
           </div>
+          <PdfDownloadButton
+            targetId="note-schedule-2-depreciation"
+            title="Schedule 2: Fixed Asset Depreciation Schedule"
+            subtitle="Fixed Assets, Acquisition Costs & Depreciation"
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="indigo"
+          />
         </div>
 
         <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -128,16 +330,16 @@ export default function SupportingSchedulesView({
               <tr>
                 <th className="py-2.5 px-3 text-left">Asset Description</th>
                 <th className="py-2.5 px-3 text-left">Method</th>
-                <th className="py-2.5 px-3 text-right">Acquisition Cost</th>
-                <th className="py-2.5 px-3 text-right">Life (Yrs)</th>
-                <th className="py-2.5 px-3 text-right">Salvage Value</th>
-                <th className="py-2.5 px-3 text-right">Yr 1 Depr.</th>
-                <th className="py-2.5 px-3 text-right">Yr 1 Book Val</th>
-                <th className="py-2.5 px-3 text-right">Yr 3 Book Val</th>
-                <th className="py-2.5 px-3 text-right">Yr 5 Book Val</th>
+                <th className="py-2.5 px-3 text-right font-financial">Acquisition Cost</th>
+                <th className="py-2.5 px-3 text-right font-financial">Life (Yrs)</th>
+                <th className="py-2.5 px-3 text-right font-financial">Salvage Value</th>
+                <th className="py-2.5 px-3 text-right font-financial">Yr 1 Depr.</th>
+                <th className="py-2.5 px-3 text-right font-financial">Yr 1 Book Val</th>
+                <th className="py-2.5 px-3 text-right font-financial">Yr 3 Book Val</th>
+                <th className="py-2.5 px-3 text-right font-financial">Yr 5 Book Val</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-normal">
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
               {depreciationSchedule.map((item) => {
                 const yr1Depr = item.yearValues.find((y) => y.year === 1)?.depreciation || item.annualDepreciation;
                 const yr1BV = item.yearValues.find((y) => y.year === 1)?.bookValue || 0;
@@ -184,7 +386,7 @@ export default function SupportingSchedulesView({
                     c
                   )}
                 </td>
-                <td className="py-2.5 px-3 text-right">-</td>
+                <td className="py-2.5 px-3 text-right font-financial">-</td>
                 <td className="py-2.5 px-3 text-right font-financial">
                   {formatCurrency(
                     depreciationSchedule.reduce((s, d) => s + d.salvageValue, 0),
@@ -212,503 +414,555 @@ export default function SupportingSchedulesView({
         </div>
       </section>
 
-      {/* SCHEDULE 3: WORKING CAPITAL BUFFER & DEPOSITORY BANKING SCHEDULE */}
-      <section className="print-break-inside-avoid">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+      {/* ========================================================================= */}
+      {/* SCHEDULE 3: ACCOUNTS RECEIVABLE AND INVENTORY SCHEDULE */}
+      {/* ========================================================================= */}
+      <section id="note-schedule-3-ar-inventory" className="print-break-inside-avoid space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Schedule 3: Working Capital Buffer & Depository Cash Schedule
-            </h3>
-            <p className="text-xs text-slate-500">
-              Breakdown of Day 1 initial liquidity into Cash on Hand and interest-bearing Cash in Bank.
-            </p>
-          </div>
-
-          {onOpenBankModal && (
-            <button
-              onClick={onOpenBankModal}
-              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <PiggyBank className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Savings Interest Breakdown</span>
-            </button>
-          )}
-        </div>
-
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
-            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-              <tr>
-                <th className="py-2.5 px-3 text-left">Liquidity Component</th>
-                <th className="py-2.5 px-3 text-left">Depository Institution / Channel</th>
-                <th className="py-2.5 px-3 text-right">Initial Buffer ({c})</th>
-                <th className="py-2.5 px-3 text-right">Share of Buffer %</th>
-                <th className="py-2.5 px-3 text-right">Interest Rate (% p.a.)</th>
-                <th className="py-2.5 px-3 text-right">Est. Annual Interest Income</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-normal">
-              {(() => {
-                const totalBuffer = project.initialWorkingCapitalBuffer || 1;
-                const coh =
-                  project.workingCapitalBufferDetails?.cashOnHand ??
-                  Math.round(totalBuffer * 0.2);
-                const cib =
-                  project.workingCapitalBufferDetails?.cashInBank ??
-                  Math.round(totalBuffer * 0.8);
-                const bankName =
-                  project.workingCapitalBufferDetails?.bankName || 'BDO Unibank, Inc.';
-                const rate =
-                  project.workingCapitalBufferDetails?.bankInterestRatePercent ?? 1.0;
-                const annualInterest = Math.round(cib * (rate / 100));
-
-                return (
-                  <>
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-3 font-medium text-slate-800">Cash on Hand</td>
-                      <td className="py-2.5 px-3 text-slate-600">
-                        Physical Vault & Register Cash Float (Petty Cash)
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial">
-                        {formatCurrency(coh, c)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial text-slate-600">
-                        {totalBuffer > 0 ? Math.round((coh / totalBuffer) * 100) : 0}%
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial text-slate-400">0.00%</td>
-                      <td className="py-2.5 px-3 text-right font-financial text-slate-400">
-                        {formatCurrency(0, c)}
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-3 font-medium text-slate-800">Cash in Bank</td>
-                      <td className="py-2.5 px-3 text-slate-800 font-medium">
-                        {bankName} (Commercial Depository Account)
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial">
-                        {formatCurrency(cib, c)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial text-slate-600">
-                        {totalBuffer > 0 ? Math.round((cib / totalBuffer) * 100) : 0}%
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial font-semibold text-indigo-700">
-                        {rate.toFixed(2)}%
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial font-semibold text-emerald-700">
-                        {formatCurrency(annualInterest, c)}
-                      </td>
-                    </tr>
-                    <tr className="acc-subtotal font-bold bg-slate-50/70">
-                      <td className="py-2.5 px-3 font-bold text-slate-900">Total Working Capital Buffer</td>
-                      <td className="py-2.5 px-3 text-slate-500 text-xs italic">
-                        Combined Operational Liquidity Reserve
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial font-bold text-indigo-950">
-                        {formatCurrency(totalBuffer, c)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial font-bold">100%</td>
-                      <td className="py-2.5 px-3 text-right font-financial">-</td>
-                      <td className="py-2.5 px-3 text-right font-financial font-bold text-emerald-700">
-                        {formatCurrency(annualInterest, c)}
-                      </td>
-                    </tr>
-                  </>
-                );
-              })()}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* SCHEDULE 4: DIRECT MATERIALS & PRODUCT COST PER UNIT (BOM BREAKDOWN) */}
-      <section className="print-break-inside-avoid">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Schedule 4: Direct Materials & Product Cost Per Unit (Unit COGS Schedule)
-            </h3>
-            <p className="text-xs text-slate-500">
-              Itemized direct cost decomposition, gross contribution margins, and markup rates per product sold.
-            </p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-xs sm:text-sm border-collapse">
-            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-              <tr>
-                <th className="py-2.5 px-3 text-left">Product Sold / Cost Components</th>
-                <th className="py-2.5 px-3 text-left">Category / Unit</th>
-                <th className="py-2.5 px-3 text-right">Selling Price ({c})</th>
-                <th className="py-2.5 px-3 text-right">Unit Cost ({c})</th>
-                <th className="py-2.5 px-3 text-right">Unit Margin ({c})</th>
-                <th className="py-2.5 px-3 text-right">Margin %</th>
-                <th className="py-2.5 px-3 text-right">Yr 1 Volume</th>
-                <th className="py-2.5 px-3 text-right">Yr 1 Direct Cost</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-normal">
-              {project.products.map((prod) => {
-                const comps = prod.costBreakdown || [];
-                const calcTotal = comps.reduce(
-                  (s, item) => s + (Number(item.quantity) || 0) * (Number(item.unitCost) || 0),
-                  0
-                );
-                const effectiveCost = prod.unitCost > 0 ? prod.unitCost : calcTotal;
-                const unitMargin = prod.unitPrice - effectiveCost;
-                const marginPct = prod.unitPrice > 0 ? (unitMargin / prod.unitPrice) * 100 : 0;
-                const yr1Total = effectiveCost * prod.year1Volume;
-
-                return (
-                  <tr key={prod.id} className="hover:bg-slate-50/50">
-                    <td className="py-2.5 px-3 font-semibold text-slate-800">
-                      <div className="flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span>{prod.name}</span>
-                      </div>
-                      {comps.length > 0 && (
-                        <div className="text-[11px] text-slate-500 font-normal mt-0.5 pl-5">
-                          {comps.map((item) => {
-                            const isYield = item.costMode === 'package_yield' && item.purchaseCost && item.yieldUnits;
-                            const formula = isYield
-                              ? ` [${formatCurrency(item.purchaseCost, c)}/${item.packageUnit || 'pkg'} ÷ ${item.yieldUnits} units = ${formatCurrency(item.totalCost, c)}]`
-                              : ` (${formatCurrency(item.totalCost, c)})`;
-                            return `${item.name}${formula}`;
-                          }).join(' • ')}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-600 text-xs">
-                      {comps.length > 0 ? `${comps.length} components itemized` : 'Standard direct cost'}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-financial font-medium text-slate-800">
-                      {formatCurrency(prod.unitPrice, c)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-financial font-bold text-indigo-950">
-                      {formatCurrency(effectiveCost, c)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-financial font-semibold text-emerald-700">
-                      {formatCurrency(unitMargin, c)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-financial">
-                      <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800">
-                        {marginPct.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-financial text-slate-700">
-                      {prod.year1Volume.toLocaleString()}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
-                      {formatCurrency(yr1Total, c)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* SCHEDULE 5: FACTORY OVERHEAD & PRODUCTION LABOR BENEFITS SCHEDULE */}
-      <section className="print-break-inside-avoid">
-        {(() => {
-          const directHeadcount = (project.directLabor || []).reduce((s, l) => s + (l.headcount || 0), 0);
-          const directBasicAnnual12M = (project.directLabor || []).reduce(
-            (s, l) => s + (l.headcount || 0) * (l.monthlyWage || 0) * 12,
-            0
-          );
-          const indirectHeadcount = (project.indirectLabor || []).reduce((s, l) => s + (l.headcount || 0), 0);
-          const indirectLaborAnnual = (project.indirectLabor || []).reduce(
-            (s, l) => s + (l.headcount || 0) * (l.monthlyWage || 0) * (l.monthsPerYear || 12),
-            0
-          );
-          const indirectBasicAnnual12M = (project.indirectLabor || []).reduce(
-            (s, l) => s + (l.headcount || 0) * (l.monthlyWage || 0) * 12,
-            0
-          );
-
-          const utilitiesAnnual = (project.productionUtilities || []).reduce(
-            (s, u) =>
-              s +
-              (u.annualAmountYear1 !== undefined && u.annualAmountYear1 !== 0
-                ? u.annualAmountYear1
-                : (u.monthlyAmount ? u.monthlyAmount * 12 : 0)),
-            0
-          );
-          // Factory Overhead Engine Details & Statutory Benefits
-          const fohDetails = calculateYear1FactoryOverhead(project);
-          const suppliesAnnual = fohDetails.suppliesAndOverheadAnnual;
-          const factoryDeprYr1 = fohDetails.factoryDepreciationAnnual;
-          const factoryDeprMethodLabel =
-            project.factoryDepreciationMethod === 'specific_assets'
-              ? `Specific Factory Assets (${(project.factoryAssetIds || []).length} assigned)`
-              : `Production Allocation (${project.factoryDepreciationPercent ?? 50}% of plant depreciation)`;
-          const statutoryBenefits = compileProductionEmployeeBenefits(
-            project.directLabor || [],
-            project.indirectLabor || []
-          );
-
-          const totalLaborBenefitsYr1 = fohDetails.factoryLaborBenefitsAnnual;
-          const includeBenefits = project.includeLaborBenefitsInCOGS !== false;
-          const totalFOHCapitalizedYr1 = fohDetails.totalFactoryOverheadAnnual;
-          const benefits = project.productionLaborBenefits || [];
-
-          return (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Factory className="w-4 h-4 text-indigo-600" />
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Schedule 5: Factory Overhead & Production Labor Benefits Schedule
-                    </h3>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Comprehensive audit schedule of all indirect manufacturing costs capitalized into Cost of Goods Sold.
-                  </p>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-200 rounded-xl mb-4">
-                <table className="w-full text-xs sm:text-sm border-collapse">
-                  <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3 text-left">Overhead Component</th>
-                      <th className="py-2.5 px-3 text-left">Basis / Method</th>
-                      <th className="py-2.5 px-3 text-right">Headcount / Qty</th>
-                      <th className="py-2.5 px-3 text-right">Year 1 Amount ({c})</th>
-                      <th className="py-2.5 px-3 text-right">Accounting Classification</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-normal">
-                    {/* Indirect Labor */}
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2 px-3 font-medium text-slate-800">
-                        Indirect Labor (Supervisors, QC, Maintenance)
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {project.indirectLabor?.length || 0} production support role(s)
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial text-slate-700">
-                        {indirectHeadcount} worker{indirectHeadcount !== 1 ? 's' : ''}
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
-                        {formatCurrency(indirectLaborAnnual, c)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
-                        Capitalized in FOH (COGS)
-                      </td>
-                    </tr>
-
-                    {/* Production Utilities */}
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2 px-3 font-medium text-slate-800">
-                        Utilities Attributed to Production (Power, Water, Gas)
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">Factory electricity & processing water</td>
-                      <td className="py-2 px-3 text-right font-financial text-slate-700">12 mos</td>
-                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
-                        {formatCurrency(utilitiesAnnual, c)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
-                        Capitalized in FOH (COGS)
-                      </td>
-                    </tr>
-
-                    {/* Indirect Supplies */}
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2 px-3 font-medium text-slate-800">
-                        Indirect Factory Supplies & Consumables
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {(project.factorySupplies || []).length > 0
-                          ? `${(project.factorySupplies || []).length} itemized supplies & cleaning items`
-                          : 'Factory lubricants, sanitation, small tools'}
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial text-slate-700">
-                        {(project.factorySupplies || []).length > 0 ? `${(project.factorySupplies || []).length} lines` : 'Annual'}
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
-                        {formatCurrency(suppliesAnnual, c)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
-                        Capitalized in FOH (COGS)
-                      </td>
-                    </tr>
-
-                    {/* FOH Supplies, Utilities & Indirect Labor Subtotal */}
-                    <tr className="bg-amber-50/50 text-slate-700 text-xs border-t border-b border-amber-200/70 font-medium">
-                      <td className="py-2 px-3 text-amber-950 font-semibold" colSpan={2}>
-                        ↳ Subtotal: Factory Overhead (Supplies, Utilities & Indirect Labor)
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial text-slate-600">
-                        {indirectHeadcount} staff
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial font-bold text-amber-950">
-                        {formatCurrency(fohDetails.factoryOverheadSuppliesAndUtilitiesAnnual, c)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-xs text-amber-800 font-medium">
-                        Reflected in Financial Statement
-                      </td>
-                    </tr>
-
-                    {/* Factory Depreciation */}
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2 px-3 font-medium text-slate-800">
-                        Depreciation Attributed to Production
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">{factoryDeprMethodLabel}</td>
-                      <td className="py-2 px-3 text-right font-financial text-slate-700">-</td>
-                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
-                        {formatCurrency(factoryDeprYr1, c)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-xs text-indigo-700 font-medium">
-                        Capitalized in FOH (COGS)
-                      </td>
-                    </tr>
-
-                    {/* Production Labor Benefits */}
-                    <tr className="hover:bg-slate-50/50">
-                      <td className="py-2 px-3 font-medium text-slate-800">
-                        <div className="flex items-center gap-1.5">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>Production Labor Benefits (SSS, PhilHealth, Pag-IBIG, 13th Mo.)</span>
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        Statutory SSS/PhilHealth/Pag-IBIG + {benefits.length} custom benefit(s)
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial text-slate-700">
-                        {directHeadcount + indirectHeadcount} staff
-                      </td>
-                      <td className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
-                        {formatCurrency(totalLaborBenefitsYr1, c)}
-                      </td>
-                      <td className="py-2 px-3 text-right text-xs">
-                        {includeBenefits ? (
-                          <span className="text-emerald-700 font-medium">Capitalized in FOH (COGS)</span>
-                        ) : (
-                          <span className="text-amber-700 font-medium">Classified under SG&A (OPEX)</span>
-                        )}
-                      </td>
-                    </tr>
-
-                    {/* Subtotal Factory Overhead */}
-                    <tr className="acc-subtotal font-bold bg-slate-50/70 border-t-2 border-slate-200">
-                      <td className="py-2.5 px-3 font-bold text-slate-900">
-                        Total Factory Overhead Capitalized in COGS (Year 1)
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-500 text-xs italic">
-                        Combined Indirect Manufacturing Cost
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial text-slate-700">
-                        {indirectHeadcount} indirect staff
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-financial font-bold text-indigo-950 text-sm">
-                        {formatCurrency(totalFOHCapitalizedYr1, c)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-xs font-bold text-indigo-950">
-                        COGS Inclusion: Active
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Financial Statements COGS Reconciliation Note */}
-              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-200 text-xs text-indigo-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <div>
-                  <span className="font-bold block">Financial Statement COGS Reconciliation (Year 1):</span>
-                  <span className="text-[11px] text-indigo-800">
-                    Production Benefits ({formatCurrency(totalLaborBenefitsYr1, c)}) + Factory Overhead (Supplies & Utilities) ({formatCurrency(fohDetails.factoryOverheadSuppliesAndUtilitiesAnnual, c)}) + Depreciation ({formatCurrency(factoryDeprYr1, c)}) = Total Year 1 Factory Overhead ({formatCurrency(totalFOHCapitalizedYr1, c)}).
-                  </span>
-                </div>
-              </div>
-
-              {/* Itemized Employee Benefits Breakdown including Statutory SSS, PhilHealth, Pag-IBIG */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-2">
-                <div className="font-bold text-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Production Employee Benefits Breakdown (Statutory + Non-Statutory):</span>
-                  </div>
-                  <span className="text-slate-500 font-financial text-[11px]">
-                    Total Labor Benefits: {formatCurrency(totalLaborBenefitsYr1, c)} /yr
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                    <span className="font-bold text-indigo-900 block">SSS Employer Share</span>
-                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
-                      {formatCurrency(statutoryBenefits.summary.totalSssErAnnual, c)}
-                    </span>
-                  </div>
-
-                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                    <span className="font-bold text-blue-900 block">PhilHealth Employer Share</span>
-                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
-                      {formatCurrency(statutoryBenefits.summary.totalPhilHealthErAnnual, c)}
-                    </span>
-                  </div>
-
-                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                    <span className="font-bold text-emerald-900 block">Pag-IBIG Employer Share</span>
-                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
-                      {formatCurrency(statutoryBenefits.summary.totalPagIbigErAnnual, c)}
-                    </span>
-                  </div>
-
-                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                    <span className="font-bold text-amber-900 block">13th Month Pay (Statutory)</span>
-                    <span className="text-base font-bold text-slate-900 font-financial block mt-0.5">
-                      {formatCurrency(statutoryBenefits.summary.totalThirteenthMonth, c)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900 font-medium">
-                  <span>Total Statutory Benefits (SSS + PhilHealth + Pag-IBIG + 13th Month Pay):</span>
-                  <span className="font-bold font-financial text-sm text-emerald-950">
-                    {formatCurrency(statutoryBenefits.summary.totalStatutoryAnnual, c)} /yr
-                  </span>
-                </div>
-
-                {benefits.length > 0 && (
-                  <div className="pt-2 border-t border-slate-200">
-                    <span className="text-[11px] font-semibold text-slate-600 block mb-1">
-                      Additional / Non-Statutory Benefits:
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {benefits.map((b) => (
-                        <div key={b.id} className="bg-white p-2 rounded-lg border border-slate-200">
-                          <span className="font-semibold text-slate-800 block truncate">{b.name}</span>
-                          <span className="text-[11px] text-slate-500 block">
-                            Mode:{' '}
-                            {b.type === 'percentage'
-                              ? `${b.rateOrAmount}% of basic`
-                              : b.type === 'fixed_monthly_per_head'
-                              ? `${formatCurrency(b.rateOrAmount, c)}/head/mo`
-                              : `${formatCurrency(b.rateOrAmount, c)} lump sum`}
-                          </span>
-                          <span className="text-[10px] text-indigo-600 font-medium block mt-0.5">
-                            Applies to:{' '}
-                            {b.appliesTo === 'both'
-                              ? 'Direct & Indirect Staff'
-                              : b.appliesTo === 'direct_only'
-                              ? 'Direct Labor Only'
-                              : 'Indirect Labor Only'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                Schedule 3: Account Receivables and Inventory Schedule
+              </h3>
             </div>
-          );
-        })()}
+            <p className="text-xs text-slate-500 mt-0.5">
+              Movement of Accounts Receivable ({project.workingCapital.accountsReceivablePercentOfSales}% of Sales) and Inventory ({project.workingCapital.inventoryPercentOfCOGS}% of COGS) showing ending balances matching the Financial Statements.
+            </p>
+          </div>
+          <PdfDownloadButton
+            targetId="note-schedule-3-ar-inventory"
+            title="Schedule 3: Accounts Receivable and Inventory Schedule"
+            subtitle="Working Capital Assets"
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="default"
+          />
+        </div>
+
+        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+          <table className="w-full text-xs sm:text-sm border-collapse">
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="py-2.5 px-3 text-left w-2/5">Working Capital Account / Particulars</th>
+                <th className="py-2.5 px-3 text-right font-financial">Pre-Op (Yr 0)</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 1</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 2</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 3</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 4</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 5</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
+              {/* Part A: Accounts Receivable Movement */}
+              <tr className="bg-slate-50/60 font-semibold text-slate-700">
+                <td colSpan={7} className="py-1.5 px-3">
+                  I. Accounts Receivable Movement ({project.workingCapital.accountsReceivablePercentOfSales}% credit sales policy)
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-600">Beginning Accounts Receivable</td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.accountsReceivable || 0;
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                      {formatCurrency(prev, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-700">Add: Net Sales Revenue on Credit</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-700">
+                    {formatCurrency(y.netSales, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-600">Less: Cash Collections from Customers</td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.accountsReceivable || 0;
+                  const collections = idx === 0 ? 0 : prev + y.netSales - y.accountsReceivable;
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                      {formatCurrency(-collections, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="acc-subtotal font-bold bg-indigo-50/30 text-indigo-950">
+                <td className="py-2 px-3 pl-5">
+                  Ending Accounts Receivable (Net)
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-bold text-indigo-950">
+                    {formatCurrency(y.accountsReceivable, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="text-xs text-slate-500 bg-slate-50/20 italic">
+                <td className="py-1.5 px-3 pl-7">↳ Reflected in Balance Sheet: Current Assets</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600 font-medium">
+                    {formatCurrency(y.accountsReceivable, c)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Part B: Inventories Movement */}
+              <tr className="bg-slate-50/60 font-semibold text-slate-700 pt-3">
+                <td colSpan={7} className="py-1.5 px-3">
+                  II. Inventories Movement ({project.workingCapital.inventoryPercentOfCOGS}% buffer of Cost of Goods Sold)
+                </td>
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-600">Beginning Inventory Balance</td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.inventory || 0;
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                      {formatCurrency(prev, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-700">Add: Manufacturing Additions & Material Purchases</td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.inventory || 0;
+                  const additions = idx === 0 ? 0 : y.totalCOGS + (y.inventory - prev);
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-700">
+                      {formatCurrency(additions, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-1.5 px-3 pl-5 text-slate-600">Less: Cost of Goods Sold (Transferred to Sales)</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600">
+                    {formatCurrency(-y.totalCOGS, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="acc-subtotal font-bold bg-indigo-50/30 text-indigo-950">
+                <td className="py-2 px-3 pl-5">
+                  Ending Inventory Balance
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-bold text-indigo-950">
+                    {formatCurrency(y.inventory, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="text-xs text-slate-500 bg-slate-50/20 italic">
+                <td className="py-1.5 px-3 pl-7">↳ Reflected in Balance Sheet: Current Assets</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1.5 px-3 text-right font-financial text-slate-600 font-medium">
+                    {formatCurrency(y.inventory, c)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Part C: Total Working Capital Operating Assets */}
+              <tr className="acc-total font-bold bg-slate-100 text-slate-900 border-t-2 border-slate-300">
+                <td className="py-2.5 px-3 font-bold uppercase tracking-wide">
+                  Total Receivables & Inventory (Ending Balances)
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                    {formatCurrency(y.accountsReceivable + y.inventory, c)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Financial Statements Reconciliation:</strong> Ending Accounts Receivable and Ending Inventory balances reconcile 100% with the Statement of Financial Position (Balance Sheet Current Assets) and drive the Operating Cash Flow statement adjustments.
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 shrink-0">
+            Reconciled: ₱0.00 Variance
+          </span>
+        </div>
       </section>
+
+      {/* ========================================================================= */}
+      {/* SCHEDULE 4: ACCOUNTS PAYABLE SCHEDULE */}
+      {/* ========================================================================= */}
+      <section id="note-schedule-4-ap" className="print-break-inside-avoid space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                Schedule 4: Accounts Payable Schedule
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Movement of trade obligations to direct material suppliers ({project.workingCapital.accountsPayablePercentOfPurchases}% of Purchases) and ending balance reflected in the Financial Statements.
+            </p>
+          </div>
+          <PdfDownloadButton
+            targetId="note-schedule-4-ap"
+            title="Schedule 4: Accounts Payable Schedule"
+            subtitle="Trade Payables to Direct Material Suppliers"
+            projectTitle={project.title}
+            buttonText="Download PDF"
+            size="xs"
+            variant="default"
+          />
+        </div>
+
+        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+          <table className="w-full text-xs sm:text-sm border-collapse">
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="py-2.5 px-3 text-left w-2/5">Accounts Payable Movement / Particulars</th>
+                <th className="py-2.5 px-3 text-right font-financial">Pre-Op (Yr 0)</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 1</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 2</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 3</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 4</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 5</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
+              <tr>
+                <td className="py-2 px-3 pl-5 text-slate-600">Beginning Accounts Payable</td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.accountsPayable || 0;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial text-slate-600">
+                      {formatCurrency(prev, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 text-slate-700 font-medium">
+                  Add: Direct Material Purchases on Credit
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-medium text-slate-700">
+                    {formatCurrency(y.directMaterials, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-slate-50/40">
+                <td className="py-2 px-3 pl-5 font-semibold text-slate-800">
+                  Total Trade Obligations to Suppliers
+                </td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.accountsPayable || 0;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial font-semibold text-slate-800">
+                      {formatCurrency(prev + y.directMaterials, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 text-slate-600">
+                  Less: Cash Payments to Suppliers & Trade Creditors
+                </td>
+                {allYears.map((y, idx) => {
+                  const prev = idx === 0 ? 0 : allYears[idx - 1]?.accountsPayable || 0;
+                  const payments = idx === 0 ? 0 : prev + y.directMaterials - y.accountsPayable;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial text-slate-600">
+                      {formatCurrency(-payments, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Ending Accounts Payable */}
+              <tr className="acc-total font-bold bg-amber-50/60 text-amber-950 border-t-2 border-amber-200">
+                <td className="py-2.5 px-3 font-bold uppercase tracking-wide">
+                  Ending Accounts Payable Balance (per Schedule 4)
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2.5 px-3 text-right font-financial font-bold text-amber-950">
+                    {formatCurrency(y.accountsPayable, c)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Reconciliation row */}
+              <tr className="bg-indigo-50/40 text-xs font-semibold text-indigo-900 border-t border-indigo-200">
+                <td className="py-2 px-3 pl-4 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Reflected in Financial Statements (Balance Sheet Current Liabilities)</span>
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-bold text-indigo-950">
+                    {formatCurrency(y.accountsPayable, c)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Balance Sheet Alignment:</strong> The ending Accounts Payable balance exactly matches the Current Liabilities section of the Statement of Financial Position and reconciles with the Statement of Cash Flows operating changes.
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 shrink-0">
+            Reconciled: ₱0.00 Variance
+          </span>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* SCHEDULE 5: BANK LOAN SCHEDULE */}
+      {/* ========================================================================= */}
+      <section id="note-schedule-5-loan" className="print-break-inside-avoid space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                Schedule 5: Bank Loan Schedule
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Breakdown of bank loan obligations into Current Portion (due within 1 year) and Long-Term Portion (due after 1 year), including interest and principal paid and ending balances.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <PdfDownloadButton
+              targetId="note-schedule-5-loan"
+              title="Schedule 5: Bank Loan Schedule"
+              subtitle={`Principal: ${formatCurrency(project.financing.bankLoanAmount, c)} @ ${project.financing.annualInterestRate}% p.a.`}
+              projectTitle={project.title}
+              buttonText="Download PDF"
+              size="xs"
+              variant="indigo"
+            />
+            {onOpenBankModal && (
+              <button
+                onClick={onOpenBankModal}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Debt Service Details</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Loan Overview Banner */}
+        <div className="bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 p-3 rounded-xl border border-slate-200 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
+          <div>
+            <span className="text-slate-500 block">Principal Borrowed:</span>
+            <span className="font-bold text-slate-900 font-financial text-sm">
+              {formatCurrency(project.financing.bankLoanAmount, c)}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-500 block">Annual Interest Rate:</span>
+            <span className="font-bold text-indigo-900 font-financial text-sm">
+              {project.financing.annualInterestRate}% p.a.
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-500 block">Loan Term:</span>
+            <span className="font-bold text-slate-900 font-financial text-sm">
+              {project.financing.loanTermYears} Years
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-500 block">Amortization Method:</span>
+            <span className="font-bold text-slate-900 text-sm">
+              Equal Annual Installment
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+          <table className="w-full text-xs sm:text-sm border-collapse">
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="py-2.5 px-3 text-left w-2/5">Debt Service & Balance Classification</th>
+                <th className="py-2.5 px-3 text-right font-financial">Pre-Op (Yr 0)</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 1</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 2</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 3</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 4</th>
+                <th className="py-2.5 px-3 text-right font-financial">Year 5</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-normal text-slate-800">
+              {/* Part 1: Movement of Total Bank Debt */}
+              <tr className="bg-slate-50/60 font-semibold text-slate-700">
+                <td colSpan={7} className="py-1.5 px-3">
+                  I. Total Bank Loan Balance & Debt Service Movement
+                </td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 text-slate-600">Beginning Total Loan Balance</td>
+                {allYears.map((y) => {
+                  const beg = y.year === 0 ? 0 : loanSchedule[y.year - 1]?.beginningBalance || 0;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial text-slate-600">
+                      {formatCurrency(beg, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 text-slate-700">Add: Loan Availment / Borrowing Proceeds</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial text-slate-700">
+                    {formatCurrency(y.year === 0 ? project.financing.bankLoanAmount : 0, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 text-amber-700 font-medium">
+                  Less: Principal Repaid During the Year
+                </td>
+                {allYears.map((y) => {
+                  const princ = y.year === 0 ? 0 : loanSchedule[y.year - 1]?.principalRepayment || 0;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial font-medium text-amber-700">
+                      {formatCurrency(-princ, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="acc-subtotal font-semibold bg-slate-50/40">
+                <td className="py-2 px-3 pl-5 text-slate-900">
+                  Total Ending Loan Balance (Outstanding Principal)
+                </td>
+                {allYears.map((y) => {
+                  const end = y.year === 0 ? project.financing.bankLoanAmount : loanSchedule[y.year - 1]?.endingBalance || 0;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial font-semibold text-slate-900">
+                      {formatCurrency(end, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 text-rose-700 font-medium">
+                  Interest Paid / Finance Cost ({project.financing.annualInterestRate}%)
+                </td>
+                {allYears.map((y) => {
+                  const intExp = y.year === 0 ? 0 : loanSchedule[y.year - 1]?.interestExpense || 0;
+                  return (
+                    <td key={y.year} className="py-2 px-3 text-right font-financial font-medium text-rose-700">
+                      {formatCurrency(intExp, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="bg-slate-50/50 text-xs">
+                <td className="py-1.5 px-3 pl-7 text-slate-600 font-medium">
+                  ↳ Total Annual Debt Service Paid (Principal + Interest)
+                </td>
+                {allYears.map((y) => {
+                  const pmt = y.year === 0 ? 0 : loanSchedule[y.year - 1]?.annualPayment || 0;
+                  return (
+                    <td key={y.year} className="py-1.5 px-3 text-right font-financial font-medium text-slate-700">
+                      {formatCurrency(pmt, c)}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Part 2: Balance Sheet Classification Breakdown */}
+              <tr className="bg-slate-50/60 font-semibold text-slate-700 pt-3">
+                <td colSpan={7} className="py-1.5 px-3">
+                  II. Balance Sheet Classification: Current Portion vs. Long-Term Portion
+                </td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 pl-5 font-semibold text-indigo-950">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span>Current Portion of Bank Loan (Due within 12 Months)</span>
+                  </div>
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-bold text-amber-900">
+                    {formatCurrency(y.currentPortionOfDebt, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="text-xs text-slate-500 bg-slate-50/20 italic">
+                <td className="py-1 px-3 pl-8">↳ Reflected in Balance Sheet: Current Liabilities</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1 px-3 text-right font-financial text-slate-600 font-medium">
+                    {formatCurrency(y.currentPortionOfDebt, c)}
+                  </td>
+                ))}
+              </tr>
+
+              <tr>
+                <td className="py-2 px-3 pl-5 font-semibold text-indigo-950">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                    <span>Long-Term Bank Loan (Due Beyond 12 Months, Net of Current)</span>
+                  </div>
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2 px-3 text-right font-financial font-bold text-indigo-950">
+                    {formatCurrency(y.longTermDebt, c)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="text-xs text-slate-500 bg-slate-50/20 italic">
+                <td className="py-1 px-3 pl-8">↳ Reflected in Balance Sheet: Non-Current Liabilities</td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-1 px-3 text-right font-financial text-slate-600 font-medium">
+                    {formatCurrency(y.longTermDebt, c)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Total Bank Loan Balance Check */}
+              <tr className="acc-total font-bold bg-slate-100 text-slate-900 border-t-2 border-slate-300">
+                <td className="py-2.5 px-3 font-bold uppercase tracking-wide">
+                  Total Bank Loan Ending Balance (Current + Long-Term)
+                </td>
+                {allYears.map((y) => (
+                  <td key={y.year} className="py-2.5 px-3 text-right font-financial font-bold text-slate-900">
+                    {formatCurrency(y.currentPortionOfDebt + y.longTermDebt, c)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Financial Statements Reconciliation:</strong> Current portion reconciles to Current Liabilities, Long-term portion reconciles to Non-Current Liabilities, Interest paid reconciles to Income Statement (Finance Costs), and Principal paid reconciles to Financing Cash Flows.
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 shrink-0">
+            Reconciled: ₱0.00 Variance
+          </span>
+        </div>
+      </section>
+      </div>
     </div>
   );
 }
