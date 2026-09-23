@@ -104,6 +104,9 @@ export default function BreakEvenUnitsTable({
           buttonText="Download PDF"
           size="xs"
           variant="default"
+          orientation="landscape"
+          format="a4"
+          fitToSinglePage={true}
         />
       </div>
 
@@ -125,7 +128,7 @@ export default function BreakEvenUnitsTable({
             </span>
           </div>
           <div className="text-lg sm:text-xl font-bold font-financial text-indigo-950 mt-1 flex items-center gap-2">
-            <span>{yr1.bepUnits.toLocaleString()} Units</span>
+            <span>{yr1.bepUnits.toLocaleString()}</span>
           </div>
           <span className="text-[11px] text-slate-500 group-hover:text-indigo-900 transition-colors">
             Break-Even Sales: {formatCurrency(yr1.bepSales, c)}
@@ -137,7 +140,7 @@ export default function BreakEvenUnitsTable({
             Year 1 Target Production
           </span>
           <div className="text-lg sm:text-xl font-bold font-financial text-slate-900 mt-1">
-            {yr1.totalUnits.toLocaleString()} Units
+            {yr1.totalUnits.toLocaleString()}
           </div>
           <span className="text-[11px] text-slate-500">
             Planned annual sales capacity
@@ -150,7 +153,7 @@ export default function BreakEvenUnitsTable({
             Year 1 Margin of Safety
           </span>
           <div className="text-lg sm:text-xl font-bold font-financial text-emerald-950 mt-1">
-            {yr1.mosUnits.toLocaleString()} Units
+            {yr1.mosUnits.toLocaleString()}
           </div>
           <span className="text-[11px] font-semibold text-emerald-700">
             {formatPercent(yr1.mosUnitsRatio)} volume safety cushion
@@ -284,7 +287,7 @@ export default function BreakEvenUnitsTable({
                     className="inline-flex items-center justify-end gap-1.5 px-2.5 py-1.5 rounded-lg bg-white hover:bg-indigo-600 text-indigo-950 hover:text-white border border-indigo-200 hover:border-indigo-600 shadow-2xs hover:shadow-xs transition-all font-bold cursor-pointer group text-xs sm:text-sm"
                     title={`Click to view Year ${d.year} detailed BEP breakdown (${d.bepUnits.toLocaleString()} units)`}
                   >
-                    <span>{d.bepUnits.toLocaleString()} Units</span>
+                    <span>{d.bepUnits.toLocaleString()}</span>
                     <Search className="w-3 h-3 text-indigo-500 group-hover:text-white transition-colors shrink-0" />
                   </button>
                 </td>
@@ -324,7 +327,7 @@ export default function BreakEvenUnitsTable({
               </td>
               {bepYearData.map((d) => (
                 <td key={d.year} className="py-2.5 text-right font-financial font-medium text-slate-900">
-                  {d.totalUnits.toLocaleString()} Units
+                  {d.totalUnits.toLocaleString()}
                 </td>
               ))}
             </tr>
@@ -339,7 +342,7 @@ export default function BreakEvenUnitsTable({
               </td>
               {bepYearData.map((d) => (
                 <td key={d.year} className="py-2.5 text-right font-financial font-semibold text-emerald-700">
-                  {d.mosUnits.toLocaleString()} Units
+                  {d.mosUnits.toLocaleString()}
                 </td>
               ))}
             </tr>
@@ -393,7 +396,7 @@ export default function BreakEvenUnitsTable({
                               className="hover:text-indigo-600 hover:underline cursor-pointer font-medium"
                               title={`View Year ${d.year} allocation breakdown`}
                             >
-                              {item.bepUnits.toLocaleString()} Units
+                              {item.bepUnits.toLocaleString()}
                             </button>
                           ) : (
                             '—'

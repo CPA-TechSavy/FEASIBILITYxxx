@@ -668,9 +668,13 @@ export function calculate5YearFinancials(project: FeasibilityProject): YearFinan
     // Investing Cash Flow (Year 1-5 has 0 major capex in typical undergraduate base model)
     const investingCashFlow = 0;
 
-    // Dividends / Drawings
+    // Dividends / Drawings (Owner Withdrawals Policy)
+    const withdrawalPercent =
+      project.workingCapital?.ownerWithdrawalsPercent !== undefined
+        ? project.workingCapital.ownerWithdrawalsPercent
+        : (project.dividendPayoutPercent || 0);
     const dividendsPaid =
-      netIncome > 0 ? netIncome * (project.dividendPayoutPercent / 100) : 0;
+      netIncome > 0 ? netIncome * (withdrawalPercent / 100) : 0;
 
     // Financing Cash Flow = - Principal Repayment - Dividends
     const financingCashFlow = -loanRow.principalRepayment - dividendsPaid;

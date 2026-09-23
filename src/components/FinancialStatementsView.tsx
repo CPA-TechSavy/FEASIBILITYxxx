@@ -72,6 +72,8 @@ export default function FinancialStatementsView({
             buttonText="Download All Statements (PDF)"
             size="sm"
             variant="slate"
+            orientation="landscape"
+            format="a4"
           />
 
           {/* View Switcher Tabs */}
@@ -168,6 +170,9 @@ export default function FinancialStatementsView({
                   buttonText="Download PDF"
                   size="xs"
                   variant="default"
+                  orientation="landscape"
+                  format="a4"
+                  fitToSinglePage={true}
                 />
               </div>
             </div>
@@ -545,6 +550,9 @@ export default function FinancialStatementsView({
                   buttonText="Download PDF"
                   size="xs"
                   variant="default"
+                  orientation="landscape"
+                  format="a4"
+                  fitToSinglePage={true}
                 />
               </div>
             </div>
@@ -846,6 +854,9 @@ export default function FinancialStatementsView({
                   buttonText="Download PDF"
                   size="xs"
                   variant="default"
+                  orientation="landscape"
+                  format="a4"
+                  fitToSinglePage={true}
                 />
               </div>
             </div>
@@ -1172,6 +1183,9 @@ export default function FinancialStatementsView({
                   buttonText="Download PDF"
                   size="xs"
                   variant="default"
+                  orientation="landscape"
+                  format="a4"
+                  fitToSinglePage={true}
                 />
               </div>
             </div>

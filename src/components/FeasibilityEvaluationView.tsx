@@ -83,6 +83,8 @@ export default function FeasibilityEvaluationView({
               buttonText="Download All Ratios (PDF)"
               size="sm"
               variant="slate"
+              orientation="landscape"
+              format="a4"
             />
           </div>
         </div>
@@ -274,6 +276,9 @@ export default function FeasibilityEvaluationView({
             buttonText="Download PDF"
             size="xs"
             variant="default"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 
@@ -417,6 +422,9 @@ export default function FeasibilityEvaluationView({
             buttonText="Download PDF"
             size="xs"
             variant="default"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 
@@ -559,6 +567,9 @@ export default function FeasibilityEvaluationView({
             buttonText="Download PDF"
             size="xs"
             variant="default"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 
@@ -746,6 +757,9 @@ export default function FeasibilityEvaluationView({
             buttonText="Download PDF"
             size="xs"
             variant="default"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 

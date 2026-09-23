@@ -161,6 +161,8 @@ export interface WorkingCapitalPolicy {
   minimumCashBalance: number; // Buffer
   discountsAndAllowancesPercent?: number; // Discounts & Allowances Policy (% of Gross Sales)
   discountsAndAllowancesTerms?: string; // Policy terms / description (e.g. "2/10, n/30" or trade discount rate)
+  ownerWithdrawalsPercent?: number; // Owner/s Profit Withdrawals / Drawings Policy (% of Net Income)
+  ownerWithdrawalsTerms?: string; // Policy terms / description (e.g. "Annual dividends / periodic owner drawings")
 }
 
 export type EntityClassification = 'Sole Proprietorship' | 'Partnership' | 'Corporation';
@@ -213,6 +215,7 @@ export interface FeasibilityProject {
   academicProgram: string; // e.g. "BS in Accountancy" or "BS Business Administration"
   institution: string;
   academicYear: string;
+  researchClassification?: string; // e.g. "Undergraduate Feasibility Study & Business Plan"
   currency: CurrencySymbol;
   taxRatePercent: number; // e.g. 25% or 20%
   discountRatePercent: number; // Hurdle rate e.g. 10% or 12%

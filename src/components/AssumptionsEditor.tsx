@@ -1004,6 +1004,9 @@ export default function AssumptionsEditor({
             buttonText="Download Tab PDF"
             size="xs"
             variant="indigo"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
           <button
             onClick={() => setIsExpanded(!isExpanded)}
@@ -1126,6 +1129,9 @@ export default function AssumptionsEditor({
                     buttonText="Download Tab PDF"
                     size="sm"
                     variant="indigo"
+                    orientation="landscape"
+                    format="a4"
+                    fitToSinglePage={true}
                   />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1665,6 +1671,9 @@ export default function AssumptionsEditor({
                     buttonText="Download Tab PDF"
                     size="sm"
                     variant="indigo"
+                    orientation="landscape"
+                    format="a4"
+                    fitToSinglePage={true}
                   />
                 </div>
 
@@ -1875,6 +1884,9 @@ export default function AssumptionsEditor({
                     buttonText="Download Tab PDF"
                     size="sm"
                     variant="indigo"
+                    orientation="landscape"
+                    format="a4"
+                    fitToSinglePage={true}
                   />
                 </div>
                 <CostingTab
@@ -1906,6 +1918,9 @@ export default function AssumptionsEditor({
                     buttonText="Download Tab PDF"
                     size="sm"
                     variant="emerald"
+                    orientation="landscape"
+                    format="a4"
+                    fitToSinglePage={true}
                   />
                 </div>
                 <ProductCostingTab
@@ -1970,6 +1985,9 @@ export default function AssumptionsEditor({
                         buttonText="Download Tab PDF"
                         size="xs"
                         variant="indigo"
+                        orientation="landscape"
+                        format="a4"
+                        fitToSinglePage={true}
                       />
                       <button
                         onClick={() =>
@@ -2313,6 +2331,9 @@ export default function AssumptionsEditor({
                       buttonText="Download Tab PDF"
                       size="sm"
                       variant="amber"
+                      orientation="landscape"
+                      format="a4"
+                      fitToSinglePage={true}
                     />
                     <div className="bg-white border border-amber-200 rounded-xl px-4 py-2.5 shadow-2xs text-right shrink-0">
                       <div className="flex items-center justify-end gap-1.5">
@@ -4382,6 +4403,9 @@ export default function AssumptionsEditor({
                       buttonText="Download Tab PDF"
                       size="sm"
                       variant="indigo"
+                      orientation="landscape"
+                      format="a4"
+                      fitToSinglePage={true}
                     />
                     <button
                       type="button"
@@ -5076,6 +5100,9 @@ export default function AssumptionsEditor({
                       buttonText="Download Tab PDF"
                       size="xs"
                       variant="slate"
+                      orientation="landscape"
+                      format="a4"
+                      fitToSinglePage={true}
                     />
                     <button
                       onClick={() => setShow5YearOpexSchedule(!show5YearOpexSchedule)}
@@ -5533,7 +5560,7 @@ export default function AssumptionsEditor({
                       <span>9. Working Capital Policies & Cash Management</span>
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Accounts receivable days/rates, ending inventory safety stock, accounts payable settlement terms, and discounts.
+                      Accounts receivable days/rates, ending inventory safety stock, accounts payable settlement terms, discounts, and owner/s profit withdrawals.
                     </p>
                   </div>
                   <PdfDownloadButton
@@ -5544,10 +5571,13 @@ export default function AssumptionsEditor({
                     buttonText="Download Tab PDF"
                     size="sm"
                     variant="indigo"
+                    orientation="landscape"
+                    format="a4"
+                    fitToSinglePage={true}
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                   {/* 1. Discounts & Allowances Policy */}
                   <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col justify-between">
                     <div>
@@ -5713,6 +5743,69 @@ export default function AssumptionsEditor({
                         className="w-20 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-financial font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
                       />
                       <span className="text-xs font-semibold text-slate-700">% of Direct Materials</span>
+                    </div>
+                  </div>
+
+                  {/* 5. Owner/s Withdrawals Policy */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-900">
+                          Owner/s Withdrawals Policy
+                        </label>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
+                          Equity Drawings
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="100"
+                          value={
+                            project.workingCapital.ownerWithdrawalsPercent !== undefined
+                              ? project.workingCapital.ownerWithdrawalsPercent
+                              : project.dividendPayoutPercent || 0
+                          }
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+                            onUpdateProject({
+                              ...project,
+                              dividendPayoutPercent: val,
+                              workingCapital: {
+                                ...project.workingCapital,
+                                ownerWithdrawalsPercent: val,
+                              },
+                            });
+                          }}
+                          className="w-20 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-financial font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                        <span className="text-xs font-semibold text-slate-700">% of Net Income</span>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-slate-500 block mb-0.5">
+                          Withdrawal Terms / Frequency:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Annual dividends / periodic owner drawings"
+                          value={project.workingCapital.ownerWithdrawalsTerms || ''}
+                          onChange={(e) =>
+                            onUpdateProject({
+                              ...project,
+                              workingCapital: {
+                                ...project.workingCapital,
+                                ownerWithdrawalsTerms: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -818,13 +818,13 @@ export default function BreakEvenBreakdownModal({
                       </td>
                       <td className="py-2.5 px-3 text-right font-medium">100.0%</td>
                       <td className="py-2.5 px-3 text-right font-financial font-black text-indigo-950 bg-indigo-100/60">
-                        {bepUnits.toLocaleString()} Units
+                        {bepUnits.toLocaleString()}
                       </td>
                       <td className="py-2.5 px-3 text-right font-financial text-indigo-950">
                         {formatCurrency(bepSales, c)}
                       </td>
                       <td className="py-2.5 px-3 text-right font-financial font-black text-emerald-950 bg-emerald-100/60">
-                        {mosUnits.toLocaleString()} Units
+                        {mosUnits.toLocaleString()}
                       </td>
                       <td className="py-2.5 px-3 text-right font-bold text-emerald-800">
                         {formatPercent(mosUnitsRatio)}

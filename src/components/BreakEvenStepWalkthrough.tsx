@@ -109,7 +109,7 @@ export default function BreakEvenStepWalkthrough({
             Break-Even Point Threshold
           </span>
           <span className="text-lg font-bold font-financial text-indigo-950 block mt-0.5">
-            {bepUnits.toLocaleString()} Units
+            {bepUnits.toLocaleString()}
           </span>
           <span className="text-[10px] text-slate-500">
             Equivalent to {formatCurrency(bepSales, c)} Sales
@@ -304,7 +304,7 @@ export default function BreakEvenStepWalkthrough({
                 {formatCurrency(totalFixedCosts, c)} ÷ {formatCurrency(unitContributionMargin, c)}
               </td>
               <td className="py-2.5 px-3 text-right font-financial font-black text-indigo-950 text-sm">
-                {bepUnits.toLocaleString()} Units
+                {bepUnits.toLocaleString()}
               </td>
               <td className="py-2.5 px-3 text-indigo-900 font-semibold text-[11px]">
                 Sales: {formatCurrency(bepSales, c)}
@@ -318,7 +318,7 @@ export default function BreakEvenStepWalkthrough({
                 Planned Units ({roundedUnits.toLocaleString()}) − BEP ({bepUnits.toLocaleString()})
               </td>
               <td className="py-2.5 px-3 text-right font-financial font-black text-emerald-900">
-                {mosUnits.toLocaleString()} Units
+                {mosUnits.toLocaleString()}
               </td>
               <td className="py-2.5 px-3 text-emerald-700 font-bold text-[11px]">
                 {formatPercent(mosUnitsRatio)} volume buffer
@@ -424,7 +424,7 @@ export default function BreakEvenStepWalkthrough({
               <span className="text-xs font-bold text-slate-900">Break-Even Point in Units (BEP)</span>
             </div>
             <span className="text-xs font-bold font-financial text-white bg-indigo-600 px-2 py-0.5 rounded">
-              {bepUnits.toLocaleString()} Units
+              {bepUnits.toLocaleString()}
             </span>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed">
@@ -437,7 +437,7 @@ export default function BreakEvenStepWalkthrough({
             </div>
             <div className="flex justify-between font-semibold pt-1 border-t border-indigo-100 text-indigo-950">
               <span>{formatCurrency(totalFixedCosts, c)} ÷ {formatCurrency(unitContributionMargin, c)}</span>
-              <span>= {bepUnits.toLocaleString()} Units</span>
+              <span>= {bepUnits.toLocaleString()}</span>
             </div>
           </div>
         </div>

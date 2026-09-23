@@ -10,6 +10,8 @@ interface PdfDownloadButtonProps {
   projectTitle?: string;
   companyName?: string;
   orientation?: 'portrait' | 'landscape';
+  format?: 'letter' | 'a4';
+  fitToSinglePage?: boolean;
   buttonText?: string;
   size?: 'xs' | 'sm' | 'md';
   variant?: 'default' | 'emerald' | 'indigo' | 'slate' | 'outline' | 'amber';
@@ -24,6 +26,8 @@ export default function PdfDownloadButton({
   projectTitle,
   companyName,
   orientation,
+  format,
+  fitToSinglePage,
   buttonText = 'Download PDF',
   size = 'sm',
   variant = 'default',
@@ -48,6 +52,8 @@ export default function PdfDownloadButton({
         projectTitle,
         companyName,
         orientation,
+        format,
+        fitToSinglePage,
       };
 
       const ok = await exportElementToPdf(targetId, options);

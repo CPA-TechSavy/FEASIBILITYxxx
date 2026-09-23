@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   FeasibilityProject,
   FeasibilityMetrics,
   YearFinancials,
+  CurrencySymbol,
+  EntityClassification,
+  CompanyAccount,
 } from '../types';
 import {
   BookOpen,
@@ -63,6 +66,133 @@ export default function NotesAndDefenseNotes({
     setIsEditingNotes(false);
   };
 
+  // Note 1.1 Edit State & Handlers
+  const [isEditing1_1, setIsEditing1_1] = useState(false);
+  const [draftEntityName, setDraftEntityName] = useState(
+    project.companyAccount?.entityName || project.title || ''
+  );
+  const [draftClassification, setDraftClassification] = useState<EntityClassification>(
+    project.companyAccount?.classification || 'Sole Proprietorship'
+  );
+  const [draftNature, setDraftNature] = useState(
+    project.companyAccount?.natureOfCompany ||
+      'Manufacturing (Transformation of raw materials into finished products)'
+  );
+  const [draftDateEstablished, setDraftDateEstablished] = useState(
+    project.companyAccount?.dateEstablished || 'Year 0 (Pre-Operating Period)'
+  );
+  const [draftCurrency, setDraftCurrency] = useState<CurrencySymbol>(
+    project.currency || '₱'
+  );
+
+  // Note 1.2 Edit State & Handlers
+  const [isEditing1_2, setIsEditing1_2] = useState(false);
+  const [draftProponents, setDraftProponents] = useState(project.proponents || '');
+  const [draftProgram, setDraftProgram] = useState(project.academicProgram || '');
+  const [draftInstitution, setDraftInstitution] = useState(project.institution || '');
+  const [draftAcademicYear, setDraftAcademicYear] = useState(project.academicYear || '');
+  const [draftResearchClass, setDraftResearchClass] = useState(
+    project.researchClassification || 'Undergraduate Feasibility Study & Business Plan'
+  );
+
+  useEffect(() => {
+    if (!isEditing1_1) {
+      setDraftEntityName(project.companyAccount?.entityName || project.title || '');
+      setDraftClassification(
+        project.companyAccount?.classification || 'Sole Proprietorship'
+      );
+      setDraftNature(
+        project.companyAccount?.natureOfCompany ||
+          'Manufacturing (Transformation of raw materials into finished products)'
+      );
+      setDraftDateEstablished(
+        project.companyAccount?.dateEstablished || 'Year 0 (Pre-Operating Period)'
+      );
+      setDraftCurrency(project.currency || '₱');
+    }
+  }, [project.companyAccount, project.title, project.currency, isEditing1_1]);
+
+  useEffect(() => {
+    if (!isEditing1_2) {
+      setDraftProponents(project.proponents || '');
+      setDraftProgram(project.academicProgram || '');
+      setDraftInstitution(project.institution || '');
+      setDraftAcademicYear(project.academicYear || '');
+      setDraftResearchClass(
+        project.researchClassification || 'Undergraduate Feasibility Study & Business Plan'
+      );
+    }
+  }, [
+    project.proponents,
+    project.academicProgram,
+    project.institution,
+    project.academicYear,
+    project.researchClassification,
+    isEditing1_2,
+  ]);
+
+  const handleSave1_1 = () => {
+    const existingCompany = project.companyAccount;
+    const updatedCompany: CompanyAccount = {
+      entityName: draftEntityName.trim() || project.title,
+      classification: draftClassification,
+      natureOfCompany: draftNature.trim(),
+      purposeOfEntity:
+        existingCompany?.purposeOfEntity ||
+        'Engaged in the development, production, and commercial marketing of high-quality goods designed to cater to target market demand efficiently and profitably.',
+      dateEstablished: draftDateEstablished.trim(),
+      soleProprietorship: existingCompany?.soleProprietorship,
+      partnership: existingCompany?.partnership,
+      corporation: existingCompany?.corporation,
+    };
+    onUpdateProject({
+      ...project,
+      title: draftEntityName.trim() || project.title,
+      currency: draftCurrency,
+      companyAccount: updatedCompany,
+    });
+    setIsEditing1_1(false);
+  };
+
+  const handleCancel1_1 = () => {
+    setDraftEntityName(project.companyAccount?.entityName || project.title || '');
+    setDraftClassification(
+      project.companyAccount?.classification || 'Sole Proprietorship'
+    );
+    setDraftNature(
+      project.companyAccount?.natureOfCompany ||
+        'Manufacturing, Merchandising & Commercial Production'
+    );
+    setDraftDateEstablished(
+      project.companyAccount?.dateEstablished || 'Year 0 (Pre-Operating Period)'
+    );
+    setDraftCurrency(project.currency || '₱');
+    setIsEditing1_1(false);
+  };
+
+  const handleSave1_2 = () => {
+    onUpdateProject({
+      ...project,
+      proponents: draftProponents.trim(),
+      academicProgram: draftProgram.trim(),
+      institution: draftInstitution.trim(),
+      academicYear: draftAcademicYear.trim(),
+      researchClassification: draftResearchClass.trim(),
+    });
+    setIsEditing1_2(false);
+  };
+
+  const handleCancel1_2 = () => {
+    setDraftProponents(project.proponents || '');
+    setDraftProgram(project.academicProgram || '');
+    setDraftInstitution(project.institution || '');
+    setDraftAcademicYear(project.academicYear || '');
+    setDraftResearchClass(
+      project.researchClassification || 'Undergraduate Feasibility Study & Business Plan'
+    );
+    setIsEditing1_2(false);
+  };
+
   // Calculations for Note 4: Initial Capital Investment
   const preOpTotal = (project.preOperatingExpenses || []).reduce(
     (sum, item) => sum + (item.amount || 0),
@@ -87,7 +217,7 @@ export default function NotesAndDefenseNotes({
   const entityName = company?.entityName || project.title;
   const legalForm = company?.classification || 'Sole Proprietorship';
   const natureOfBusiness =
-    company?.natureOfCompany || 'Manufacturing, Merchandising & Commercial Production';
+    company?.natureOfCompany || 'Manufacturing (Transformation of raw materials into finished products)';
   const businessPurpose =
     company?.purposeOfEntity ||
     `Engaged in the development, production, and commercial marketing of high-quality goods designed to cater to target market demand efficiently and profitably.`;
@@ -143,9 +273,11 @@ export default function NotesAndDefenseNotes({
             title="Notes to Projected Financial Statements"
             subtitle={`${entityName} • PFRS for Small Entities Disclosures (Notes 1 to 7)`}
             projectTitle={project.title}
-            buttonText="Download Notes PDF"
+            buttonText="Download Notes PDF (A4)"
             size="sm"
             variant="indigo"
+            format="a4"
+            orientation="portrait"
           />
         </div>
       </div>
@@ -196,7 +328,7 @@ export default function NotesAndDefenseNotes({
             href="#note-7"
             className="px-2.5 py-1 rounded-md bg-white border border-slate-200 hover:text-indigo-600 hover:border-indigo-300 transition shrink-0"
           >
-            Note 7: Proponent Sign-Off
+            Note 7: Authorization & Approval
           </a>
         </div>
       )}
@@ -298,51 +430,317 @@ export default function NotesAndDefenseNotes({
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div>
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                    1.1 Entity Profile & Legal Structure
-                  </span>
-                  <div className="mt-2 space-y-1 text-xs">
-                    <p>
-                      <strong>Business Name:</strong> {entityName}
-                    </p>
-                    <p>
-                      <strong>Form of Organization:</strong> {legalForm}
-                    </p>
-                    <p>
-                      <strong>Nature of Business:</strong> {natureOfBusiness}
-                    </p>
-                    <p>
-                      <strong>Study Inception / Date:</strong>{' '}
-                      {company?.dateEstablished || 'Year 0 (Pre-Operating Period)'}
-                    </p>
-                    <p>
-                      <strong>Operating Currency:</strong> Philippine Peso ({project.currency})
-                    </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Note 1.1: Entity Profile & Legal Structure */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="w-4 h-4 text-indigo-600" />
+                        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                          Table 1.1 — Entity Profile & Legal Structure
+                        </span>
+                      </div>
+                      <div className="no-print flex items-center gap-1.5">
+                        {isEditing1_1 ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleCancel1_1}
+                              className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSave1_1}
+                              className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            >
+                              <Check className="w-3 h-3" /> Save 1.1
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditing1_1(true)}
+                            className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            title="Edit Note 1.1 Information"
+                          >
+                            <Edit3 className="w-3 h-3 text-indigo-600" /> Edit 1.1
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditing1_1 ? (
+                      <div className="space-y-2.5 py-1">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Business / Entity Name
+                          </label>
+                          <input
+                            type="text"
+                            value={draftEntityName}
+                            onChange={(e) => setDraftEntityName(e.target.value)}
+                            placeholder="e.g. EcoBrew Cafe"
+                            className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Form of Organization
+                            </label>
+                            <select
+                              value={draftClassification}
+                              onChange={(e) =>
+                                setDraftClassification(e.target.value as EntityClassification)
+                              }
+                              className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                            >
+                              <option value="Sole Proprietorship">Sole Proprietorship</option>
+                              <option value="Partnership">Partnership</option>
+                              <option value="Corporation">Corporation</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Operating Currency
+                            </label>
+                            <select
+                              value={draftCurrency}
+                              onChange={(e) =>
+                                setDraftCurrency(e.target.value as CurrencySymbol)
+                              }
+                              className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                            >
+                              <option value="₱">₱ (PHP - Philippine Peso)</option>
+                              <option value="$">$ (USD - US Dollar)</option>
+                              <option value="€">€ (EUR - Euro)</option>
+                              <option value="£">£ (GBP - British Pound)</option>
+                              <option value="¥">¥ (JPY - Japanese Yen)</option>
+                              <option value="₹">₹ (INR - Indian Rupee)</option>
+                              <option value="S$">S$ (SGD - Singapore Dollar)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Nature of Business
+                          </label>
+                          <input
+                            type="text"
+                            value={draftNature}
+                            onChange={(e) => setDraftNature(e.target.value)}
+                            placeholder="e.g. Manufacturing, Merchandising & Commercial Production"
+                            className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Study Inception / Date Established
+                          </label>
+                          <input
+                            type="text"
+                            value={draftDateEstablished}
+                            onChange={(e) => setDraftDateEstablished(e.target.value)}
+                            placeholder="e.g. Year 0 (Pre-Operating Period)"
+                            className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table className="w-full text-xs text-left bg-white">
+                          <thead className="bg-slate-100/90 text-slate-600 font-bold text-[10px] uppercase border-b border-slate-200">
+                            <tr>
+                              <th className="py-2 px-3 w-5/12">Corporate Parameter</th>
+                              <th className="py-2 px-3">Disclosure Details</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Business / Entity Name</td>
+                              <td className="py-2 px-3 font-bold text-slate-900">{entityName}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Form of Organization</td>
+                              <td className="py-2 px-3 font-semibold text-indigo-900">{legalForm}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Nature of Business</td>
+                              <td className="py-2 px-3 text-slate-800">{natureOfBusiness}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Study Inception / Date</td>
+                              <td className="py-2 px-3 text-slate-700">
+                                {company?.dateEstablished || 'Year 0 (Pre-Operating Period)'}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Operating Currency</td>
+                              <td className="py-2 px-3 font-medium text-slate-900">
+                                Philippine Peso ({project.currency})
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div>
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                    1.2 Academic Proponents & Institution
-                  </span>
-                  <div className="mt-2 space-y-1 text-xs">
-                    <p>
-                      <strong>Lead Proponents:</strong> {project.proponents}
-                    </p>
-                    <p>
-                      <strong>Academic Degree Program:</strong> {project.academicProgram}
-                    </p>
-                    <p>
-                      <strong>Institution / College:</strong> {project.institution}
-                    </p>
-                    <p>
-                      <strong>Academic Year:</strong> {project.academicYear}
-                    </p>
-                    <p>
-                      <strong>Research Classification:</strong> Undergraduate Feasibility Study & Business Plan
-                    </p>
+                {/* Note 1.2: Academic Proponents & Institution */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-indigo-600" />
+                        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                          Table 1.2 — Academic Proponents & Institution
+                        </span>
+                      </div>
+                      <div className="no-print flex items-center gap-1.5">
+                        {isEditing1_2 ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleCancel1_2}
+                              className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSave1_2}
+                              className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            >
+                              <Check className="w-3 h-3" /> Save 1.2
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditing1_2(true)}
+                            className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            title="Edit Note 1.2 Information"
+                          >
+                            <Edit3 className="w-3 h-3 text-indigo-600" /> Edit 1.2
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditing1_2 ? (
+                      <div className="space-y-2.5 py-1">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Lead Proponents / Authors
+                          </label>
+                          <input
+                            type="text"
+                            value={draftProponents}
+                            onChange={(e) => setDraftProponents(e.target.value)}
+                            placeholder="e.g. Juan Dela Cruz, Maria Santos, Pedro Reyes"
+                            className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Academic Degree Program
+                          </label>
+                          <input
+                            type="text"
+                            value={draftProgram}
+                            onChange={(e) => setDraftProgram(e.target.value)}
+                            placeholder="e.g. BS in Accountancy / BSBA Financial Management"
+                            className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Higher Education Institution / College
+                          </label>
+                          <input
+                            type="text"
+                            value={draftInstitution}
+                            onChange={(e) => setDraftInstitution(e.target.value)}
+                            placeholder="e.g. University of the Philippines Diliman"
+                            className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Academic School Year
+                            </label>
+                            <input
+                              type="text"
+                              value={draftAcademicYear}
+                              onChange={(e) => setDraftAcademicYear(e.target.value)}
+                              placeholder="e.g. A.Y. 2025–2026"
+                              className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              Research Classification
+                            </label>
+                            <input
+                              type="text"
+                              value={draftResearchClass}
+                              onChange={(e) => setDraftResearchClass(e.target.value)}
+                              placeholder="e.g. Undergraduate Feasibility Study & Business Plan"
+                              className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 font-medium"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table className="w-full text-xs text-left bg-white">
+                          <thead className="bg-slate-100/90 text-slate-600 font-bold text-[10px] uppercase border-b border-slate-200">
+                            <tr>
+                              <th className="py-2 px-3 w-5/12">Academic Parameter</th>
+                              <th className="py-2 px-3">Proponents & Institution Details</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Lead Proponents</td>
+                              <td className="py-2 px-3 font-bold text-slate-900">{project.proponents}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Academic Degree Program</td>
+                              <td className="py-2 px-3 text-slate-800">{project.academicProgram}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Institution / College</td>
+                              <td className="py-2 px-3 font-medium text-slate-900">{project.institution}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Academic Year</td>
+                              <td className="py-2 px-3 text-slate-700">{project.academicYear}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-600">Research Classification</td>
+                              <td className="py-2 px-3 text-slate-700">
+                                {project.researchClassification ||
+                                  'Undergraduate Feasibility Study & Business Plan'}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2001,35 +2399,6 @@ export default function NotesAndDefenseNotes({
                 <span className="font-semibold text-slate-900">{project.institution}</span>, and have been examined and approved
                 for official presentation and defense before the academic faculty panel.
               </p>
-
-              {/* Sign-Off Block */}
-              <div className="pt-6 mt-6 border-t border-slate-300">
-                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-8 text-center sm:text-left">
-                  PREPARED, RESPECTFULLY SUBMITTED, AND ENDORSED BY:
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 text-center text-xs">
-                  {project.proponents
-                    .split(',')
-                    .map((p) => p.trim())
-                    .filter(Boolean)
-                    .map((proponentName, idx) => (
-                      <div key={idx}>
-                        <div className="border-b border-slate-800 pb-1 mb-1 font-bold text-slate-900">
-                          {proponentName}
-                        </div>
-                        <div className="text-slate-500 text-[11px]">
-                          {idx === 0 ? 'Lead Proponent / Project Manager' : `Student Co-Proponent / Researcher`}
-                        </div>
-                      </div>
-                    ))}
-                  <div>
-                    <div className="border-b border-slate-800 pb-1 mb-1 font-bold text-slate-900">
-                      Feasibility Study Adviser / CPA
-                    </div>
-                    <div className="text-slate-500 text-[11px]">Faculty Research Adviser</div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

@@ -32,12 +32,6 @@ interface CompanyAccountModalProps {
 
 const NATURE_PRESETS = [
   'Manufacturing (Transformation of raw materials into finished products)',
-  'Merchandising & Trading (Wholesale and retail distribution)',
-  'Commercial Services & Operations (Professional & specialized services)',
-  'Food & Beverage / Hospitality (Culinary, dining & cafe operations)',
-  'Agri-Business & Farming (Agricultural cultivation & processing)',
-  'Information Technology & Software (Digital services & tech platforms)',
-  'Hybrid / Multi-disciplinary Enterprise',
 ];
 
 export default function CompanyAccountModal({
@@ -54,7 +48,9 @@ export default function CompanyAccountModal({
   // Step 1 Form States
   const [entityName, setEntityName] = useState('');
   const [classification, setClassification] = useState<EntityClassification>('Sole Proprietorship');
-  const [natureOfCompany, setNatureOfCompany] = useState('');
+  const [natureOfCompany, setNatureOfCompany] = useState(
+    'Manufacturing (Transformation of raw materials into finished products)'
+  );
   const [customNature, setCustomNature] = useState('');
   const [purposeOfEntity, setPurposeOfEntity] = useState('');
 
@@ -86,18 +82,8 @@ export default function CompanyAccountModal({
           : 'Sole Proprietorship'
       );
       setPurposeOfEntity(ca.purposeOfEntity || '');
-
-      const isPreset = NATURE_PRESETS.includes(ca.natureOfCompany);
-      if (isPreset) {
-        setNatureOfCompany(ca.natureOfCompany);
-        setCustomNature('');
-      } else if (ca.natureOfCompany) {
-        setNatureOfCompany('Other');
-        setCustomNature(ca.natureOfCompany);
-      } else {
-        setNatureOfCompany('');
-        setCustomNature('');
-      }
+      setNatureOfCompany('Manufacturing (Transformation of raw materials into finished products)');
+      setCustomNature('');
 
       if (ca.soleProprietorship) {
         setOwnerName(ca.soleProprietorship.ownerName || project.proponents || '');
@@ -115,7 +101,7 @@ export default function CompanyAccountModal({
       // Defaults from current project
       setEntityName(project.title || '');
       setClassification('Sole Proprietorship');
-      setNatureOfCompany('');
+      setNatureOfCompany('Manufacturing (Transformation of raw materials into finished products)');
       setCustomNature('');
       setOwnerName(project.proponents || '');
       setOwnerCapital(project.financing.equityContribution || 500000);
@@ -134,11 +120,7 @@ export default function CompanyAccountModal({
       setStep1Error('Please enter the Name of the Entity.');
       return;
     }
-    const finalNature = natureOfCompany === 'Other' ? customNature.trim() : natureOfCompany.trim();
-    if (!finalNature) {
-      setStep1Error('Please specify or select the Nature of the Company.');
-      return;
-    }
+    const finalNature = 'Manufacturing (Transformation of raw materials into finished products)';
     if (!purposeOfEntity.trim()) {
       setStep1Error('Please state the primary purpose or business objective of the entity.');
       return;
@@ -188,7 +170,7 @@ export default function CompanyAccountModal({
   // Final Submission: Proceed to Main Screen
   const handleSaveAndProceedToMainScreen = () => {
     setStep2Error(null);
-    const finalNature = natureOfCompany === 'Other' ? customNature.trim() : natureOfCompany.trim();
+    const finalNature = 'Manufacturing (Transformation of raw materials into finished products)';
 
     let equityContribution = 0;
 
@@ -306,7 +288,7 @@ export default function CompanyAccountModal({
 
             <button
               onClick={() => {
-                if (entityName.trim() && (natureOfCompany || customNature) && purposeOfEntity.trim()) {
+                if (entityName.trim() && purposeOfEntity.trim()) {
                   setStep(2);
                 }
               }}
@@ -420,30 +402,17 @@ export default function CompanyAccountModal({
                 <select
                   value={natureOfCompany}
                   onChange={(e) => setNatureOfCompany(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-300 focus:border-indigo-600 rounded-xl outline-hidden text-slate-900 font-medium"
+                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-300 focus:border-indigo-600 rounded-xl outline-hidden text-slate-900 font-medium cursor-pointer"
                 >
-                  <option value="" disabled>
-                    -- Select Nature of Company --
-                  </option>
                   {NATURE_PRESETS.map((preset) => (
                     <option key={preset} value={preset}>
                       {preset}
                     </option>
                   ))}
-                  <option value="Other">Other / Custom Industry Classification...</option>
                 </select>
-
-                {natureOfCompany === 'Other' && (
-                  <div className="mt-2">
-                    <input
-                      type="text"
-                      value={customNature}
-                      onChange={(e) => setCustomNature(e.target.value)}
-                      placeholder="Specify company industry / business line (e.g. Eco-friendly cold-pressed oil refinery)"
-                      className="w-full px-3 py-2 text-sm bg-white border border-indigo-400 rounded-xl outline-hidden text-slate-900 font-medium"
-                    />
-                  </div>
-                )}
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Focus: Manufacturing operations and raw material conversion.
+                </p>
               </div>
 
               {/* 4. Purpose of the Entity */}

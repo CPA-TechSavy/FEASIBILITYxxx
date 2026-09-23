@@ -161,8 +161,12 @@ export function calculatePartnersEquitySchedule(
     const yr = y.year;
 
     const totalNetIncome = y.netIncome;
+    const withdrawalPercent =
+      project.workingCapital?.ownerWithdrawalsPercent !== undefined
+        ? project.workingCapital.ownerWithdrawalsPercent
+        : (project.dividendPayoutPercent || 0);
     const totalDividends =
-      yr > 0 && totalNetIncome > 0 ? totalNetIncome * ((project.dividendPayoutPercent || 0) / 100) : 0;
+      yr > 0 && totalNetIncome > 0 ? totalNetIncome * (withdrawalPercent / 100) : 0;
     const targetTotalEquity = y.totalEquity;
 
     schedules.forEach((p) => {
@@ -210,7 +214,11 @@ export function calculateSoleProprietorEquitySchedule(
     const prevEnding = yr === 0 ? 0 : movements[yrIndex - 1].endingCapital;
     const addContrib = yr === 0 ? y.paidInCapital : 0;
     const netIncome = y.netIncome;
-    const drawings = yr > 0 && netIncome > 0 ? netIncome * ((project.dividendPayoutPercent || 0) / 100) : 0;
+    const withdrawalPercent =
+      project.workingCapital?.ownerWithdrawalsPercent !== undefined
+        ? project.workingCapital.ownerWithdrawalsPercent
+        : (project.dividendPayoutPercent || 0);
+    const drawings = yr > 0 && netIncome > 0 ? netIncome * (withdrawalPercent / 100) : 0;
     const endingCapital = y.totalEquity;
 
     movements.push({

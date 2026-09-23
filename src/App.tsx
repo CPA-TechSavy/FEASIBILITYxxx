@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, ComponentType } from 'react';
+import { useState, useMemo, useEffect, useCallback, ComponentType } from 'react';
 import { FeasibilityProject } from './types';
 import { BLANK_PROJECT, SAMPLE_PROJECTS } from './data/sampleProjects';
 import {
@@ -15,6 +15,20 @@ import NotesAndDefenseNotes from './components/NotesAndDefenseNotes';
 import CloudflareDeployModal from './components/CloudflareDeployModal';
 import BankInterestAndLoanModal from './components/BankInterestAndLoanModal';
 import CompanyAccountModal from './components/CompanyAccountModal';
+import LoginPage from './components/LoginPage';
+import InstallAppModal from './components/InstallAppModal';
+import AccessPendingScreen from './components/AccessPendingScreen';
+import AdminAccessModal from './components/AdminAccessModal';
+import { usePwaInstall } from './hooks/usePwaInstall';
+import { useInactivityTimeout } from './hooks/useInactivityTimeout';
+import { auth, logOut, onAuthStateChanged } from './firebase';
+import {
+  checkIsAdmin,
+  checkAccessStatus,
+  requestWebsiteAccess,
+  handleUrlApprovalAction,
+  AccessRequestRecord,
+} from './services/accessControlService';
 import {
   FileText,
   BarChart3,
@@ -69,6 +83,172 @@ export default function App() {
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
+  // PWA installation hook
+  const {
+    isInstallable,
+    isInstalled,
+    isIOS,
+    showInstructions,
+    setShowInstructions,
+    promptInstall,
+  } = usePwaInstall();
+
+  // Google Authentication state
+  const [currentUser, setCurrentUser] = useState<{
+    displayName?: string | null;
+    email?: string | null;
+    photoURL?: string | null;
+  } | null>(() => {
+    try {
+      const cached = localStorage.getItem('nobs_auth_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Access status state
+  const [accessStatus, setAccessStatus] = useState<'loading' | 'approved' | 'pending' | 'rejected'>('loading');
+  const [requestRecord, setRequestRecord] = useState<AccessRequestRecord | undefined>(undefined);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [urlApprovalNotice, setUrlApprovalNotice] = useState<string | null>(null);
+  const [inactivityNotice, setInactivityNotice] = useState(false);
+
+  const isAdmin = checkIsAdmin(currentUser?.email);
+
+  // Handle one-click URL approval action from John Joebert Suarez's Gmail
+  useEffect(() => {
+    handleUrlApprovalAction().then((res) => {
+      if (res.handled) {
+        if (res.action === 'approved') {
+          setUrlApprovalNotice(
+            `Access successfully granted for ${res.email}! The account is now authorized to use and install NoBSFeasibility.`
+          );
+        } else if (res.action === 'rejected') {
+          setUrlApprovalNotice(`Access rejected for ${res.email}.`);
+        } else if (res.error) {
+          setUrlApprovalNotice(`Notice: ${res.error}`);
+        }
+      }
+    });
+  }, []);
+
+  // Firebase Auth state listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const userObj = {
+          displayName: firebaseUser.displayName || 'Google User',
+          email: firebaseUser.email,
+          photoURL: firebaseUser.photoURL,
+        };
+        setCurrentUser(userObj);
+        try {
+          localStorage.setItem('nobs_auth_user', JSON.stringify(userObj));
+        } catch {
+          // ignore
+        }
+      } else {
+        const cached = localStorage.getItem('nobs_auth_user');
+        if (!cached) {
+          setCurrentUser(null);
+        }
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Verify access authorization for logged-in user
+  useEffect(() => {
+    if (!currentUser || !currentUser.email) {
+      setAccessStatus('loading');
+      return;
+    }
+
+    // Owner/Admin has permanent instant access
+    if (checkIsAdmin(currentUser.email)) {
+      setAccessStatus('approved');
+      return;
+    }
+
+    let isMounted = true;
+    checkAccessStatus(currentUser.email).then(async (result) => {
+      if (!isMounted) return;
+
+      if (result.status === 'approved') {
+        setAccessStatus('approved');
+        setRequestRecord(result.record);
+      } else if (result.status === 'pending' || result.status === 'rejected') {
+        setAccessStatus(result.status);
+        setRequestRecord(result.record);
+      } else {
+        // Not requested yet: create request and dispatch email notification to suarezjohnjoebertcpa@gmail.com
+        try {
+          const rec = await requestWebsiteAccess({
+            email: currentUser.email!,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+          });
+          if (!isMounted) return;
+          setRequestRecord(rec);
+          setAccessStatus('pending');
+        } catch (err) {
+          console.error('Failed to submit access request:', err);
+          if (isMounted) setAccessStatus('pending');
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await logOut();
+    } catch (e) {
+      console.warn('Sign out error:', e);
+    }
+    setCurrentUser(null);
+    setAccessStatus('loading');
+    try {
+      localStorage.removeItem('nobs_auth_user');
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // 3-hour inactivity auto-logout:
+  // Automatically logs out user after 3 hours without activity and shows prompt to re-enter
+  const handleInactivityLogout = useCallback(() => {
+    handleSignOut();
+    setInactivityNotice(true);
+  }, [handleSignOut]);
+
+  useInactivityTimeout({
+    enabled: !!currentUser && accessStatus === 'approved',
+    timeoutMs: 3 * 60 * 60 * 1000,
+    onTimeout: handleInactivityLogout,
+  });
+
+  const handleLoginSuccess = (user: {
+    displayName?: string | null;
+    email?: string | null;
+    photoURL?: string | null;
+  }) => {
+    setInactivityNotice(false);
+    setCurrentUser(user);
+    try {
+      localStorage.setItem('nobs_auth_user', JSON.stringify(user));
+    } catch {
+      // ignore
+    }
+  };
+
   // Auto-save to localStorage
   useEffect(() => {
     try {
@@ -87,8 +267,76 @@ export default function App() {
     return calculateFeasibilityMetrics(project, financials);
   }, [project, financials]);
 
+  // If loading auth state initially
+  if (authLoading && !currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-4">
+          <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+        <div className="text-sm font-bold text-slate-200">NoBSFeasibility</div>
+        <div className="text-xs text-slate-400 mt-1">Verifying Google Authentication...</div>
+      </div>
+    );
+  }
+
+  // 1. If user is not authenticated: Gate with Google Login Screen
+  if (!currentUser) {
+    return (
+      <LoginPage
+        onSuccessLogin={handleLoginSuccess}
+        inactivityNotice={inactivityNotice}
+      />
+    );
+  }
+
+  // 2. If user is signed in but pending or rejected by John Joebert Suarez:
+  if (accessStatus === 'pending' || accessStatus === 'rejected') {
+    return (
+      <AccessPendingScreen
+        user={{
+          email: currentUser.email || '',
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+        }}
+        requestRecord={requestRecord}
+        onApproved={() => setAccessStatus('approved')}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
+
+  // 3. If verifying access status for a signed-in user
+  if (accessStatus === 'loading') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-4">
+          <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+        <div className="text-sm font-bold text-slate-200">NoBSFeasibility</div>
+        <div className="text-xs text-slate-400 mt-1">Verifying account permissions with administrator...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-100/70 text-slate-900 pb-20 md:pb-0">
+      {/* URL Approval Notification Banner */}
+      {urlApprovalNotice && (
+        <div className="bg-emerald-900 text-emerald-100 px-4 py-2.5 text-xs font-semibold flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{urlApprovalNotice}</span>
+          </div>
+          <button
+            onClick={() => setUrlApprovalNotice(null)}
+            className="text-emerald-300 hover:text-white text-xs px-2 py-0.5 rounded cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Navigation Header */}
       <Header
         project={project}
@@ -98,6 +346,12 @@ export default function App() {
         onOpenCloudflareModal={() => setIsCloudflareModalOpen(true)}
         onOpenBankModal={() => setIsBankModalOpen(true)}
         onOpenCompanyModal={() => setIsCompanyModalOpen(true)}
+        onOpenInstallModal={() => setShowInstructions(true)}
+        isInstalled={isInstalled}
+        isAdmin={isAdmin}
+        onOpenAdminModal={() => setIsAdminModalOpen(true)}
+        currentUser={currentUser}
+        onSignOut={handleSignOut}
       />
 
       {/* Main Container */}
@@ -321,6 +575,22 @@ export default function App() {
           onClose={() => setIsCompanyModalOpen(false)}
           project={project}
           onUpdateProject={setProject}
+        />
+      )}
+
+      {/* PWA Install Instructions & Direct Prompt Modal */}
+      <InstallAppModal
+        isOpen={showInstructions}
+        onClose={() => setShowInstructions(false)}
+        onInstallDirectly={promptInstall}
+        isIOS={isIOS}
+      />
+
+      {/* Admin User Access Control Modal for John Joebert Suarez */}
+      {isAdmin && (
+        <AdminAccessModal
+          isOpen={isAdminModalOpen}
+          onClose={() => setIsAdminModalOpen(false)}
         />
       )}
     </div>

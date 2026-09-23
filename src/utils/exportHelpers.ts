@@ -16,12 +16,12 @@ export function downloadFile(content: string, filename: string, mimeType: string
 }
 
 /**
- * Export project assumptions to JSON file
+ * Export project assumptions and all details to JSON file
  */
 export function exportProjectJSON(project: FeasibilityProject) {
   const dataStr = JSON.stringify(project, null, 2);
-  const safeTitle = project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  downloadFile(dataStr, `${safeTitle}_feasibility_model.json`, 'application/json');
+  const safeTitle = (project.title || 'feasibility_study').trim().replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'feasibility_project';
+  downloadFile(dataStr, `${safeTitle}_backup.json`, 'application/json');
 }
 
 /**

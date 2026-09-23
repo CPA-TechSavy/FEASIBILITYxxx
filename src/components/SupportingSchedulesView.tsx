@@ -87,6 +87,8 @@ export default function SupportingSchedulesView({
             buttonText="Download All Schedules (PDF)"
             size="md"
             variant="slate"
+            orientation="landscape"
+            format="a4"
           />
           {onOpenBankModal && (
             <button
@@ -139,6 +141,9 @@ export default function SupportingSchedulesView({
               buttonText="Download PDF"
               size="xs"
               variant="emerald"
+              orientation="landscape"
+              format="a4"
+              fitToSinglePage={true}
             />
             {onOpenBankModal && (
               <button
@@ -333,6 +338,9 @@ export default function SupportingSchedulesView({
             buttonText="Download PDF"
             size="xs"
             variant="indigo"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 
@@ -450,6 +458,9 @@ export default function SupportingSchedulesView({
             buttonText="Download PDF"
             size="xs"
             variant="default"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 
@@ -631,6 +642,9 @@ export default function SupportingSchedulesView({
             buttonText="Download PDF"
             size="xs"
             variant="default"
+            orientation="landscape"
+            format="a4"
+            fitToSinglePage={true}
           />
         </div>
 
@@ -764,6 +778,9 @@ export default function SupportingSchedulesView({
               buttonText="Download PDF"
               size="xs"
               variant="indigo"
+              orientation="landscape"
+              format="a4"
+              fitToSinglePage={true}
             />
             {onOpenBankModal && (
               <button

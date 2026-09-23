@@ -64,6 +64,8 @@ export const BLANK_PROJECT: FeasibilityProject = {
     accountsPayablePercentOfPurchases: 0,
     minimumCashBalance: 0,
     discountsAndAllowancesPercent: 0,
+    ownerWithdrawalsPercent: 0,
+    ownerWithdrawalsTerms: 'Annual dividend distribution / periodic owner drawings',
   },
 
   academicNotes:
