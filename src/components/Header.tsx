@@ -1,16 +1,13 @@
 import React, { useRef, useState } from 'react';
 import {
   Calculator,
+  Cloud,
   Building2,
   PlusCircle,
   FileDown,
   Upload,
   Check,
   AlertCircle,
-  Download,
-  LogOut,
-  User as UserIcon,
-  ShieldCheck,
 } from 'lucide-react';
 import { CurrencySymbol, FeasibilityProject, YearFinancials, FeasibilityMetrics } from '../types';
 import { exportProjectJSON } from '../utils/exportHelpers';
@@ -21,19 +18,9 @@ interface HeaderProps {
   onUpdateProject: (p: FeasibilityProject) => void;
   financials: YearFinancials[];
   metrics: FeasibilityMetrics;
-  onOpenCloudflareModal?: () => void;
+  onOpenCloudflareModal: () => void;
   onOpenBankModal?: () => void;
   onOpenCompanyModal: () => void;
-  onOpenInstallModal?: () => void;
-  isInstalled?: boolean;
-  isAdmin?: boolean;
-  onOpenAdminModal?: () => void;
-  currentUser?: {
-    displayName?: string | null;
-    email?: string | null;
-    photoURL?: string | null;
-  } | null;
-  onSignOut?: () => void;
 }
 
 const CURRENCIES: { symbol: CurrencySymbol; label: string }[] = [
@@ -54,12 +41,6 @@ export default function Header({
   onOpenCloudflareModal,
   onOpenBankModal,
   onOpenCompanyModal,
-  onOpenInstallModal,
-  isInstalled,
-  isAdmin,
-  onOpenAdminModal,
-  currentUser,
-  onSignOut,
 }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -185,7 +166,7 @@ export default function Header({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="hidden sm:inline font-bold text-sm sm:text-base md:text-lg tracking-tight text-white shrink-0">
+                  <span className="font-bold text-sm sm:text-base md:text-lg tracking-tight text-white shrink-0">
                     NoBSFeasibility
                   </span>
                   <button
@@ -317,70 +298,16 @@ export default function Header({
                 className="hidden"
               />
 
-              {/* Install / Download App button: on mobile, shows icon ONLY */}
-              {onOpenInstallModal && !isInstalled && (
-                <button
-                  type="button"
-                  onClick={onOpenInstallModal}
-                  aria-label="Install website as an app on phone or computer"
-                  title="Install / Download NoBSFeasibility to your phone or computer for instant home screen access"
-                  className="h-8 w-8 sm:h-9 sm:w-auto p-0 sm:px-2.5 text-xs rounded-lg bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/60 font-semibold text-emerald-200 hover:text-white flex items-center justify-center transition cursor-pointer shadow-xs shrink-0"
-                >
-                  <Download className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="hidden sm:inline ml-1.5">Install App</span>
-                </button>
-              )}
-
-              {/* Admin Access Control Button (Visible to John Joebert Suarez) */}
-              {isAdmin && onOpenAdminModal && (
-                <button
-                  type="button"
-                  onClick={onOpenAdminModal}
-                  aria-label="Manage User Access Requests"
-                  title="Manage Google accounts requesting access to NoBSFeasibility"
-                  className="h-8 w-8 sm:h-9 sm:w-auto p-0 sm:px-2.5 text-xs rounded-lg bg-indigo-900/90 hover:bg-indigo-800 border border-indigo-500/70 font-bold text-indigo-100 hover:text-white flex items-center justify-center transition cursor-pointer shadow-xs shrink-0"
-                >
-                  <ShieldCheck className="w-4 h-4 text-indigo-300 shrink-0" />
-                  <span className="hidden sm:inline ml-1.5">User Access</span>
-                </button>
-              )}
-
-              {/* User Account & Sign Out */}
-              {currentUser && (
-                <div className="flex items-center gap-1.5 pl-1.5 sm:pl-2 border-l border-slate-700/80 shrink-0">
-                  <div
-                    className="flex items-center gap-1.5 py-1 px-1.5 sm:px-2 rounded-lg bg-slate-800/80 border border-slate-700 max-w-[120px] sm:max-w-[180px] overflow-hidden"
-                    title={`Signed in as ${currentUser.displayName || currentUser.email}`}
-                  >
-                    {currentUser.photoURL ? (
-                      <img
-                        src={currentUser.photoURL}
-                        alt="Profile"
-                        className="w-5 h-5 rounded-full object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                        {(currentUser.displayName || currentUser.email || 'U').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span className="text-[11px] font-medium text-slate-200 truncate hidden sm:inline">
-                      {currentUser.displayName || currentUser.email}
-                    </span>
-                  </div>
-
-                  {onSignOut && (
-                    <button
-                      type="button"
-                      onClick={onSignOut}
-                      aria-label="Sign Out of Google account"
-                      title="Sign Out of your Google account"
-                      className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg bg-slate-800 hover:bg-rose-950/70 border border-slate-700 hover:border-rose-700/60 text-slate-400 hover:text-rose-300 flex items-center justify-center transition cursor-pointer shadow-xs shrink-0"
-                    >
-                      <LogOut className="w-3.5 h-3.5 shrink-0" />
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* Publish Button: on mobile, shows icon ONLY */}
+              <button
+                onClick={onOpenCloudflareModal}
+                aria-label="How to publish this app to Cloudflare Pages for free"
+                title="How to publish this app to Cloudflare Pages for free"
+                className="h-8 w-8 sm:h-9 sm:w-auto p-0 sm:px-3 text-xs rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-semibold shadow flex items-center justify-center transition cursor-pointer shrink-0"
+              >
+                <Cloud className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline ml-1.5">Publish</span>
+              </button>
             </div>
           </div>
         </div>
